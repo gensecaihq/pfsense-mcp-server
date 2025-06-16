@@ -21,7 +21,7 @@ A production-grade Model Context Protocol (MCP) server that enables natural lang
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/pfsense-mcp-server.git
+git clone https://github.com/gensecaihq/pfsense-mcp-server.git
 cd pfsense-mcp-server
 
 # Copy environment template
