@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  pfsense-mcp:
+    build: .
+    image: pfsense-mcp:latest
+    container_name: pfsense-mcp-server
+    restart: unless-stopped
+    
+    environment:
+      # MCP Mode (stdio for Claude Desktop, http for API)
+      MCP_MODE: http
+      
+      # pfSense Connection
+      PFSENSE_URL: ${PFSENSE_URL}
+      PFSENSE_CONNECTION_METHOD: ${PFSENSE_CONNECTION_METHOD:-rest}
+      PFSENSE_API_KEY: ${PFSENSE_API_KEY}
+      PFSENSE_API_SECRET: ${PFSENSE_API_SECRET}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+    env_file:
+      - .env
+      
+    ports:
+      - "8000:8000"
+      
+    volumes:
+      - ./logs:/var/log/pfsense-mcp
+      
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Optional Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: pfsense-mcp-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-changeme}
+    ports:
+      - "6379:6379"
