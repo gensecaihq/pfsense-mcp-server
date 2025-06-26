@@ -278,7 +278,10 @@ class PfSenseConnectionManager:
             "interface.list": "pfSsh.php playback listinterfaces"
         }
         
-        shell_cmd = shell_commands.get(command, command)
+        shell_cmd = shell_commands.get(command)
+        if shell_cmd is None:
+            logger.error(f"Attempted to execute unknown SSH command: {command}")
+            raise ValueError(f"Unsupported SSH command: {command}")
         
         # Execute via SSH (simplified for example)
         client = paramiko.SSHClient()
