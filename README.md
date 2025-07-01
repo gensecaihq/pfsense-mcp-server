@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/gensecaihq-pfsense-mcp-server-badge.png)](https://mseep.ai/app/gensecaihq-pfsense-mcp-server)
+
 # pfSense MCP Server
 
 A production-grade Model Context Protocol (MCP) server that enables natural language interaction with pfSense firewalls through Claude Desktop and other GenAI applications.
