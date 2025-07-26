@@ -1,0 +1,51 @@
+# Simplified Makefile for pfSense MCP Server
+SHELL := /bin/bash
+.PHONY: help build run stop logs shell test clean
+
+# Variables
+IMAGE_NAME = pfsense-mcp:simple
+CONTAINER_NAME = pfsense-mcp-server
+
+help: ## Show this help
+	@echo 'Usage: make [target]'
+	@echo ''
+	@echo 'Targets:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+build: ## Build Docker image
+	@echo "Building pfSense MCP Server..."
+	@docker build -f Dockerfile.simple -t $(IMAGE_NAME) .
+
+run: ## Run the server
+	@echo "Starting pfSense MCP Server..."
+	@docker-compose -f docker-compose-simple.yml up -d
+	@echo "Server running on http://localhost:8000"
+
+stop: ## Stop the server
+	@echo "Stopping pfSense MCP Server..."
+	@docker-compose -f docker-compose-simple.yml down
+
+logs: ## View logs
+	@docker logs -f $(CONTAINER_NAME)
+
+shell: ## Open shell in container
+	@docker exec -it $(CONTAINER_NAME) /bin/bash
+
+test: ## Test connection
+	@echo "Testing pfSense connection..."
+	@docker exec $(CONTAINER_NAME) python -c "import asyncio; from main_fastmcp import connection_manager; print('Testing...'); asyncio.run(connection_manager.test_connection()) and print('✓ Connection successful') or print('✗ Connection failed')"
+
+clean: ## Clean up
+	@docker-compose -f docker-compose-simple.yml down -v
+	@docker rmi $(IMAGE_NAME) || true
+	@echo "Cleanup complete"
+
+# Development targets
+dev-install: ## Install for local development
+	@pip install -r requirements-simple.txt
+
+dev-run: ## Run locally (not in Docker)
+	@python main_fastmcp.py
+
+dev-stdio: ## Run in stdio mode for Claude Desktop
+	@python main_fastmcp.py --stdio

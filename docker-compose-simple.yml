@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  pfsense-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
+    image: pfsense-mcp:simple
+    container_name: pfsense-mcp-server
+    restart: unless-stopped
+    
+    environment:
+      # pfSense Connection
+      PFSENSE_URL: ${PFSENSE_URL}
+      PFSENSE_VERSION: ${PFSENSE_VERSION:-ce}
+      PFSENSE_CONNECTION_METHOD: ${PFSENSE_CONNECTION_METHOD:-rest}
+      VERIFY_SSL: ${VERIFY_SSL:-true}
+      CONNECTION_TIMEOUT: ${CONNECTION_TIMEOUT:-30}
+      
+      # Authentication (REST)
+      PFSENSE_API_KEY: ${PFSENSE_API_KEY}
+      PFSENSE_API_SECRET: ${PFSENSE_API_SECRET}
+      
+      # Authentication (XML-RPC)
+      PFSENSE_USERNAME: ${PFSENSE_USERNAME}
+      PFSENSE_PASSWORD: ${PFSENSE_PASSWORD}
+      
+      # Authentication (SSH)
+      PFSENSE_SSH_HOST: ${PFSENSE_SSH_HOST}
+      PFSENSE_SSH_PORT: ${PFSENSE_SSH_PORT:-22}
+      PFSENSE_SSH_USERNAME: ${PFSENSE_SSH_USERNAME}
+      PFSENSE_SSH_KEY_PATH: ${PFSENSE_SSH_KEY_PATH}
+      
+      # Cache settings
+      CACHE_TTL: ${CACHE_TTL:-300}
+      
+    env_file:
+      - .env
+      
+    ports:
+      - "${MCP_PORT:-8000}:8000"
+      
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config:ro
+      
+    # For SSH key access
+    secrets:
+      - ssh_key
+      
+secrets:
+  ssh_key:
+    file: ${SSH_KEY_FILE:-./config/ssh/id_rsa}

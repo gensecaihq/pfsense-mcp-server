@@ -1,4 +1,4 @@
-# Environment
+# Environment files
 .env
 .env.local
 .env.*.local
@@ -9,33 +9,124 @@ __pycache__/
 *$py.class
 *.so
 .Python
-venv/
 env/
+venv/
 ENV/
-
-# Logs
-logs/
-*.log
-
-# Backups
-backups/
-*.backup
-*.bak
+env.bak/
+venv.bak/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+*.egg-info/
+dist/
+build/
+*.egg
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.ruff_cache/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+.project
+.pydevproject
+.settings/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
+# Logs
+logs/
+*.log
+log/
+
+# Data and backups
+data/
+backups/
+*.backup
+*.bak
+
+# SSL certificates (except examples)
+config/ssl/*.pem
+config/ssl/*.key
+config/ssl/*.crt
+!config/ssl/example.*
+
+# SSH keys
+config/ssh/id_*
+config/ssh/*.pem
+!config/ssh/README.md
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
 # Docker
+.docker/
 .dockerignore
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Cache
+.cache/
+redis-data/
+postgres-data/
+prometheus-data/
+grafana-data/
+nginx-cache/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+test-results/
+coverage.xml
+*.cover
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# Terraform (if using IaC)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+
+# Node (if frontend added)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production secrets
+secrets/
+*.secret
+*.key
+*.crt
+*.pem
+
+# Local development
+.local/
+scratch/
