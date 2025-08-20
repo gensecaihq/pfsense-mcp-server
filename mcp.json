@@ -1,15 +1,18 @@
 {
   "mcpServers": {
-    "pfsense": {
+    "pfsense-enhanced": {
       "command": "python",
-      "args": ["/path/to/pfsense-mcp-server/main.py"],
+      "args": ["-m", "src.main"],
+      "cwd": "/path/to/pfsense-mcp-server",
       "env": {
         "MCP_MODE": "stdio",
         "PFSENSE_URL": "https://your-pfsense.local",
-        "PFSENSE_CONNECTION_METHOD": "rest",
+        "PFSENSE_VERSION": "CE_2_8_0",
+        "AUTH_METHOD": "api_key",
         "PFSENSE_API_KEY": "your-api-key",
-        "PFSENSE_API_SECRET": "your-api-secret",
-        "DEFAULT_ACCESS_LEVEL": "READ_ONLY",
+        "VERIFY_SSL": "true",
+        "ENABLE_HATEOAS": "false",
+        "DEFAULT_PAGE_SIZE": "20",
         "LOG_LEVEL": "INFO"
       }
     }
