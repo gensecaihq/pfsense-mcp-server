@@ -1,23 +1,35 @@
-# Core dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
-httpx==0.25.1
+# Enhanced pfSense MCP Server Dependencies
+# Core FastMCP framework
+fastmcp>=0.4.0
 
-# Connection methods
-xmltodict==0.13.0      # For XML-RPC
-paramiko==3.4.0        # For SSH connections
+# HTTP and async support  
+httpx>=0.26.0,<0.28.0
+aiofiles>=23.2.0,<24.0.0
 
-# Caching and retry
-cachetools==5.3.2
-tenacity==8.2.3
+# pfSense API authentication and security
+cryptography>=41.0.0,<42.0.0
+python-jose[cryptography]>=3.3.0,<4.0.0
 
-# Async support
-asyncio==3.4.3
+# Caching and performance
+cachetools>=5.3.0,<6.0.0
+aiocache>=0.12.0,<0.13.0
 
-# Logging
-python-json-logger==2.0.7
+# Data validation and parsing
+pydantic>=2.5.0,<3.0.0
 
-# Optional for production
-redis==5.0.1           # For distributed caching
-python-jose[cryptography]==3.3.0  # For JWT tokens
+# Logging and monitoring
+structlog>=24.1.0,<25.0.0
+python-json-logger>=2.0.0,<3.0.0
+
+# Optional production dependencies
+redis>=5.0.0,<6.0.0                    # Distributed caching
+prometheus-client>=0.19.0,<0.20.0      # Metrics
+environs>=11.0.0,<12.0.0               # Environment management
+
+# Development and testing (optional)
+pytest>=7.4.0,<8.0.0
+pytest-asyncio>=0.23.0,<0.24.0
+pytest-cov>=4.1.0,<5.0.0
+black>=23.12.0,<24.0.0
+ruff>=0.1.0,<0.2.0
+mypy>=1.8.0,<2.0.0
