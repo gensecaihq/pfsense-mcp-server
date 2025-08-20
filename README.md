@@ -1,6 +1,21 @@
 # pfSense Enhanced MCP Server
 
-🚀 **A next-generation Model Context Protocol (MCP) server** that enables natural language interaction with pfSense firewalls through Claude Desktop and other GenAI applications. Now with **advanced API features** including intelligent filtering, HATEOAS navigation, and enterprise-grade controls.
+🚀 **A next-generation Model Context Protocol (MCP) server** that enables natural language interaction with pfSense firewalls through Claude Desktop and other GenAI applications. Now with **advanced API features** by pfrest.org including intelligent filtering, HATEOAS navigation, and enterprise-grade controls.
+
+
+
+## 🧪 **Community Testing Needed**
+
+> **⚠️ IMPORTANT:** This project needs community testing and validation!  
+> **👥 We need your help to test this with real SonicWall devices and environments.**
+>
+> - **🔍 Test it** with your SonicWall setup  
+> - **🐛 Report issues** via GitHub Issues  
+> - **🔧 Fix bugs** and submit PRs  
+> - **📝 Improve documentation** based on real-world usage  
+> - **💡 Contribute features** and enhancements
+>
+> **Your testing and contributions will help make this production-ready for everyone!**
 
 [![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)](https://github.com/gensecaihq/pfsense-mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
