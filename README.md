@@ -7,9 +7,9 @@
 ## 🧪 **Community Testing Needed**
 
 > **⚠️ IMPORTANT:** This project needs community testing and validation!  
-> **👥 We need your help to test this with real SonicWall devices and environments.**
+> **👥 We need your help to test this with real pfSense devices and environments.**
 >
-> - **🔍 Test it** with your SonicWall setup  
+> - **🔍 Test it** with your pfSense setup  
 > - **🐛 Report issues** via GitHub Issues  
 > - **🔧 Fix bugs** and submit PRs  
 > - **📝 Improve documentation** based on real-world usage  
@@ -76,10 +76,10 @@ git clone https://github.com/gensecaihq/pfsense-mcp-server.git
 cd pfsense-mcp-server
 
 # Install dependencies
-pip install -r requirements-fastmcp.txt
+pip install -r requirements.txt
 
 # Configure environment
-cp .env.enhanced .env
+cp .env.example .env
 nano .env  # Add your pfSense details
 ```
 
@@ -97,10 +97,10 @@ ENABLE_HATEOAS=false  # Set true for navigation links
 
 ```bash
 # Test enhanced features
-python test_enhanced_features.py
+python tests/test_enhanced_features.py
 
 # Start the enhanced MCP server
-python main_enhanced_mcp.py
+python -m src.main
 ```
 
 ### 5. Configure Claude Desktop

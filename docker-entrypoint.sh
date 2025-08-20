@@ -25,7 +25,7 @@ log_error() {
 
 # Banner
 echo "============================================"
-echo "       pfSense MCP Server v${VERSION:-2.0.0}"
+echo "       pfSense MCP Server v${VERSION:-4.0.0}"
 echo "          FastMCP Implementation"
 echo "============================================"
 echo ""
@@ -130,7 +130,7 @@ wait_for_pfsense() {
     ATTEMPT=1
     
     while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-        if python -c "import asyncio; from main_fastmcp import connection_manager; asyncio.run(connection_manager.health_check())" 2>/dev/null; then
+        if python -c "import asyncio; from src.main import get_api_client; client = get_api_client(); asyncio.run(client.test_connection())" 2>/dev/null; then
             log_info "Successfully connected to pfSense"
             return 0
         fi
@@ -195,8 +195,8 @@ main() {
     # Start the application based on mode
     case "$RUN_MODE" in
         "stdio")
-            log_info "Starting FastMCP server in stdio mode for Claude Desktop..."
-            exec python main_fastmcp.py --stdio
+            log_info "Starting Enhanced MCP server in stdio mode for Claude Desktop..."
+            exec python -m src.main --stdio
             ;;
         "http")
             log_info "Starting FastMCP server in HTTP mode..."
@@ -209,7 +209,7 @@ main() {
             if [ "${PRODUCTION:-false}" = "true" ]; then
                 # Production mode with gunicorn
                 log_info "Running in production mode with gunicorn..."
-                exec gunicorn main_fastmcp:mcp.asgi \
+                exec gunicorn src.main:mcp.asgi \
                     --bind "${HOST}:${PORT}" \
                     --workers "${WORKERS}" \
                     --worker-class uvicorn.workers.UvicornWorker \
@@ -223,7 +223,7 @@ main() {
             else
                 # Development mode with uvicorn
                 log_info "Running in development mode with uvicorn..."
-                exec python main_fastmcp.py \
+                exec python -m src.main \
                     --host "${HOST}" \
                     --port "${PORT}" \
                     --reload

@@ -17,20 +17,36 @@ from typing import Dict, List, Optional, Any, Union
 from fastmcp import FastMCP
 
 # Enhanced pfSense API client
-from .pfsense_api_enhanced import (
-    EnhancedPfSenseAPIClient,
-    AuthMethod,
-    PfSenseVersion,
-    QueryFilter,
-    SortOptions,
-    PaginationOptions,
-    ControlParameters,
-    create_ip_filter,
-    create_port_filter,
-    create_interface_filter,
-    create_pagination,
-    create_default_sort
-)
+try:
+    from .pfsense_api_enhanced import (
+        EnhancedPfSenseAPIClient,
+        AuthMethod,
+        PfSenseVersion,
+        QueryFilter,
+        SortOptions,
+        PaginationOptions,
+        ControlParameters,
+        create_ip_filter,
+        create_port_filter,
+        create_interface_filter,
+        create_pagination,
+        create_default_sort
+    )
+except ImportError:
+    from pfsense_api_enhanced import (
+        EnhancedPfSenseAPIClient,
+        AuthMethod,
+        PfSenseVersion,
+        QueryFilter,
+        SortOptions,
+        PaginationOptions,
+        ControlParameters,
+        create_ip_filter,
+        create_port_filter,
+        create_interface_filter,
+        create_pagination,
+        create_default_sort
+    )
 
 # Configure logging
 logging.basicConfig(
