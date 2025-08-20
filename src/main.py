@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Any, Union
 from fastmcp import FastMCP
 
 # Enhanced pfSense API client
-from pfsense_api_enhanced import (
+from .pfsense_api_enhanced import (
     EnhancedPfSenseAPIClient,
     AuthMethod,
     PfSenseVersion,
