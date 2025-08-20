@@ -4,7 +4,7 @@ FROM python:3.11-slim AS builder
 # Build arguments
 ARG BUILD_DATE
 ARG VCS_REF
-ARG VERSION=2.0.0
+ARG VERSION=4.0.0
 
 # Labels
 LABEL org.opencontainers.image.created="${BUILD_DATE}" \
@@ -32,7 +32,7 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy requirements first for better caching
-COPY requirements-fastmcp.txt /tmp/requirements.txt
+COPY requirements.txt /tmp/requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
@@ -76,7 +76,7 @@ RUN mkdir -p ${MCP_HOME} ${MCP_DATA} ${MCP_LOGS} ${MCP_CONFIG} && \
 
 # Copy application files
 WORKDIR ${MCP_HOME}
-COPY --chown=mcp:mcp main_fastmcp.py ./
+COPY --chown=mcp:mcp src/ ./src/
 COPY --chown=mcp:mcp scripts/ ./scripts/
 COPY --chown=mcp:mcp config/ ./config/
 
