@@ -416,7 +416,7 @@ class EnhancedPfSenseAPIClient:
             control = ControlParameters(apply=True)
 
         return await self._make_request(
-            "PATCH", f"/firewall/rule/{rule_id}",
+            "PATCH", f"/firewall/rules/{rule_id}",
             data=updates, control=control
         )
 
@@ -433,7 +433,7 @@ class EnhancedPfSenseAPIClient:
         )
 
         return await self._make_request(
-            "PATCH", f"/firewall/rule/{rule_id}",
+            "PATCH", f"/firewall/rules/{rule_id}",
             data={}, control=control
         )
 
@@ -446,7 +446,7 @@ class EnhancedPfSenseAPIClient:
         control = ControlParameters(apply=apply_immediately)
 
         return await self._make_request(
-            "DELETE", f"/firewall/rule/{rule_id}",
+            "DELETE", f"/firewall/rules/{rule_id}",
             control=control
         )
 
