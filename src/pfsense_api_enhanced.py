@@ -411,12 +411,21 @@ class EnhancedPfSenseAPIClient:
         updates: Dict,
         control: Optional[ControlParameters] = None
     ) -> Dict:
-        """Update firewall rule with control parameters"""
+        """Update firewall rule with control parameters
+
+        Args:
+            rule_id: Rule ID (array index from GET /firewall/rules)
+            updates: Fields to update
+            control: Control parameters (apply, etc.)
+        """
         if not control:
             control = ControlParameters(apply=True)
 
+        # Add id to the updates
+        updates["id"] = rule_id
+
         return await self._make_request(
-            "PATCH", f"/firewall/rules/{rule_id}",
+            "PATCH", "/firewall/rule",
             data=updates, control=control
         )
 
@@ -426,15 +435,21 @@ class EnhancedPfSenseAPIClient:
         new_position: int,
         apply_immediately: bool = True
     ) -> Dict:
-        """Move firewall rule to new position"""
+        """Move firewall rule to new position
+
+        Args:
+            rule_id: Rule ID (array index from GET /firewall/rules)
+            new_position: New position in rule list
+            apply_immediately: Whether to apply changes
+        """
         control = ControlParameters(
             placement=new_position,
             apply=apply_immediately
         )
 
         return await self._make_request(
-            "PATCH", f"/firewall/rules/{rule_id}",
-            data={}, control=control
+            "PATCH", "/firewall/rule",
+            data={"id": rule_id}, control=control
         )
 
     async def delete_firewall_rule(
@@ -442,12 +457,17 @@ class EnhancedPfSenseAPIClient:
         rule_id: int,
         apply_immediately: bool = True
     ) -> Dict:
-        """Delete firewall rule"""
+        """Delete firewall rule
+
+        Args:
+            rule_id: Rule ID (array index from GET /firewall/rules)
+            apply_immediately: Whether to apply changes
+        """
         control = ControlParameters(apply=apply_immediately)
 
         return await self._make_request(
-            "DELETE", f"/firewall/rules/{rule_id}",
-            control=control
+            "DELETE", "/firewall/rule",
+            data={"id": rule_id}, control=control
         )
 
     # Enhanced Alias Methods
