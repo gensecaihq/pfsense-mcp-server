@@ -347,16 +347,21 @@ async def create_firewall_rule_advanced(
     client = get_api_client()
     
     rule_data = {
-        "interface": interface,
+        "interface": [interface] if isinstance(interface, str) else interface,
         "type": rule_type,
         "ipprotocol": "inet",
-        "protocol": protocol,
         "source": source,
         "destination": destination,
         "descr": description or f"Created via Enhanced MCP at {datetime.utcnow().isoformat()}",
         "log": log_matches
     }
-    
+
+    # Handle protocol field - try null for "any", otherwise use the specified protocol
+    if protocol and protocol.lower() == "any":
+        rule_data["protocol"] = None  # Try null for "any protocol"
+    elif protocol:
+        rule_data["protocol"] = protocol
+
     if destination_port:
         rule_data["destination_port"] = destination_port
     
@@ -435,10 +440,10 @@ async def bulk_block_ips(
     for ip in ip_addresses:
         try:
             rule_data = {
-                "interface": interface,
+                "interface": [interface] if isinstance(interface, str) else interface,
                 "type": "block",
                 "ipprotocol": "inet",
-                "protocol": "any",
+                "protocol": None,  # null = any protocol
                 "source": ip,
                 "destination": "any",
                 "descr": f"{description_prefix}: {ip}",
