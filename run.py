@@ -17,7 +17,6 @@ os.environ['PYTHONPATH'] = str(project_root)
 
 if __name__ == "__main__":
     from src.main import main
-    import asyncio
-    
+
     # Run the main function
-    asyncio.run(main())
+    main()

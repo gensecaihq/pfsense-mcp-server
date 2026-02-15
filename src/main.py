@@ -12,6 +12,15 @@ import logging
 import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Union
+from pathlib import Path
+
+# Load environment variables from .env file
+from dotenv import load_dotenv
+
+# Determine the project root and load .env
+project_root = Path(__file__).parent.parent
+env_path = project_root / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # MCP imports
 from fastmcp import FastMCP
@@ -1007,13 +1016,55 @@ async def test_enhanced_connection() -> Dict:
         return {"success": False, "error": str(e)}
 
 # Main execution
+def main():
+    """Main entry point for the Enhanced pfSense MCP Server"""
+    logger.info(f"Starting Enhanced pfSense MCP Server v{VERSION}")
+    logger.info(f"Connecting to pfSense at: {os.getenv('PFSENSE_URL')}")
+    logger.info(f"Auth Method: {os.getenv('AUTH_METHOD', 'api_key')}")
+    logger.info(f"SSL Verification: {os.getenv('VERIFY_SSL', 'true')}")
+
+    # Test connection before starting server
+    async def test_conn():
+        client = get_api_client()
+        try:
+            logger.info("Testing connection to pfSense API...")
+            connected = await client.test_connection()
+            if connected:
+                logger.info("✅ Successfully connected to pfSense API")
+                return True
+            else:
+                logger.error("❌ Failed to connect to pfSense API")
+                logger.error("Please check your PFSENSE_URL, PFSENSE_API_KEY, and network connectivity")
+                return False
+        except Exception as e:
+            logger.error(f"❌ Connection error: {e}")
+            logger.error(f"Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return False
+
+    # Test connection first
+    connected = asyncio.run(test_conn())
+    if not connected:
+        sys.exit(1)
+
+    # Determine MCP mode from environment
+    mcp_mode = os.getenv("MCP_MODE", "stdio").lower()
+
+    if mcp_mode == "stdio":
+        # Run in stdio mode for Claude Desktop/Code MCP integration
+        logger.info("Starting MCP server in stdio mode (for Claude Desktop/Code)...")
+        mcp.run(transport="stdio")
+    else:
+        # Run as HTTP server for standalone/testing
+        logger.info(f"Starting MCP server in HTTP mode on {os.getenv('MCP_HOST', '0.0.0.0')}:{os.getenv('MCP_PORT', '8000')}...")
+        import uvicorn
+        uvicorn.run(
+            "src.main:mcp",
+            host=os.getenv("MCP_HOST", "0.0.0.0"),
+            port=int(os.getenv("MCP_PORT", "8000")),
+            reload=os.getenv("DEBUG", "false").lower() == "true"
+        )
+
 if __name__ == "__main__":
-    import uvicorn
-    
-    # Run the Enhanced FastMCP server
-    uvicorn.run(
-        "main_enhanced_mcp:mcp",
-        host=os.getenv("MCP_HOST", "0.0.0.0"),
-        port=int(os.getenv("MCP_PORT", "8000")),
-        reload=os.getenv("DEBUG", "false").lower() == "true"
-    )
+    main()
