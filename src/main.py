@@ -394,9 +394,9 @@ async def move_firewall_rule(
     apply_immediately: bool = True
 ) -> Dict:
     """Move a firewall rule to a new position in the rule order
-    
+
     Args:
-        rule_id: ID of the rule to move
+        rule_id: Rule ID (array index from search_firewall_rules, e.g., 0, 1, 2...)
         new_position: New position (0 = top, higher numbers = lower priority)
         apply_immediately: Whether to apply changes immediately
     """
@@ -405,7 +405,7 @@ async def move_firewall_rule(
         result = await client.move_firewall_rule(
             rule_id, new_position, apply_immediately
         )
-        
+
         return {
             "success": True,
             "message": f"Rule {rule_id} moved to position {new_position}",
