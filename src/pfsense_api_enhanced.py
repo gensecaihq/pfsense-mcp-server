@@ -9,12 +9,17 @@ import os
 import json
 import base64
 import re
+import asyncio
+import logging
 from typing import Dict, List, Optional, Any, Union
 from enum import Enum
 from dataclasses import dataclass
 import httpx
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 class PfSenseVersion(str, Enum):
     CE_2_8_0 = "2.8.0"
@@ -123,16 +128,34 @@ class EnhancedPfSenseAPIClient:
         self.enable_hateoas = enable_hateoas
         self.jwt_token = None
         self.jwt_expiry = None
-
-        # Initialize HTTP client
-        self.client = httpx.AsyncClient(
-            verify=verify_ssl,
-            timeout=timeout,
-            follow_redirects=True
-        )
+        self.client = None
+        self._client_loop = None
 
         # API base URL
         self.api_base = f"{self.host}/api/v2"
+
+    def _ensure_client(self):
+        """Ensure HTTP client is created for current event loop"""
+        try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
+
+        # Recreate client if loop changed or client doesn't exist
+        if self.client is None or self._client_loop != current_loop:
+            if self.client is not None:
+                # Close old client if it exists
+                try:
+                    asyncio.create_task(self.client.aclose())
+                except:
+                    pass
+
+            self.client = httpx.AsyncClient(
+                verify=self.verify_ssl,
+                timeout=self.timeout,
+                follow_redirects=True
+            )
+            self._client_loop = current_loop
 
     async def _get_auth_headers(self) -> Dict[str, str]:
         """Generate authentication headers based on auth method"""
@@ -230,8 +253,14 @@ class EnhancedPfSenseAPIClient:
         extra_params: Optional[Dict[str, str]] = None
     ) -> Dict:
         """Make API request with enhanced features"""
+        # Ensure client is created for current event loop
+        self._ensure_client()
+
         headers = await self._get_auth_headers()
         url = f"{self.api_base}{endpoint}"
+
+        # Log request at DEBUG level
+        logger.debug(f"API Request: {method} {url}")
 
         # Build query string
         query_string = self._build_query_params(
@@ -254,7 +283,42 @@ class EnhancedPfSenseAPIClient:
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
-        response.raise_for_status()
+        # Enhanced error handling
+        if response.status_code >= 400:
+            error_body = response.text
+            try:
+                error_json = response.json()
+                error_message = error_json.get('message', 'Unknown error')
+                error_detail = json.dumps(error_json, indent=2)
+            except:
+                error_message = error_body
+                error_detail = error_body
+
+            # Log detailed error info at DEBUG level
+            logger.debug(
+                f"API Error - Status: {response.status_code}, "
+                f"URL: {url}, Method: {method}"
+            )
+            logger.debug(f"Request Data: {json.dumps(data, indent=2) if data else 'None'}")
+            logger.debug(f"Response: {error_detail}")
+
+            # Log concise error at ERROR level
+            logger.error(f"pfSense API {response.status_code}: {error_message}")
+
+            # Raise with detailed error message for debugging
+            error_msg = (
+                f"\n=== pfSense API Error ===\n"
+                f"Status: {response.status_code}\n"
+                f"URL: {url}\n"
+                f"Method: {method}\n"
+                f"Request Data: {json.dumps(data, indent=2) if data else 'None'}\n"
+                f"Response: {error_detail}\n"
+                f"========================\n"
+            )
+            raise Exception(error_msg)
+
+        # Log successful request
+        logger.debug(f"API Success: {method} {endpoint} - Status {response.status_code}")
         return response.json()
 
     # Enhanced System Methods

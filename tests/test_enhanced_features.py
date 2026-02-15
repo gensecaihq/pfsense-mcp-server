@@ -300,8 +300,9 @@ async def test_enhanced_api_features():
     # Test dry run (apply=false)
     try:
         rule_data = {
-            "interface": "wan",
+            "interface": ["wan"],
             "type": "block",
+            "ipprotocol": "inet",
             "protocol": "tcp",
             "source": "192.0.2.100",
             "destination": "any",
