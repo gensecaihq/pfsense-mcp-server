@@ -1099,7 +1099,11 @@ def main():
     elif args.transport == "streamable-http":
         import uvicorn
 
-        app = mcp.http_app()
+        # Use sse_app() for FastMCP < 2.14, http_app() for >= 2.14
+        if hasattr(mcp, 'http_app'):
+            app = mcp.http_app()
+        else:
+            app = mcp.sse_app()
 
         # Wrap with bearer auth if MCP_API_KEY is set
         api_key = os.getenv("MCP_API_KEY")
