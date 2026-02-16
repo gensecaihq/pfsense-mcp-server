@@ -1020,13 +1020,55 @@ async def test_enhanced_connection() -> Dict:
         logger.error(f"Enhanced connection test failed: {e}")
         return {"success": False, "error": str(e)}
 
+# Bearer token auth middleware for HTTP transport
+class BearerAuthMiddleware:
+    """ASGI middleware that checks for a valid Bearer token in the Authorization header."""
+
+    def __init__(self, app, api_key: str):
+        self.app = app
+        self.api_key = api_key
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            headers = dict(scope.get("headers", []))
+            auth_header = headers.get(b"authorization", b"").decode()
+            if not auth_header.startswith("Bearer ") or auth_header[7:] != self.api_key:
+                from starlette.responses import JSONResponse
+                response = JSONResponse({"error": "Unauthorized"}, status_code=401)
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
 # Main execution
 def main():
     """Main entry point for the Enhanced pfSense MCP Server"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="pfSense MCP Server")
+    parser.add_argument(
+        "-t", "--transport",
+        choices=["stdio", "streamable-http"],
+        default=os.getenv("MCP_TRANSPORT", "stdio"),
+        help="Transport mode (default: stdio)"
+    )
+    parser.add_argument(
+        "--host",
+        default=os.getenv("MCP_HOST", "0.0.0.0"),
+        help="Host to bind to in HTTP mode (default: 0.0.0.0)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.getenv("MCP_PORT", "3000")),
+        help="Port to bind to in HTTP mode (default: 3000)"
+    )
+    args = parser.parse_args()
+
     logger.info(f"Starting Enhanced pfSense MCP Server v{VERSION}")
     logger.info(f"Connecting to pfSense at: {os.getenv('PFSENSE_URL')}")
     logger.info(f"Auth Method: {os.getenv('AUTH_METHOD', 'api_key')}")
-    logger.info(f"SSL Verification: {os.getenv('VERIFY_SSL', 'true')}")
+    logger.info(f"Transport: {args.transport}")
 
     # Test connection before starting server
     async def test_conn():
@@ -1035,41 +1077,41 @@ def main():
             logger.info("Testing connection to pfSense API...")
             connected = await client.test_connection()
             if connected:
-                logger.info("✅ Successfully connected to pfSense API")
+                logger.info("Successfully connected to pfSense API")
                 return True
             else:
-                logger.error("❌ Failed to connect to pfSense API")
+                logger.error("Failed to connect to pfSense API")
                 logger.error("Please check your PFSENSE_URL, PFSENSE_API_KEY, and network connectivity")
                 return False
         except Exception as e:
-            logger.error(f"❌ Connection error: {e}")
-            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Connection error: {e}")
             import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            logger.error(traceback.format_exc())
             return False
 
-    # Test connection first
     connected = asyncio.run(test_conn())
     if not connected:
         sys.exit(1)
 
-    # Determine MCP mode from environment
-    mcp_mode = os.getenv("MCP_MODE", "stdio").lower()
-
-    if mcp_mode == "stdio":
-        # Run in stdio mode for Claude Desktop/Code MCP integration
-        logger.info("Starting MCP server in stdio mode (for Claude Desktop/Code)...")
+    if args.transport == "stdio":
+        logger.info("Starting MCP server in stdio mode...")
         mcp.run(transport="stdio")
-    else:
-        # Run as HTTP server for standalone/testing
-        logger.info(f"Starting MCP server in HTTP mode on {os.getenv('MCP_HOST', '0.0.0.0')}:{os.getenv('MCP_PORT', '8000')}...")
+    elif args.transport == "streamable-http":
         import uvicorn
-        uvicorn.run(
-            "src.main:mcp",
-            host=os.getenv("MCP_HOST", "0.0.0.0"),
-            port=int(os.getenv("MCP_PORT", "8000")),
-            reload=os.getenv("DEBUG", "false").lower() == "true"
-        )
+
+        app = mcp.http_app()
+
+        # Wrap with bearer auth if MCP_API_KEY is set
+        api_key = os.getenv("MCP_API_KEY")
+        if api_key:
+            app = BearerAuthMiddleware(app, api_key)
+            logger.info("Bearer token auth enabled (MCP_API_KEY is set)")
+        else:
+            logger.warning("No MCP_API_KEY set - HTTP endpoint is unauthenticated")
+
+        logger.info(f"Starting MCP server on http://{args.host}:{args.port}/mcp")
+        uvicorn.run(app, host=args.host, port=args.port)
+
 
 if __name__ == "__main__":
     main()
