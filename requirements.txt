@@ -1,40 +1,10 @@
-# Enhanced pfSense MCP Server Dependencies
-# Core FastMCP framework
-fastmcp>=2.0.0
-
-# HTTP transport and async support
-httpx>=0.26.0,<0.28.0
-uvicorn>=0.30.0
-starlette>=0.37.0
-aiofiles>=23.2.0,<24.0.0
+# Core FastMCP framework (brings httpx, uvicorn, starlette)
+fastmcp>=2.14.0
 
 # Environment variable loading
 python-dotenv>=1.0.0
 
-# pfSense API authentication and security
-cryptography>=41.0.0,<42.0.0
-python-jose[cryptography]>=3.3.0,<4.0.0
-
-# Caching and performance
-cachetools>=5.3.0,<6.0.0
-aiocache>=0.12.0,<0.13.0
-
-# Data validation and parsing
-pydantic>=2.5.0,<3.0.0
-
-# Logging and monitoring
-structlog>=24.1.0,<25.0.0
-python-json-logger>=2.0.0,<3.0.0
-
-# Optional production dependencies
-redis>=5.0.0,<6.0.0                    # Distributed caching
-prometheus-client>=0.19.0,<0.20.0      # Metrics
-environs>=11.0.0,<12.0.0               # Environment management
-
-# Development and testing (optional)
-pytest>=7.4.0,<8.0.0
-pytest-asyncio>=0.23.0,<0.24.0
-pytest-cov>=4.1.0,<5.0.0
-black>=23.12.0,<24.0.0
-ruff>=0.1.0,<0.2.0
-mypy>=1.8.0,<2.0.0
+# pfSense API dependencies
+httpx
+pydantic
+cachetools
