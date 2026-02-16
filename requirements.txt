@@ -1,10 +1,15 @@
 # Enhanced pfSense MCP Server Dependencies
 # Core FastMCP framework
-fastmcp>=0.4.0
+fastmcp>=2.0.0
 
-# HTTP and async support  
+# HTTP transport and async support
 httpx>=0.26.0,<0.28.0
+uvicorn>=0.30.0
+starlette>=0.37.0
 aiofiles>=23.2.0,<24.0.0
+
+# Environment variable loading
+python-dotenv>=1.0.0
 
 # pfSense API authentication and security
 cryptography>=41.0.0,<42.0.0
