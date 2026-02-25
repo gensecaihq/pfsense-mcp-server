@@ -157,9 +157,11 @@ class EnhancedPfSenseAPIClient:
             )
             self._client_loop = current_loop
 
-    async def _get_auth_headers(self) -> Dict[str, str]:
+    async def _get_auth_headers(self, include_content_type: bool = True) -> Dict[str, str]:
         """Generate authentication headers based on auth method"""
-        headers = {"Content-Type": "application/json"}
+        headers = {}
+        if include_content_type:
+            headers["Content-Type"] = "application/json"
 
         if self.auth_method == AuthMethod.BASIC:
             if not self.username or not self.password:
@@ -256,11 +258,7 @@ class EnhancedPfSenseAPIClient:
         # Ensure client is created for current event loop
         self._ensure_client()
 
-        headers = await self._get_auth_headers()
         url = f"{self.api_base}{endpoint}"
-
-        # Log request at DEBUG level
-        logger.debug(f"API Request: {method} {url}")
 
         # Build query string
         query_string = self._build_query_params(
@@ -268,6 +266,14 @@ class EnhancedPfSenseAPIClient:
         )
         if query_string:
             url += f"?{query_string}"
+
+        # Log the full URL being requested
+        logger.info(f"API Request: {method} {url}")
+
+        # Don't send Content-Type on GET/DELETE - pfSense API ignores query params
+        # when Content-Type: application/json is present on bodyless requests
+        needs_body = method.upper() in ("POST", "PATCH", "PUT")
+        headers = await self._get_auth_headers(include_content_type=needs_body)
 
         # Make request
         if method.upper() == "GET":
@@ -361,10 +367,15 @@ class EnhancedPfSenseAPIClient:
         pagination: Optional[PaginationOptions] = None
     ) -> Dict:
         """Get firewall rules with advanced filtering"""
+        # Interface field is an array in pfSense API v2, use contains operator
         if interface and not filters:
-            filters = [QueryFilter("interface", interface)]
+            filters = [QueryFilter("interface", interface, "contains")]
         elif interface and filters:
-            filters.append(QueryFilter("interface", interface))
+            filters.append(QueryFilter("interface", interface, "contains"))
+
+        # 'sequence' is not a valid model field; use 'tracker' for rule ordering
+        if sort and sort.sort_by == "sequence":
+            sort = SortOptions(sort_by="tracker", sort_order=sort.sort_order)
 
         return await self._make_request(
             "GET", "/firewall/rules",
@@ -388,7 +399,7 @@ class EnhancedPfSenseAPIClient:
 
     async def get_rules_sorted_by_priority(self, interface: Optional[str] = None) -> Dict:
         """Get rules sorted by their order/priority"""
-        sort = SortOptions(sort_by="sequence", sort_order="SORT_ASC")
+        sort = SortOptions(sort_by="tracker", sort_order="SORT_ASC")
         return await self.get_firewall_rules(interface=interface, sort=sort)
 
     async def create_firewall_rule(
@@ -548,37 +559,36 @@ class EnhancedPfSenseAPIClient:
 
     async def get_firewall_logs(
         self,
-        lines: int = 50,
+        lines: int = 20,
         filters: Optional[List[QueryFilter]] = None,
         sort: Optional[SortOptions] = None
     ) -> Dict:
-        """Get firewall logs with filtering"""
-        pagination = PaginationOptions(limit=lines)
+        """Get firewall logs with filtering (small limits to avoid memory issues)"""
+        # Cap limit to avoid pfSense PHP memory exhaustion
+        safe_lines = min(lines, 50)
+        pagination = PaginationOptions(limit=safe_lines)
 
         return await self._make_request(
             "GET", "/status/logs/firewall",
             filters=filters, sort=sort, pagination=pagination
         )
 
-    async def get_logs_by_ip(self, ip_address: str, lines: int = 100) -> Dict:
+    async def get_logs_by_ip(self, ip_address: str, lines: int = 20) -> Dict:
         """Get logs for specific IP address"""
         filters = [QueryFilter("src_ip", ip_address)]
-        pagination = PaginationOptions(limit=lines)
 
         return await self.get_firewall_logs(
             filters=filters,
-            sort=SortOptions(sort_by="timestamp", sort_order="SORT_DESC"),
-            lines=lines
+            lines=min(lines, 50)
         )
 
-    async def get_blocked_traffic_logs(self, lines: int = 100) -> Dict:
+    async def get_blocked_traffic_logs(self, lines: int = 20) -> Dict:
         """Get logs of blocked traffic"""
         filters = [QueryFilter("action", "block")]
 
         return await self.get_firewall_logs(
             filters=filters,
-            sort=SortOptions(sort_by="timestamp", sort_order="SORT_DESC"),
-            lines=lines
+            lines=min(lines, 50)
         )
 
     # Enhanced Service Methods
@@ -614,10 +624,11 @@ class EnhancedPfSenseAPIClient:
         pagination: Optional[PaginationOptions] = None
     ) -> Dict:
         """Get DHCP leases with filtering"""
+        # DHCP field is 'if' not 'interface'
         if interface and not filters:
-            filters = [QueryFilter("interface", interface)]
+            filters = [QueryFilter("if", interface, "contains")]
         elif interface and filters:
-            filters.append(QueryFilter("interface", interface))
+            filters.append(QueryFilter("if", interface, "contains"))
 
         return await self._make_request(
             "GET", "/status/dhcp_server/leases",
@@ -636,8 +647,8 @@ class EnhancedPfSenseAPIClient:
 
     async def get_active_leases(self) -> Dict:
         """Get only active DHCP leases"""
-        filters = [QueryFilter("state", "active")]
-        sort = SortOptions(sort_by="start", sort_order="SORT_DESC")
+        filters = [QueryFilter("active_status", "active")]
+        sort = SortOptions(sort_by="starts", sort_order="SORT_DESC")
         return await self.get_dhcp_leases(filters=filters, sort=sort)
 
     # Object ID Management
@@ -721,8 +732,8 @@ def create_port_filter(port: Union[int, str], operator: str = "exact") -> QueryF
     return QueryFilter("port", str(port), operator)
 
 def create_interface_filter(interface: str) -> QueryFilter:
-    """Create filter for interface fields"""
-    return QueryFilter("interface", interface)
+    """Create filter for interface fields (uses contains since interface is an array)"""
+    return QueryFilter("interface", interface, "contains")
 
 def create_date_range_filters(
     field: str,

@@ -1,5 +1,5 @@
 # Core FastMCP framework (brings httpx, uvicorn, starlette)
-fastmcp>=2.14.0
+fastmcp==2.14.0
 
 # Environment variable loading
 python-dotenv>=1.0.0
