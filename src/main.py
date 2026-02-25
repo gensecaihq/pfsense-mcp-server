@@ -70,8 +70,6 @@ VERSION = "4.0.0"
 # Initialize FastMCP server
 mcp = FastMCP(
     "pfSense Enhanced MCP Server",
-    version=VERSION,
-    description="Advanced pfSense management with filtering, sorting, and HATEOAS support"
 )
 
 # Global API client
@@ -215,10 +213,10 @@ async def search_firewall_rules(
     search_description: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
-    sort_by: str = "sequence"
+    sort_by: str = "tracker"
 ) -> Dict:
     """Search firewall rules with advanced filtering and pagination
-    
+
     Args:
         interface: Filter by interface (wan, lan, etc.)
         source_ip: Filter by source IP (supports partial matching)
@@ -227,7 +225,7 @@ async def search_firewall_rules(
         search_description: Search in rule descriptions
         page: Page number for pagination
         page_size: Number of results per page
-        sort_by: Field to sort by (sequence, interface, type, etc.)
+        sort_by: Field to sort by (tracker, interface, type, descr, etc.)
     """
     client = get_api_client()
     try:
@@ -293,8 +291,8 @@ async def find_blocked_rules(
     client = get_api_client()
     try:
         pagination = create_pagination(page, page_size)
-        sort = create_default_sort("sequence")
-        
+        sort = create_default_sort("tracker")
+
         rules = await client.find_blocked_rules()
         
         # Apply interface filter if specified
@@ -585,7 +583,7 @@ async def manage_alias_addresses(
 @mcp.tool()
 async def analyze_blocked_traffic(
     hours_back: int = 24,
-    limit: int = 100,
+    limit: int = 20,
     group_by_source: bool = True
 ) -> Dict:
     """Analyze blocked traffic patterns from firewall logs
@@ -747,10 +745,10 @@ async def search_dhcp_leases(
     state: str = "active",
     page: int = 1,
     page_size: int = 20,
-    sort_by: str = "start"
+    sort_by: str = "starts"
 ) -> Dict:
     """Search DHCP leases with advanced filtering
-    
+
     Args:
         search_term: General search term for hostname or IP
         interface: Filter by interface
@@ -759,26 +757,28 @@ async def search_dhcp_leases(
         state: Filter by lease state (active, expired, etc.)
         page: Page number for pagination
         page_size: Number of results per page
-        sort_by: Field to sort by
+        sort_by: Field to sort by (starts, ends, hostname, ip, mac)
     """
     client = get_api_client()
     try:
         filters = []
-        
+
         if search_term:
             filters.append(QueryFilter("hostname", search_term, "contains"))
-        
+
         if interface:
-            filters.append(create_interface_filter(interface))
-        
+            # DHCP uses 'if' field, not 'interface'
+            filters.append(QueryFilter("if", interface, "contains"))
+
         if mac_address:
             filters.append(QueryFilter("mac", mac_address))
-        
+
         if hostname:
             filters.append(QueryFilter("hostname", hostname, "contains"))
-        
+
         if state:
-            filters.append(QueryFilter("state", state))
+            # DHCP uses 'active_status' field, not 'state'
+            filters.append(QueryFilter("active_status", state))
         
         pagination = create_pagination(page, page_size)
         sort = create_default_sort(sort_by, descending=True)
