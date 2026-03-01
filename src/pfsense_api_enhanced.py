@@ -270,9 +270,9 @@ class EnhancedPfSenseAPIClient:
         # Log the full URL being requested
         logger.info(f"API Request: {method} {url}")
 
-        # Don't send Content-Type on GET/DELETE - pfSense API ignores query params
-        # when Content-Type: application/json is present on bodyless requests
-        needs_body = method.upper() in ("POST", "PATCH", "PUT")
+        # Don't send Content-Type on GET or bodyless DELETE - pfSense API ignores
+        # query params when Content-Type: application/json is present on bodyless requests
+        needs_body = method.upper() in ("POST", "PATCH", "PUT") or (method.upper() == "DELETE" and data)
         headers = await self._get_auth_headers(include_content_type=needs_body)
 
         # Make request
@@ -285,7 +285,7 @@ class EnhancedPfSenseAPIClient:
         elif method.upper() == "PUT":
             response = await self.client.put(url, headers=headers, json=data)
         elif method.upper() == "DELETE":
-            response = await self.client.delete(url, headers=headers)
+            response = await self.client.delete(url, headers=headers, json=data)
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
