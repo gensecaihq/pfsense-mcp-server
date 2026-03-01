@@ -5,14 +5,13 @@ Implements: Object IDs, Queries/Filters, HATEOAS, Control Parameters
 Compatible with pfSense REST API v2 (jaredhendrickson13/pfsense-api)
 """
 
+import asyncio
+import logging
 import os
 import sys
-import json
-import logging
-import asyncio
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
+from typing import Dict, List, Optional, Union
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
@@ -23,38 +22,36 @@ env_path = project_root / ".env"
 load_dotenv(dotenv_path=env_path)
 
 # MCP imports
-from fastmcp import FastMCP
+from fastmcp import FastMCP  # noqa: E402
 
 # Enhanced pfSense API client
 try:
-    from .pfsense_api_enhanced import (
-        EnhancedPfSenseAPIClient,
+    from .pfsense_api_enhanced import (  # noqa: E402
         AuthMethod,
+        ControlParameters,
+        EnhancedPfSenseAPIClient,
+        PaginationOptions,
         PfSenseVersion,
         QueryFilter,
         SortOptions,
-        PaginationOptions,
-        ControlParameters,
-        create_ip_filter,
-        create_port_filter,
+        create_default_sort,
         create_interface_filter,
         create_pagination,
-        create_default_sort
+        create_port_filter,
     )
 except ImportError:
     from pfsense_api_enhanced import (
-        EnhancedPfSenseAPIClient,
         AuthMethod,
+        ControlParameters,
+        EnhancedPfSenseAPIClient,
+        PaginationOptions,
         PfSenseVersion,
         QueryFilter,
         SortOptions,
-        PaginationOptions,
-        ControlParameters,
-        create_ip_filter,
-        create_port_filter,
+        create_default_sort,
         create_interface_filter,
         create_pagination,
-        create_default_sort
+        create_port_filter,
     )
 
 # Configure logging
@@ -85,7 +82,7 @@ def get_api_client() -> EnhancedPfSenseAPIClient:
             version = PfSenseVersion.PLUS_24_11
         else:
             version = PfSenseVersion.CE_2_8_0
-        
+
         # Determine auth method
         auth_method_str = os.getenv("AUTH_METHOD", "api_key").lower()
         if auth_method_str == "basic":
@@ -94,7 +91,7 @@ def get_api_client() -> EnhancedPfSenseAPIClient:
             auth_method = AuthMethod.JWT
         else:
             auth_method = AuthMethod.API_KEY
-        
+
         api_client = EnhancedPfSenseAPIClient(
             host=os.getenv("PFSENSE_URL", "https://pfsense.local"),
             auth_method=auth_method,
@@ -116,10 +113,10 @@ async def system_status() -> Dict:
     client = get_api_client()
     try:
         status = await client.get_system_status()
-        
+
         # Extract HATEOAS links if available
         links = client.extract_links(status)
-        
+
         return {
             "success": True,
             "data": status.get("data", status),
@@ -139,7 +136,7 @@ async def search_interfaces(
     sort_by: str = "name"
 ) -> Dict:
     """Search and filter network interfaces with advanced options
-    
+
     Args:
         search_term: Search in interface names/descriptions
         status_filter: Filter by status (up, down, etc.)
@@ -150,22 +147,22 @@ async def search_interfaces(
     client = get_api_client()
     try:
         filters = []
-        
+
         if search_term:
             filters.append(QueryFilter("name", search_term, "contains"))
-        
+
         if status_filter:
             filters.append(QueryFilter("status", status_filter))
-        
+
         pagination = create_pagination(page, page_size)
         sort = create_default_sort(sort_by)
-        
+
         interfaces = await client.get_interfaces(
             filters=filters if filters else None,
             sort=sort,
             pagination=pagination
         )
-        
+
         return {
             "success": True,
             "page": page,
@@ -182,14 +179,14 @@ async def search_interfaces(
 @mcp.tool()
 async def find_interfaces_by_status(status: str) -> Dict:
     """Find interfaces by their current status
-    
+
     Args:
         status: Interface status to filter by (up, down, etc.)
     """
     client = get_api_client()
     try:
         interfaces = await client.find_interfaces_by_status(status)
-        
+
         return {
             "success": True,
             "status_filter": status,
@@ -230,31 +227,31 @@ async def search_firewall_rules(
     client = get_api_client()
     try:
         filters = []
-        
+
         if interface:
             filters.append(create_interface_filter(interface))
-        
+
         if source_ip:
             filters.append(QueryFilter("source", source_ip, "contains"))
-        
+
         if destination_port:
             filters.append(create_port_filter(destination_port))
-        
+
         if rule_type:
             filters.append(QueryFilter("type", rule_type))
-        
+
         if search_description:
             filters.append(QueryFilter("descr", search_description, "contains"))
-        
+
         pagination = create_pagination(page, page_size)
         sort = create_default_sort(sort_by)
-        
+
         rules = await client.get_firewall_rules(
             filters=filters if filters else None,
             sort=sort,
             pagination=pagination
         )
-        
+
         return {
             "success": True,
             "page": page,
@@ -282,7 +279,7 @@ async def find_blocked_rules(
     page_size: int = 20
 ) -> Dict:
     """Find all firewall rules that block or reject traffic
-    
+
     Args:
         interface: Optional interface filter
         page: Page number for pagination
@@ -290,11 +287,11 @@ async def find_blocked_rules(
     """
     client = get_api_client()
     try:
-        pagination = create_pagination(page, page_size)
-        sort = create_default_sort("tracker")
+        create_pagination(page, page_size)
+        create_default_sort("tracker")
 
         rules = await client.find_blocked_rules()
-        
+
         # Apply interface filter if specified
         if interface:
             filtered_rules = []
@@ -302,7 +299,7 @@ async def find_blocked_rules(
                 if rule.get("interface") == interface:
                     filtered_rules.append(rule)
             rules["data"] = filtered_rules
-        
+
         return {
             "success": True,
             "interface_filter": interface,
@@ -329,7 +326,7 @@ async def create_firewall_rule_advanced(
     log_matches: bool = True
 ) -> Dict:
     """Create a firewall rule with advanced placement and control options
-    
+
     Args:
         interface: Interface for the rule (wan, lan, etc.)
         rule_type: Rule type (pass, block, reject)
@@ -343,7 +340,7 @@ async def create_firewall_rule_advanced(
         log_matches: Whether to log rule matches
     """
     client = get_api_client()
-    
+
     rule_data = {
         "interface": [interface] if isinstance(interface, str) else interface,
         "type": rule_type,
@@ -362,16 +359,16 @@ async def create_firewall_rule_advanced(
 
     if destination_port:
         rule_data["destination_port"] = destination_port
-    
+
     # Set control parameters
     control = ControlParameters(
         apply=apply_immediately,
         placement=position
     )
-    
+
     try:
         result = await client.create_firewall_rule(rule_data, control)
-        
+
         return {
             "success": True,
             "message": "Firewall rule created with advanced options",
@@ -542,7 +539,7 @@ async def bulk_block_ips(
     description_prefix: str = "Bulk block via MCP"
 ) -> Dict:
     """Block multiple IP addresses at once
-    
+
     Args:
         ip_addresses: List of IP addresses to block
         interface: Interface to apply blocks on
@@ -551,7 +548,7 @@ async def bulk_block_ips(
     client = get_api_client()
     results = []
     errors = []
-    
+
     for ip in ip_addresses:
         try:
             rule_data = {
@@ -564,16 +561,16 @@ async def bulk_block_ips(
                 "descr": f"{description_prefix}: {ip}",
                 "log": True
             }
-            
+
             # Don't apply immediately for bulk operations
             control = ControlParameters(apply=False)
             result = await client.create_firewall_rule(rule_data, control)
             results.append({"ip": ip, "success": True, "rule_id": result.get("data", {}).get("id")})
-            
+
         except Exception as e:
             logger.error(f"Failed to block IP {ip}: {e}")
             errors.append({"ip": ip, "error": str(e)})
-    
+
     # Apply all changes at once
     if results:
         try:
@@ -584,7 +581,7 @@ async def bulk_block_ips(
             logger.error(f"Failed to apply bulk changes: {e}")
     else:
         applied = False
-    
+
     return {
         "success": len(results) > 0,
         "total_requested": len(ip_addresses),
@@ -608,7 +605,7 @@ async def search_aliases(
     sort_by: str = "name"
 ) -> Dict:
     """Search aliases with advanced filtering options
-    
+
     Args:
         search_term: Search in alias names or descriptions
         alias_type: Filter by alias type (host, network, port, url)
@@ -620,25 +617,25 @@ async def search_aliases(
     client = get_api_client()
     try:
         filters = []
-        
+
         if search_term:
             filters.append(QueryFilter("name", search_term, "contains"))
-        
+
         if alias_type:
             filters.append(QueryFilter("type", alias_type))
-        
+
         if containing_ip:
             filters.append(QueryFilter("address", containing_ip, "contains"))
-        
+
         pagination = create_pagination(page, page_size)
         sort = create_default_sort(sort_by)
-        
+
         aliases = await client.get_aliases(
             filters=filters if filters else None,
             sort=sort,
             pagination=pagination
         )
-        
+
         return {
             "success": True,
             "page": page,
@@ -664,7 +661,7 @@ async def manage_alias_addresses(
     addresses: List[str]
 ) -> Dict:
     """Add or remove addresses from an existing alias
-    
+
     Args:
         alias_id: ID of the alias to modify
         action: Action to perform ('add' or 'remove')
@@ -680,7 +677,7 @@ async def manage_alias_addresses(
             message = f"Removed {len(addresses)} addresses from alias {alias_id}"
         else:
             return {"success": False, "error": "Action must be 'add' or 'remove'"}
-        
+
         return {
             "success": True,
             "message": message,
@@ -920,13 +917,81 @@ async def delete_nat_port_forward(
 # Enhanced Log Analysis Tools
 
 @mcp.tool()
+async def get_firewall_log(
+    lines: int = 20,
+    action_filter: Optional[str] = None,
+    interface: Optional[str] = None,
+    source_ip: Optional[str] = None,
+    destination_ip: Optional[str] = None,
+    destination_port: Optional[str] = None,
+    protocol: Optional[str] = None,
+    sort_by: str = "timestamp"
+) -> Dict:
+    """Get firewall log entries with optional filtering
+
+    Args:
+        lines: Number of log lines to retrieve (default 20, max 50)
+        action_filter: Filter by action (pass, block, reject)
+        interface: Filter by interface (wan, lan, etc.)
+        source_ip: Filter by source IP address
+        destination_ip: Filter by destination IP address
+        destination_port: Filter by destination port
+        protocol: Filter by protocol (tcp, udp, icmp)
+        sort_by: Field to sort by (default "timestamp" descending)
+    """
+    client = get_api_client()
+    try:
+        filters = []
+
+        if action_filter:
+            filters.append(QueryFilter("action", action_filter))
+        if interface:
+            filters.append(QueryFilter("interface", interface))
+        if source_ip:
+            filters.append(QueryFilter("src_ip", source_ip))
+        if destination_ip:
+            filters.append(QueryFilter("dst_ip", destination_ip))
+        if destination_port:
+            filters.append(QueryFilter("dst_port", destination_port))
+        if protocol:
+            filters.append(QueryFilter("protocol", protocol))
+
+        sort = create_default_sort(sort_by, descending=True)
+
+        logs = await client.get_firewall_logs(
+            lines=min(lines, 50),
+            filters=filters if filters else None,
+            sort=sort,
+        )
+
+        return {
+            "success": True,
+            "lines_requested": min(lines, 50),
+            "filters_applied": {
+                "action": action_filter,
+                "interface": interface,
+                "source_ip": source_ip,
+                "destination_ip": destination_ip,
+                "destination_port": destination_port,
+                "protocol": protocol,
+            },
+            "count": len(logs.get("data", [])),
+            "log_entries": logs.get("data", []),
+            "links": client.extract_links(logs),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to get firewall log: {e}")
+        return {"success": False, "error": str(e)}
+
+@mcp.tool()
 async def analyze_blocked_traffic(
     hours_back: int = 24,
     limit: int = 20,
     group_by_source: bool = True
 ) -> Dict:
     """Analyze blocked traffic patterns from firewall logs
-    
+
     Args:
         hours_back: How many hours back to analyze
         limit: Maximum number of log entries to analyze
@@ -935,11 +1000,11 @@ async def analyze_blocked_traffic(
     client = get_api_client()
     try:
         # Get blocked traffic logs
-        sort = create_default_sort("timestamp", descending=True)
+        create_default_sort("timestamp", descending=True)
         logs = await client.get_blocked_traffic_logs(lines=limit)
-        
+
         log_data = logs.get("data", [])
-        
+
         if group_by_source:
             # Group by source IP
             source_stats = {}
@@ -952,31 +1017,31 @@ async def analyze_blocked_traffic(
                         "destinations": set(),
                         "latest_time": None
                     }
-                
+
                 source_stats[src_ip]["count"] += 1
-                
+
                 if entry.get("dst_port"):
                     source_stats[src_ip]["ports"].add(entry["dst_port"])
-                
+
                 if entry.get("dst_ip"):
                     source_stats[src_ip]["destinations"].add(entry["dst_ip"])
-                
+
                 if entry.get("timestamp"):
                     source_stats[src_ip]["latest_time"] = entry["timestamp"]
-            
+
             # Convert sets to lists for JSON serialization
             for ip, stats in source_stats.items():
                 stats["ports"] = list(stats["ports"])
                 stats["destinations"] = list(stats["destinations"])
                 stats["threat_score"] = min(10, stats["count"] / 10)
-            
+
             # Sort by count
             sorted_sources = sorted(
                 source_stats.items(),
                 key=lambda x: x[1]["count"],
                 reverse=True
             )
-            
+
             analysis = {
                 "grouped_by": "source_ip",
                 "total_unique_sources": len(source_stats),
@@ -987,7 +1052,7 @@ async def analyze_blocked_traffic(
                 "grouped_by": "none",
                 "raw_entries": log_data
             }
-        
+
         return {
             "success": True,
             "analysis_period_hours": hours_back,
@@ -1008,7 +1073,7 @@ async def search_logs_by_ip(
     include_related: bool = True
 ) -> Dict:
     """Search logs for activity related to a specific IP address
-    
+
     Args:
         ip_address: IP address to search for
         log_type: Type of logs to search (firewall, system, etc.)
@@ -1027,9 +1092,9 @@ async def search_logs_by_ip(
                 filters=filters,
                 pagination=PaginationOptions(limit=lines)
             )
-        
+
         log_entries = logs.get("data", [])
-        
+
         # Analyze patterns if firewall logs
         if log_type == "firewall" and log_entries:
             patterns = {
@@ -1039,26 +1104,26 @@ async def search_logs_by_ip(
                 "ports_accessed": set(),
                 "protocols_used": set()
             }
-            
+
             for entry in log_entries:
                 action = entry.get("action", "").lower()
                 if "block" in action or "reject" in action:
                     patterns["blocked_count"] += 1
                 elif "pass" in action or "allow" in action:
                     patterns["allowed_count"] += 1
-                
+
                 if entry.get("dst_port"):
                     patterns["ports_accessed"].add(entry["dst_port"])
-                
+
                 if entry.get("protocol"):
                     patterns["protocols_used"].add(entry["protocol"])
-            
+
             # Convert sets to lists
             patterns["ports_accessed"] = list(patterns["ports_accessed"])
             patterns["protocols_used"] = list(patterns["protocols_used"])
         else:
             patterns = None
-        
+
         return {
             "success": True,
             "ip_address": ip_address,
@@ -1071,6 +1136,61 @@ async def search_logs_by_ip(
         }
     except Exception as e:
         logger.error(f"Failed to search logs by IP: {e}")
+        return {"success": False, "error": str(e)}
+
+# Service Tools
+
+@mcp.tool()
+async def search_services(
+    search_term: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    sort_by: str = "name"
+) -> Dict:
+    """Search and filter system services
+
+    Args:
+        search_term: Search in service names or descriptions
+        status_filter: Filter by status (running, stopped)
+        page: Page number for pagination
+        page_size: Number of results per page
+        sort_by: Field to sort by (name, status, description)
+    """
+    client = get_api_client()
+    try:
+        if status_filter == "running":
+            result = await client.find_running_services()
+        elif status_filter == "stopped":
+            result = await client.find_stopped_services()
+        else:
+            result = await client.get_services()
+
+        services = result.get("data", [])
+
+        if search_term:
+            term_lower = search_term.lower()
+            services = [
+                s for s in services
+                if term_lower in s.get("name", "").lower()
+                or term_lower in s.get("description", "").lower()
+            ]
+
+        return {
+            "success": True,
+            "page": page,
+            "page_size": page_size,
+            "filters_applied": {
+                "search_term": search_term,
+                "status_filter": status_filter,
+            },
+            "count": len(services),
+            "services": services,
+            "links": client.extract_links(result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to search services: {e}")
         return {"success": False, "error": str(e)}
 
 # Enhanced DHCP Tools
@@ -1118,17 +1238,16 @@ async def search_dhcp_leases(
         if state:
             # DHCP uses 'active_status' field, not 'state'
             filters.append(QueryFilter("active_status", state))
-        
+
         pagination = create_pagination(page, page_size)
         sort = create_default_sort(sort_by, descending=True)
-        
+
         leases = await client.get_dhcp_leases(
-            interface=interface,
             filters=filters if filters else None,
             sort=sort,
             pagination=pagination
         )
-        
+
         return {
             "success": True,
             "page": page,
@@ -1154,14 +1273,14 @@ async def search_dhcp_leases(
 @mcp.tool()
 async def follow_api_link(link_url: str) -> Dict:
     """Follow a HATEOAS link from a previous API response
-    
+
     Args:
         link_url: The link URL to follow (from _links section)
     """
     client = get_api_client()
     try:
         result = await client.follow_link(link_url)
-        
+
         return {
             "success": True,
             "followed_link": link_url,
@@ -1202,14 +1321,14 @@ async def disable_hateoas() -> Dict:
 @mcp.tool()
 async def refresh_object_ids(endpoint: str) -> Dict:
     """Refresh object IDs by re-querying an endpoint (handles ID changes after deletions)
-    
+
     Args:
         endpoint: API endpoint to refresh (e.g., '/firewall/rule')
     """
     client = get_api_client()
     try:
         result = await client.refresh_object_ids(endpoint)
-        
+
         return {
             "success": True,
             "endpoint": endpoint,
@@ -1230,7 +1349,7 @@ async def find_object_by_field(
     value: str
 ) -> Dict:
     """Find an object by a specific field value (safer than using IDs)
-    
+
     Args:
         endpoint: API endpoint to search
         field: Field name to search by
@@ -1239,7 +1358,7 @@ async def find_object_by_field(
     client = get_api_client()
     try:
         obj = await client.find_object_by_field(endpoint, field, value)
-        
+
         if obj:
             return {
                 "success": True,
@@ -1273,7 +1392,7 @@ async def get_api_capabilities() -> Dict:
     client = get_api_client()
     try:
         capabilities = await client.get_api_capabilities()
-        
+
         return {
             "success": True,
             "api_version": "v2",
@@ -1302,17 +1421,17 @@ async def test_enhanced_connection() -> Dict:
     try:
         # Test basic connection
         connected = await client.test_connection()
-        
+
         if not connected:
             return {
                 "success": False,
                 "message": "Basic connection failed",
                 "timestamp": datetime.utcnow().isoformat()
             }
-        
+
         # Test advanced features
         tests = []
-        
+
         # Test filtering
         try:
             await client.get_interfaces(
@@ -1322,7 +1441,7 @@ async def test_enhanced_connection() -> Dict:
             tests.append({"feature": "filtering", "status": "working"})
         except Exception as e:
             tests.append({"feature": "filtering", "status": "failed", "error": str(e)})
-        
+
         # Test sorting
         try:
             await client.get_firewall_rules(
@@ -1332,7 +1451,7 @@ async def test_enhanced_connection() -> Dict:
             tests.append({"feature": "sorting", "status": "working"})
         except Exception as e:
             tests.append({"feature": "sorting", "status": "failed", "error": str(e)})
-        
+
         # Test HATEOAS if enabled
         if client.enable_hateoas:
             try:
@@ -1344,9 +1463,9 @@ async def test_enhanced_connection() -> Dict:
                     tests.append({"feature": "hateoas", "status": "no_links"})
             except Exception as e:
                 tests.append({"feature": "hateoas", "status": "failed", "error": str(e)})
-        
+
         working_features = len([t for t in tests if t["status"] == "working"])
-        
+
         return {
             "success": True,
             "message": f"Enhanced connection test completed - {working_features}/{len(tests)} features working",

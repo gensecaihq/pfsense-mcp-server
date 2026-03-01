@@ -4,25 +4,25 @@ Test Enhanced pfSense MCP Server Features
 Tests: Object IDs, Queries/Filters, HATEOAS, Control Parameters
 """
 
+import asyncio
 import os
 import sys
-import asyncio
-import json
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Any
 
 # Add current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from pfsense_api_enhanced import (
-    EnhancedPfSenseAPIClient,
     AuthMethod,
+    ControlParameters,
+    EnhancedPfSenseAPIClient,
+    PaginationOptions,
     PfSenseVersion,
     QueryFilter,
     SortOptions,
-    PaginationOptions,
-    ControlParameters
 )
+
 
 class EnhancedTestResults:
     def __init__(self):
@@ -30,7 +30,7 @@ class EnhancedTestResults:
         self.passed = 0
         self.failed = 0
         self.features_tested = set()
-    
+
     def add_test(self, name: str, feature: str, success: bool, message: str, data: Any = None):
         self.tests.append({
             "name": name,
@@ -45,16 +45,16 @@ class EnhancedTestResults:
             self.passed += 1
         else:
             self.failed += 1
-    
+
     def print_results(self):
         print(f"\n{'='*80}")
-        print(f"ENHANCED FEATURES TEST RESULTS")
+        print("ENHANCED FEATURES TEST RESULTS")
         print(f"{'='*80}")
         print(f"Tests: {self.passed} passed, {self.failed} failed")
         print(f"Features tested: {len(self.features_tested)}")
         print(f"Features: {', '.join(sorted(self.features_tested))}")
         print(f"{'='*80}")
-        
+
         # Group by feature
         by_feature = {}
         for test in self.tests:
@@ -62,13 +62,13 @@ class EnhancedTestResults:
             if feature not in by_feature:
                 by_feature[feature] = []
             by_feature[feature].append(test)
-        
+
         for feature, tests in by_feature.items():
             passed = len([t for t in tests if t["success"]])
             total = len(tests)
             print(f"\n🔧 {feature.upper()} ({passed}/{total} passed)")
             print("-" * 40)
-            
+
             for test in tests:
                 status = "✅ PASS" if test["success"] else "❌ FAIL"
                 print(f"  {status} {test['name']}")
@@ -79,17 +79,17 @@ class EnhancedTestResults:
 async def test_enhanced_api_features():
     """Test all enhanced API features"""
     results = EnhancedTestResults()
-    
+
     # Load configuration
     host = os.getenv("PFSENSE_URL", "https://pfsense.local")
     api_key = os.getenv("PFSENSE_API_KEY")
     username = os.getenv("PFSENSE_USERNAME")
     password = os.getenv("PFSENSE_PASSWORD")
     verify_ssl = os.getenv("VERIFY_SSL", "true").lower() == "true"
-    
+
     version_str = os.getenv("PFSENSE_VERSION", "CE_2_8_0")
     version = PfSenseVersion.PLUS_24_11 if version_str == "PLUS_24_11" else PfSenseVersion.CE_2_8_0
-    
+
     auth_method_str = os.getenv("AUTH_METHOD", "api_key").lower()
     if auth_method_str == "basic":
         auth_method = AuthMethod.BASIC
@@ -97,13 +97,13 @@ async def test_enhanced_api_features():
         auth_method = AuthMethod.JWT
     else:
         auth_method = AuthMethod.API_KEY
-    
-    print(f"Testing Enhanced pfSense API Features")
+
+    print("Testing Enhanced pfSense API Features")
     print(f"Host: {host}")
     print(f"Version: {version.value}")
     print(f"Auth: {auth_method.value}")
     print(f"SSL Verify: {verify_ssl}")
-    
+
     # Initialize client
     client = EnhancedPfSenseAPIClient(
         host=host,
@@ -115,7 +115,7 @@ async def test_enhanced_api_features():
         version=version,
         enable_hateoas=True
     )
-    
+
     # Test 1: Basic Connection
     try:
         connected = await client.test_connection()
@@ -125,7 +125,7 @@ async def test_enhanced_api_features():
             connected,
             "API connection established" if connected else "Failed to connect"
         )
-        
+
         if not connected:
             results.print_results()
             return False
@@ -139,10 +139,10 @@ async def test_enhanced_api_features():
         )
         results.print_results()
         return False
-    
+
     # Test 2: Query Filters
     print("\n🔍 Testing Query Filters...")
-    
+
     # Test exact match filter
     try:
         filters = [QueryFilter("status", "up")]
@@ -162,7 +162,7 @@ async def test_enhanced_api_features():
             "Exact match filter failed",
             str(e)
         )
-    
+
     # Test contains filter
     try:
         filters = [QueryFilter("name", "wan", "contains")]
@@ -182,7 +182,7 @@ async def test_enhanced_api_features():
             "Contains filter failed",
             str(e)
         )
-    
+
     # Test multiple filters
     try:
         filters = [
@@ -205,10 +205,10 @@ async def test_enhanced_api_features():
             "Multiple filters failed",
             str(e)
         )
-    
+
     # Test 3: Sorting
     print("\n📊 Testing Sorting...")
-    
+
     # Test basic sorting
     try:
         sort = SortOptions(sort_by="interface", sort_order="asc")
@@ -228,7 +228,7 @@ async def test_enhanced_api_features():
             "Basic sorting failed",
             str(e)
         )
-    
+
     # Test descending sort
     try:
         sort = SortOptions(sort_by="id", sort_order="desc")
@@ -248,10 +248,10 @@ async def test_enhanced_api_features():
             "Descending sort failed",
             str(e)
         )
-    
+
     # Test 4: Pagination
     print("\n📄 Testing Pagination...")
-    
+
     # Test limit
     try:
         pagination = PaginationOptions(limit=5)
@@ -272,7 +272,7 @@ async def test_enhanced_api_features():
             "Pagination limit failed",
             str(e)
         )
-    
+
     # Test offset
     try:
         pagination = PaginationOptions(limit=3, offset=2)
@@ -293,10 +293,10 @@ async def test_enhanced_api_features():
             "Pagination offset failed",
             str(e)
         )
-    
+
     # Test 5: Control Parameters
     print("\n⚙️ Testing Control Parameters...")
-    
+
     # Test dry run (apply=false)
     try:
         rule_data = {
@@ -317,13 +317,13 @@ async def test_enhanced_api_features():
             success,
             "Created rule without applying changes"
         )
-        
+
         # Clean up - delete the test rule
         if success:
             rule_id = result.get("data", result).get("id")
             if rule_id:
                 await client.delete_firewall_rule(rule_id, apply_immediately=True)
-                
+
     except Exception as e:
         results.add_test(
             "Control Parameters (No Apply)",
@@ -332,10 +332,10 @@ async def test_enhanced_api_features():
             "Control parameters test failed",
             str(e)
         )
-    
+
     # Test 6: HATEOAS
     print("\n🔗 Testing HATEOAS...")
-    
+
     # Test HATEOAS links
     try:
         status = await client.get_system_status()
@@ -347,7 +347,7 @@ async def test_enhanced_api_features():
             success,
             f"Extracted {len(links)} HATEOAS links"
         )
-        
+
         # Test following a link (if any exist)
         if links and success:
             try:
@@ -359,7 +359,7 @@ async def test_enhanced_api_features():
                         "HATEOAS Link Following",
                         "hateoas",
                         link_success,
-                        f"Successfully followed HATEOAS link"
+                        "Successfully followed HATEOAS link"
                     )
                 else:
                     results.add_test(
@@ -376,7 +376,7 @@ async def test_enhanced_api_features():
                     "Failed to follow HATEOAS link",
                     str(e)
                 )
-        
+
     except Exception as e:
         results.add_test(
             "HATEOAS Links Extraction",
@@ -385,10 +385,10 @@ async def test_enhanced_api_features():
             "HATEOAS test failed",
             str(e)
         )
-    
+
     # Test 7: Object ID Management
     print("\n🆔 Testing Object ID Management...")
-    
+
     # Test finding object by field
     try:
         obj = await client.find_object_by_field("/firewall/rule", "interface", "wan")
@@ -407,7 +407,7 @@ async def test_enhanced_api_features():
             "Find object by field failed",
             str(e)
         )
-    
+
     # Test refreshing object IDs
     try:
         refreshed = await client.refresh_object_ids("/firewall/rule")
@@ -426,10 +426,10 @@ async def test_enhanced_api_features():
             "Refresh object IDs failed",
             str(e)
         )
-    
+
     # Test 8: Advanced Search Methods
     print("\n🔎 Testing Advanced Search Methods...")
-    
+
     # Test interface search
     try:
         interfaces = await client.search_interfaces("wan")
@@ -448,7 +448,7 @@ async def test_enhanced_api_features():
             "Interface search failed",
             str(e)
         )
-    
+
     # Test blocked rules search
     try:
         blocked = await client.find_blocked_rules()
@@ -467,7 +467,7 @@ async def test_enhanced_api_features():
             "Blocked rules search failed",
             str(e)
         )
-    
+
     # Test alias search
     try:
         aliases = await client.search_aliases("test")
@@ -486,10 +486,10 @@ async def test_enhanced_api_features():
             "Alias search failed",
             str(e)
         )
-    
+
     # Test 9: Enhanced Log Analysis
     print("\n📊 Testing Enhanced Log Analysis...")
-    
+
     # Test blocked traffic analysis
     try:
         logs = await client.get_blocked_traffic_logs(lines=10)
@@ -508,10 +508,10 @@ async def test_enhanced_api_features():
             "Blocked traffic logs failed",
             str(e)
         )
-    
+
     # Test 10: DHCP Enhanced Features
     print("\n🌐 Testing Enhanced DHCP Features...")
-    
+
     # Test active leases
     try:
         leases = await client.get_active_leases()
@@ -530,10 +530,10 @@ async def test_enhanced_api_features():
             "Active DHCP leases failed",
             str(e)
         )
-    
+
     # Test 11: API Capabilities
     print("\n⚡ Testing API Capabilities...")
-    
+
     # Test capabilities query
     try:
         capabilities = await client.get_api_capabilities()
@@ -552,7 +552,7 @@ async def test_enhanced_api_features():
             "API capabilities failed",
             str(e)
         )
-    
+
     # Close client
     await client.close()
     results.add_test(
@@ -561,13 +561,13 @@ async def test_enhanced_api_features():
         True,
         "Enhanced client closed successfully"
     )
-    
+
     # Print results
     results.print_results()
-    
+
     # Summary
     print(f"\n{'='*80}")
-    print(f"SUMMARY")
+    print("SUMMARY")
     print(f"{'='*80}")
     if results.failed == 0:
         print("🎉 ALL ENHANCED FEATURES WORKING!")
@@ -575,7 +575,7 @@ async def test_enhanced_api_features():
     else:
         print(f"⚠️  {results.failed} test(s) failed out of {results.passed + results.failed}")
         print("Some enhanced features may not be working properly.")
-    
+
     print(f"\nFeatures tested: {len(results.features_tested)}")
     for feature in sorted(results.features_tested):
         feature_tests = [t for t in results.tests if t["feature"] == feature]
@@ -583,7 +583,7 @@ async def test_enhanced_api_features():
         total = len(feature_tests)
         status = "✅" if passed == total else "⚠️" if passed > 0 else "❌"
         print(f"  {status} {feature}: {passed}/{total}")
-    
+
     return results.failed == 0
 
 async def test_mcp_enhanced_tools():
@@ -591,22 +591,22 @@ async def test_mcp_enhanced_tools():
     print(f"\n{'='*80}")
     print("TESTING ENHANCED MCP TOOLS")
     print(f"{'='*80}")
-    
+
     try:
         from main_enhanced_mcp import (
-            search_interfaces,
-            search_firewall_rules,
-            find_blocked_rules,
-            search_aliases,
             enable_hateoas,
+            find_blocked_rules,
+            get_api_capabilities,
+            search_aliases,
+            search_firewall_rules,
+            search_interfaces,
             test_enhanced_connection,
-            get_api_capabilities
         )
         print("✅ Enhanced MCP tools imported successfully")
     except Exception as e:
         print(f"❌ Failed to import enhanced MCP tools: {e}")
         return False
-    
+
     # Test enhanced tools
     tools_to_test = [
         ("test_enhanced_connection", test_enhanced_connection, {}),
@@ -617,7 +617,7 @@ async def test_mcp_enhanced_tools():
         ("enable_hateoas", enable_hateoas, {}),
         ("get_api_capabilities", get_api_capabilities, {})
     ]
-    
+
     for tool_name, tool_func, kwargs in tools_to_test:
         try:
             result = await tool_func(**kwargs)
@@ -631,7 +631,7 @@ async def test_mcp_enhanced_tools():
                 print(f"❌ {tool_name}: {result.get('error', 'Unknown error')}")
         except Exception as e:
             print(f"❌ {tool_name}: Exception - {e}")
-    
+
     return True
 
 def print_enhanced_config_help():
@@ -662,27 +662,27 @@ def main():
     """Main test function"""
     print("pfSense Enhanced API Features Test Suite")
     print(f"{'='*80}")
-    
+
     # Check configuration
     if not os.getenv("PFSENSE_URL"):
         print("❌ Missing PFSENSE_URL environment variable")
         print_enhanced_config_help()
         return 1
-    
+
     if not os.getenv("PFSENSE_API_KEY") and not (os.getenv("PFSENSE_USERNAME") and os.getenv("PFSENSE_PASSWORD")):
         print("❌ Missing authentication credentials")
         print_enhanced_config_help()
         return 1
-    
+
     try:
         # Test enhanced API features
         api_success = asyncio.run(test_enhanced_api_features())
-        
+
         # Test enhanced MCP tools
         mcp_success = asyncio.run(test_mcp_enhanced_tools())
-        
+
         if api_success and mcp_success:
-            print(f"\n🎉 ALL ENHANCED TESTS PASSED!")
+            print("\n🎉 ALL ENHANCED TESTS PASSED!")
             print("Your pfSense Enhanced MCP Server is fully functional with:")
             print("  ✅ Advanced Query Filters")
             print("  ✅ Multi-field Sorting")
@@ -693,12 +693,12 @@ def main():
             print("  ✅ Enhanced Search Methods")
             return 0
         else:
-            print(f"\n❌ Some enhanced features failed.")
+            print("\n❌ Some enhanced features failed.")
             print("Check the output above for details.")
             return 1
-            
+
     except KeyboardInterrupt:
-        print(f"\n⚠️ Tests interrupted by user")
+        print("\n⚠️ Tests interrupted by user")
         return 1
     except Exception as e:
         print(f"\n💥 Test execution failed: {e}")
