@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    env:
+      PFSENSE_URL: "https://192.0.2.1"
+      PFSENSE_API_KEY: "test-key"
+      AUTH_METHOD: "api_key"
+      VERIFY_SSL: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install "pytest>=8.0" "pytest-asyncio>=0.23" "pytest-cov>=5.0" "ruff>=0.4"
+
+      - name: Run tests with coverage
+        run: pytest --cov=src --cov-report=term-missing -v
+
+      - name: Lint with ruff
+        run: ruff check src/ tests/
