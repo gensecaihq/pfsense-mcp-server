@@ -5,18 +5,17 @@ Implements advanced features: Object IDs, Queries/Filters, HATEOAS, Control Para
 Compatible with jaredhendrickson13/pfsense-api package
 """
 
-import os
-import json
-import base64
-import re
 import asyncio
+import base64
+import json
 import logging
-from typing import Dict, List, Optional, Any, Union
-from enum import Enum
 from dataclasses import dataclass
-import httpx
 from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlencode
+
+import httpx
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -147,7 +146,7 @@ class EnhancedPfSenseAPIClient:
                 # Close old client if it exists
                 try:
                     asyncio.create_task(self.client.aclose())
-                except:
+                except Exception:
                     pass
 
             self.client = httpx.AsyncClient(
@@ -296,7 +295,7 @@ class EnhancedPfSenseAPIClient:
                 error_json = response.json()
                 error_message = error_json.get('message', 'Unknown error')
                 error_detail = json.dumps(error_json, indent=2)
-            except:
+            except Exception:
                 error_message = error_body
                 error_detail = error_body
 
@@ -774,16 +773,16 @@ if __name__ == "__main__":
         )
 
         # Example: Find all firewall rules blocking port 22
-        port_22_blocks = await client.find_rules_by_destination_port(22)
+        await client.find_rules_by_destination_port(22)
 
         # Example: Get recent blocked traffic
-        recent_blocks = await client.get_blocked_traffic_logs(lines=50)
+        await client.get_blocked_traffic_logs(lines=50)
 
         # Example: Find DHCP lease by MAC address
-        lease = await client.find_lease_by_mac("aa:bb:cc:dd:ee:ff")
+        await client.find_lease_by_mac("aa:bb:cc:dd:ee:ff")
 
         # Example: Search interfaces containing "wan"
-        wan_interfaces = await client.search_interfaces("wan")
+        await client.search_interfaces("wan")
 
         await client.close()
 
