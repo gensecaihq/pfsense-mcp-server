@@ -740,6 +740,98 @@ async def create_alias(
         logger.error(f"Failed to create alias: {e}")
         return {"success": False, "error": str(e)}
 
+@mcp.tool()
+async def update_alias(
+    alias_id: int,
+    name: Optional[str] = None,
+    alias_type: Optional[str] = None,
+    addresses: Optional[List[str]] = None,
+    description: Optional[str] = None,
+    details: Optional[List[str]] = None,
+    apply_immediately: bool = True
+) -> Dict:
+    """Update an existing alias by ID
+
+    Args:
+        alias_id: Alias ID (array index from search_aliases)
+        name: New alias name
+        alias_type: New alias type (host, network, port)
+        addresses: New list of addresses
+        description: New description
+        details: New per-entry descriptions
+        apply_immediately: Whether to apply changes immediately
+    """
+    client = get_api_client()
+    try:
+        field_map = {
+            "name": "name",
+            "alias_type": "type",
+            "addresses": "address",
+            "description": "descr",
+            "details": "detail",
+        }
+
+        params = {
+            "name": name,
+            "alias_type": alias_type,
+            "addresses": addresses,
+            "description": description,
+            "details": details,
+        }
+
+        updates = {}
+        for param_name, value in params.items():
+            if value is not None:
+                updates[field_map[param_name]] = value
+
+        if not updates:
+            return {"success": False, "error": "No fields to update - provide at least one field"}
+
+        control = ControlParameters(apply=apply_immediately)
+        result = await client.update_alias(alias_id, updates, control)
+
+        return {
+            "success": True,
+            "message": f"Alias {alias_id} updated",
+            "alias_id": alias_id,
+            "fields_updated": list(updates.keys()),
+            "applied": apply_immediately,
+            "result": result.get("data", result),
+            "links": client.extract_links(result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to update alias: {e}")
+        return {"success": False, "error": str(e)}
+
+@mcp.tool()
+async def delete_alias(
+    alias_id: int,
+    apply_immediately: bool = True
+) -> Dict:
+    """Delete an alias by ID
+
+    Args:
+        alias_id: Alias ID (array index from search_aliases)
+        apply_immediately: Whether to apply changes immediately
+    """
+    client = get_api_client()
+    try:
+        result = await client.delete_alias(alias_id, apply_immediately)
+
+        return {
+            "success": True,
+            "message": f"Alias {alias_id} deleted",
+            "alias_id": alias_id,
+            "applied": apply_immediately,
+            "result": result.get("data", result),
+            "links": client.extract_links(result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to delete alias: {e}")
+        return {"success": False, "error": str(e)}
+
 # NAT Port Forward Tools
 
 @mcp.tool()
@@ -912,6 +1004,99 @@ async def delete_nat_port_forward(
         }
     except Exception as e:
         logger.error(f"Failed to delete NAT port forward: {e}")
+        return {"success": False, "error": str(e)}
+
+@mcp.tool()
+async def update_nat_port_forward(
+    port_forward_id: int,
+    interface: Optional[str] = None,
+    protocol: Optional[str] = None,
+    destination: Optional[str] = None,
+    destination_port: Optional[str] = None,
+    target: Optional[str] = None,
+    local_port: Optional[str] = None,
+    source: Optional[str] = None,
+    description: Optional[str] = None,
+    disabled: Optional[bool] = None,
+    nat_reflection: Optional[str] = None,
+    apply_immediately: bool = True
+) -> Dict:
+    """Update an existing NAT port forwarding rule by ID
+
+    Args:
+        port_forward_id: Port forward rule ID (array index from search_nat_port_forwards)
+        interface: Interface for the rule (wan, lan, etc.)
+        protocol: Protocol (tcp, udp, tcp/udp)
+        destination: External address (e.g., "wanip", "any", or specific IP/alias)
+        destination_port: External port or range
+        target: Internal host IP address or alias
+        local_port: Internal port to forward to
+        source: Source address filter
+        description: Rule description
+        disabled: Whether the rule is disabled
+        nat_reflection: NAT reflection mode (enable, disable, purenat)
+        apply_immediately: Whether to apply changes immediately
+    """
+    client = get_api_client()
+    try:
+        field_map = {
+            "interface": "interface",
+            "protocol": "protocol",
+            "destination": "destination",
+            "destination_port": "destination_port",
+            "target": "target",
+            "local_port": "local_port",
+            "source": "source",
+            "description": "descr",
+            "disabled": "disabled",
+            "nat_reflection": "natreflection",
+        }
+
+        params = {
+            "interface": interface,
+            "protocol": protocol,
+            "destination": destination,
+            "destination_port": destination_port,
+            "target": target,
+            "local_port": local_port,
+            "source": source,
+            "description": description,
+            "disabled": disabled,
+            "nat_reflection": nat_reflection,
+        }
+
+        updates = {}
+        for param_name, value in params.items():
+            if value is not None:
+                api_field = field_map[param_name]
+                if param_name == "interface":
+                    updates[api_field] = [value] if isinstance(value, str) else value
+                else:
+                    updates[api_field] = value
+
+        if not updates:
+            return {"success": False, "error": "No fields to update - provide at least one field"}
+
+        updates["id"] = port_forward_id
+        control = ControlParameters(apply=apply_immediately)
+
+        result = await client._make_request(
+            "PATCH", "/firewall/nat/port_forward",
+            data=updates, control=control
+        )
+
+        return {
+            "success": True,
+            "message": f"NAT port forward {port_forward_id} updated",
+            "port_forward_id": port_forward_id,
+            "fields_updated": [k for k in updates.keys() if k != "id"],
+            "applied": apply_immediately,
+            "result": result.get("data", result),
+            "links": client.extract_links(result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to update NAT port forward: {e}")
         return {"success": False, "error": str(e)}
 
 # Enhanced Log Analysis Tools
@@ -1193,6 +1378,44 @@ async def search_services(
         logger.error(f"Failed to search services: {e}")
         return {"success": False, "error": str(e)}
 
+@mcp.tool()
+async def control_service(
+    service_name: str,
+    action: str
+) -> Dict:
+    """Start, stop, or restart a system service
+
+    Args:
+        service_name: Name of the service (e.g., "dhcpd", "unbound", "ntpd")
+        action: Action to perform ("start", "stop", or "restart")
+    """
+    client = get_api_client()
+    try:
+        action_lower = action.lower()
+        if action_lower == "start":
+            result = await client.start_service(service_name)
+        elif action_lower == "stop":
+            result = await client.stop_service(service_name)
+        elif action_lower == "restart":
+            result = await client.restart_service(service_name)
+        else:
+            return {
+                "success": False,
+                "error": f"Invalid action '{action}'. Must be 'start', 'stop', or 'restart'",
+            }
+
+        return {
+            "success": True,
+            "message": f"Service '{service_name}' {action_lower} command sent",
+            "service": service_name,
+            "action": action_lower,
+            "result": result.get("data", result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to {action} service {service_name}: {e}")
+        return {"success": False, "error": str(e)}
+
 # Enhanced DHCP Tools
 
 @mcp.tool()
@@ -1266,6 +1489,222 @@ async def search_dhcp_leases(
         }
     except Exception as e:
         logger.error(f"Failed to search DHCP leases: {e}")
+        return {"success": False, "error": str(e)}
+
+@mcp.tool()
+async def search_dhcp_static_mappings(
+    interface: Optional[str] = None,
+    mac_address: Optional[str] = None,
+    hostname: Optional[str] = None,
+    ip_address: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    sort_by: str = "mac"
+) -> Dict:
+    """Search DHCP static mappings (reservations) with filtering
+
+    Args:
+        interface: Filter by interface (lan, opt1, etc.)
+        mac_address: Filter by MAC address
+        hostname: Filter by hostname (partial match)
+        ip_address: Filter by IP address
+        page: Page number for pagination
+        page_size: Number of results per page
+        sort_by: Field to sort by (mac, ipaddr, hostname)
+    """
+    client = get_api_client()
+    try:
+        filters = []
+
+        if interface:
+            filters.append(QueryFilter("parent_id", interface))
+
+        if mac_address:
+            filters.append(QueryFilter("mac", mac_address))
+
+        if hostname:
+            filters.append(QueryFilter("hostname", hostname, "contains"))
+
+        if ip_address:
+            filters.append(QueryFilter("ipaddr", ip_address))
+
+        pagination = create_pagination(page, page_size)
+        sort = create_default_sort(sort_by)
+
+        result = await client.get_dhcp_static_mappings(
+            filters=filters if filters else None,
+            sort=sort,
+            pagination=pagination
+        )
+
+        return {
+            "success": True,
+            "page": page,
+            "page_size": page_size,
+            "filters_applied": {
+                "interface": interface,
+                "mac_address": mac_address,
+                "hostname": hostname,
+                "ip_address": ip_address,
+            },
+            "count": len(result.get("data", [])),
+            "static_mappings": result.get("data", []),
+            "links": client.extract_links(result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to search DHCP static mappings: {e}")
+        return {"success": False, "error": str(e)}
+
+@mcp.tool()
+async def create_dhcp_static_mapping(
+    interface: str,
+    mac_address: str,
+    ip_address: str,
+    hostname: Optional[str] = None,
+    description: Optional[str] = None,
+    domain: Optional[str] = None,
+    gateway: Optional[str] = None,
+    dns_server: Optional[str] = None,
+    apply_immediately: bool = True
+) -> Dict:
+    """Create a DHCP static mapping (reservation)
+
+    Args:
+        interface: Interface/DHCP pool (e.g., "lan")
+        mac_address: MAC address to reserve for
+        ip_address: IP address to assign
+        hostname: Optional hostname
+        description: Optional description
+        domain: Optional domain name
+        gateway: Optional gateway override
+        dns_server: Optional DNS server override
+        apply_immediately: Whether to apply changes immediately
+    """
+    client = get_api_client()
+    try:
+        mapping_data = {
+            "parent_id": interface,
+            "mac": mac_address,
+            "ipaddr": ip_address,
+        }
+
+        if hostname:
+            mapping_data["hostname"] = hostname
+        if description:
+            mapping_data["descr"] = description
+        if domain:
+            mapping_data["domain"] = domain
+        if gateway:
+            mapping_data["gateway"] = gateway
+        if dns_server:
+            mapping_data["dnsserver"] = dns_server
+
+        control = ControlParameters(apply=apply_immediately)
+        result = await client.create_dhcp_static_mapping(mapping_data, control)
+
+        return {
+            "success": True,
+            "message": f"DHCP static mapping created: {mac_address} -> {ip_address}",
+            "static_mapping": result.get("data", result),
+            "applied": apply_immediately,
+            "links": client.extract_links(result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to create DHCP static mapping: {e}")
+        return {"success": False, "error": str(e)}
+
+@mcp.tool()
+async def update_dhcp_static_mapping(
+    mapping_id: int,
+    mac_address: Optional[str] = None,
+    ip_address: Optional[str] = None,
+    hostname: Optional[str] = None,
+    description: Optional[str] = None,
+    interface: Optional[str] = None,
+    apply_immediately: bool = True
+) -> Dict:
+    """Update an existing DHCP static mapping by ID
+
+    Args:
+        mapping_id: Static mapping ID
+        mac_address: New MAC address
+        ip_address: New IP address
+        hostname: New hostname
+        description: New description
+        interface: New interface/DHCP pool
+        apply_immediately: Whether to apply changes immediately
+    """
+    client = get_api_client()
+    try:
+        field_map = {
+            "mac_address": "mac",
+            "ip_address": "ipaddr",
+            "hostname": "hostname",
+            "description": "descr",
+            "interface": "parent_id",
+        }
+
+        params = {
+            "mac_address": mac_address,
+            "ip_address": ip_address,
+            "hostname": hostname,
+            "description": description,
+            "interface": interface,
+        }
+
+        updates = {}
+        for param_name, value in params.items():
+            if value is not None:
+                updates[field_map[param_name]] = value
+
+        if not updates:
+            return {"success": False, "error": "No fields to update - provide at least one field"}
+
+        control = ControlParameters(apply=apply_immediately)
+        result = await client.update_dhcp_static_mapping(mapping_id, updates, control)
+
+        return {
+            "success": True,
+            "message": f"DHCP static mapping {mapping_id} updated",
+            "mapping_id": mapping_id,
+            "fields_updated": list(updates.keys()),
+            "applied": apply_immediately,
+            "result": result.get("data", result),
+            "links": client.extract_links(result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to update DHCP static mapping: {e}")
+        return {"success": False, "error": str(e)}
+
+@mcp.tool()
+async def delete_dhcp_static_mapping(
+    mapping_id: int,
+    apply_immediately: bool = True
+) -> Dict:
+    """Delete a DHCP static mapping by ID
+
+    Args:
+        mapping_id: Static mapping ID
+        apply_immediately: Whether to apply changes immediately
+    """
+    client = get_api_client()
+    try:
+        result = await client.delete_dhcp_static_mapping(mapping_id, apply_immediately)
+
+        return {
+            "success": True,
+            "message": f"DHCP static mapping {mapping_id} deleted",
+            "mapping_id": mapping_id,
+            "applied": apply_immediately,
+            "result": result.get("data", result),
+            "links": client.extract_links(result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to delete DHCP static mapping: {e}")
         return {"success": False, "error": str(e)}
 
 # HATEOAS Navigation Tools
@@ -1404,7 +1843,7 @@ async def get_api_capabilities() -> Dict:
                 "queries_filters": "Full support with multiple operators",
                 "sorting": "Multi-field sorting supported",
                 "pagination": "Limit/offset based",
-                "hateoas": f"{'Enabled' if client.enable_hateoas else 'Disabled'}",
+                "hateoas": f"{'Enabled' if client.hateoas_enabled else 'Disabled'}",
                 "control_parameters": "Apply, async, placement, append, remove"
             },
             "links": client.extract_links(capabilities),
@@ -1453,7 +1892,7 @@ async def test_enhanced_connection() -> Dict:
             tests.append({"feature": "sorting", "status": "failed", "error": str(e)})
 
         # Test HATEOAS if enabled
-        if client.enable_hateoas:
+        if client.hateoas_enabled:
             try:
                 result = await client.get_system_status()
                 links = client.extract_links(result)
@@ -1471,7 +1910,7 @@ async def test_enhanced_connection() -> Dict:
             "message": f"Enhanced connection test completed - {working_features}/{len(tests)} features working",
             "basic_connection": True,
             "feature_tests": tests,
-            "hateoas_enabled": client.enable_hateoas,
+            "hateoas_enabled": client.hateoas_enabled,
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:

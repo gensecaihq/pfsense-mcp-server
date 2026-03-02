@@ -240,3 +240,168 @@ class TestGetDhcpLeasesIfFilter:
         call_kwargs = mock_make_request.call_args
         filters = call_kwargs.kwargs.get("filters") or call_kwargs[1].get("filters")
         assert any(f.field == "if" for f in filters)
+
+
+# ---------------------------------------------------------------------------
+# Alias update/delete client methods
+# ---------------------------------------------------------------------------
+
+class TestUpdateAliasClient:
+    async def test_patch_with_id(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 0}}
+        await mock_client.update_alias(0, {"name": "new_name"})
+        call_kwargs = mock_make_request.call_args
+        data = call_kwargs.kwargs.get("data") or call_kwargs[1].get("data")
+        assert data["id"] == 0
+        assert data["name"] == "new_name"
+        method = call_kwargs[0][0] if call_kwargs[0] else call_kwargs.kwargs.get("method")
+        assert method == "PATCH"
+
+    async def test_with_control_parameters(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 1}}
+        ctrl = ControlParameters(apply=False)
+        await mock_client.update_alias(1, {"type": "host"}, control=ctrl)
+        call_kwargs = mock_make_request.call_args
+        control = call_kwargs.kwargs.get("control") or call_kwargs[1].get("control")
+        assert control.apply is False
+
+
+class TestDeleteAliasClient:
+    async def test_delete_with_id(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {}}
+        await mock_client.delete_alias(2)
+        call_kwargs = mock_make_request.call_args
+        data = call_kwargs.kwargs.get("data") or call_kwargs[1].get("data")
+        assert data["id"] == 2
+        method = call_kwargs[0][0] if call_kwargs[0] else call_kwargs.kwargs.get("method")
+        assert method == "DELETE"
+
+
+# ---------------------------------------------------------------------------
+# Service control client methods
+# ---------------------------------------------------------------------------
+
+class TestServiceControlClient:
+    async def test_start_endpoint(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"service": "dhcpd"}}
+        await mock_client.start_service("dhcpd")
+        call_args = mock_make_request.call_args
+        assert call_args[0][1] == "/services/start"
+        data = call_args.kwargs.get("data") or call_args[1].get("data")
+        assert data["service"] == "dhcpd"
+
+    async def test_stop_endpoint(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"service": "dhcpd"}}
+        await mock_client.stop_service("dhcpd")
+        call_args = mock_make_request.call_args
+        assert call_args[0][1] == "/services/stop"
+
+    async def test_restart_endpoint(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"service": "unbound"}}
+        await mock_client.restart_service("unbound")
+        call_args = mock_make_request.call_args
+        assert call_args[0][1] == "/services/restart"
+        data = call_args.kwargs.get("data") or call_args[1].get("data")
+        assert data["service"] == "unbound"
+
+
+# ---------------------------------------------------------------------------
+# DHCP static mapping CRUD client methods
+# ---------------------------------------------------------------------------
+
+class TestDhcpStaticMappingCrud:
+    async def test_get_with_filters(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": []}
+        filters = [QueryFilter("parent_id", "lan")]
+        await mock_client.get_dhcp_static_mappings(filters=filters)
+        call_kwargs = mock_make_request.call_args
+        assert call_kwargs[0][1] == "/services/dhcp_server/static_mappings"
+
+    async def test_create_with_parent_id(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 0}}
+        mapping_data = {"parent_id": "lan", "mac": "aa:bb:cc:dd:ee:01", "ipaddr": "192.168.1.200"}
+        await mock_client.create_dhcp_static_mapping(mapping_data)
+        call_kwargs = mock_make_request.call_args
+        data = call_kwargs.kwargs.get("data") or call_kwargs[1].get("data")
+        assert data["parent_id"] == "lan"
+        assert data["mac"] == "aa:bb:cc:dd:ee:01"
+
+    async def test_update_with_id(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 0}}
+        await mock_client.update_dhcp_static_mapping(0, {"hostname": "newhost"})
+        call_kwargs = mock_make_request.call_args
+        data = call_kwargs.kwargs.get("data") or call_kwargs[1].get("data")
+        assert data["id"] == 0
+        assert data["hostname"] == "newhost"
+
+    async def test_delete(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {}}
+        await mock_client.delete_dhcp_static_mapping(5)
+        call_kwargs = mock_make_request.call_args
+        data = call_kwargs.kwargs.get("data") or call_kwargs[1].get("data")
+        assert data["id"] == 5
+
+
+# ---------------------------------------------------------------------------
+# Auth methods
+# ---------------------------------------------------------------------------
+
+class TestAuthMethods:
+    async def test_api_key_headers(self):
+        client = EnhancedPfSenseAPIClient(
+            host="https://192.0.2.1",
+            auth_method=AuthMethod.API_KEY,
+            api_key="my-test-key",
+            verify_ssl=False,
+        )
+        headers = await client._get_auth_headers()
+        assert headers["X-API-Key"] == "my-test-key"
+        assert headers["Content-Type"] == "application/json"
+
+    async def test_basic_auth_headers(self):
+        client = EnhancedPfSenseAPIClient(
+            host="https://192.0.2.1",
+            auth_method=AuthMethod.BASIC,
+            username="admin",
+            password="secret",
+            verify_ssl=False,
+        )
+        headers = await client._get_auth_headers()
+        assert headers["Authorization"].startswith("Basic ")
+
+    async def test_missing_creds_error(self):
+        client = EnhancedPfSenseAPIClient(
+            host="https://192.0.2.1",
+            auth_method=AuthMethod.API_KEY,
+            verify_ssl=False,
+        )
+        with pytest.raises(ValueError, match="API key required"):
+            await client._get_auth_headers()
+
+
+# ---------------------------------------------------------------------------
+# HATEOAS extract_links
+# ---------------------------------------------------------------------------
+
+class TestHateoasExtract:
+    def test_with_links(self):
+        client = EnhancedPfSenseAPIClient(
+            host="https://192.0.2.1",
+            auth_method=AuthMethod.API_KEY,
+            api_key="k",
+            verify_ssl=False,
+        )
+        response = {"data": [], "_links": {"self": "/firewall/rules", "next": "/firewall/rules?offset=10"}}
+        links = client.extract_links(response)
+        assert links["self"] == "/firewall/rules"
+        assert "next" in links
+
+    def test_empty(self):
+        client = EnhancedPfSenseAPIClient(
+            host="https://192.0.2.1",
+            auth_method=AuthMethod.API_KEY,
+            api_key="k",
+            verify_ssl=False,
+        )
+        links = client.extract_links({"data": []})
+        assert links == {}
