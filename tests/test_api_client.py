@@ -10,16 +10,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from src.pfsense_api_enhanced import (
+from src.client import EnhancedPfSenseAPIClient
+from src.helpers import create_default_sort, create_interface_filter, create_pagination
+from src.models import (
     AuthMethod,
     ControlParameters,
-    EnhancedPfSenseAPIClient,
     PaginationOptions,
     QueryFilter,
     SortOptions,
-    create_default_sort,
-    create_interface_filter,
-    create_pagination,
 )
 
 # ---------------------------------------------------------------------------

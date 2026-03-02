@@ -23,51 +23,6 @@ from .tools import (  # noqa: F401
     utility,
 )
 
-# Re-export all tool FunctionTool objects so ``_main.system_status`` still works in tests
-system_status = system.system_status
-search_interfaces = system.search_interfaces
-find_interfaces_by_status = system.find_interfaces_by_status
-
-search_firewall_rules = firewall.search_firewall_rules
-find_blocked_rules = firewall.find_blocked_rules
-create_firewall_rule_advanced = firewall.create_firewall_rule_advanced
-move_firewall_rule = firewall.move_firewall_rule
-update_firewall_rule = firewall.update_firewall_rule
-delete_firewall_rule = firewall.delete_firewall_rule
-bulk_block_ips = firewall.bulk_block_ips
-
-search_aliases = aliases.search_aliases
-manage_alias_addresses = aliases.manage_alias_addresses
-create_alias = aliases.create_alias
-update_alias = aliases.update_alias
-delete_alias = aliases.delete_alias
-
-search_nat_port_forwards = nat.search_nat_port_forwards
-create_nat_port_forward = nat.create_nat_port_forward
-delete_nat_port_forward = nat.delete_nat_port_forward
-update_nat_port_forward = nat.update_nat_port_forward
-
-get_firewall_log = logs.get_firewall_log
-analyze_blocked_traffic = logs.analyze_blocked_traffic
-search_logs_by_ip = logs.search_logs_by_ip
-
-search_services = services.search_services
-control_service = services.control_service
-
-search_dhcp_leases = dhcp.search_dhcp_leases
-search_dhcp_static_mappings = dhcp.search_dhcp_static_mappings
-create_dhcp_static_mapping = dhcp.create_dhcp_static_mapping
-update_dhcp_static_mapping = dhcp.update_dhcp_static_mapping
-delete_dhcp_static_mapping = dhcp.delete_dhcp_static_mapping
-
-follow_api_link = utility.follow_api_link
-enable_hateoas = utility.enable_hateoas
-disable_hateoas = utility.disable_hateoas
-refresh_object_ids = utility.refresh_object_ids
-find_object_by_field = utility.find_object_by_field
-get_api_capabilities = utility.get_api_capabilities
-test_enhanced_connection = utility.test_enhanced_connection
-
 
 # Main execution
 def main():
