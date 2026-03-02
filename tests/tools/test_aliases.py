@@ -34,6 +34,19 @@ class TestSearchAliases:
         filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
         assert any(f.field == "type" and f.value == "host" for f in filters)
 
+    async def test_containing_ip_filter(self, mock_client, mock_make_request, aliases_response):
+        mock_make_request.return_value = aliases_response
+        result = await _search_aliases(containing_ip="10.0.0.1")
+        assert result["success"] is True
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.field == "address" and f.value == "10.0.0.1" and f.operator == "contains" for f in filters)
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("server error")
+        result = await _search_aliases()
+        assert result["success"] is False
+        assert "server error" in result["error"]
+
 
 # ---------------------------------------------------------------------------
 # create_alias
@@ -52,6 +65,25 @@ class TestCreateAlias:
         assert data["type"] == "host"
         assert data["address"] == ["10.0.0.1"]
         assert data["descr"] == "Test"
+
+    async def test_details_parameter(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 3, "name": "test_alias"}}
+        result = await _create_alias(
+            name="test_alias", alias_type="host",
+            addresses=["10.0.0.1"], details=["entry desc"],
+        )
+        assert result["success"] is True
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["detail"] == ["entry desc"]
+
+    async def test_apply_immediately_false(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 4, "name": "deferred"}}
+        result = await _create_alias(
+            name="deferred", alias_type="host",
+            addresses=["10.0.0.1"], apply_immediately=False,
+        )
+        assert result["success"] is True
+        assert result["applied"] is False
 
 
 # ---------------------------------------------------------------------------
