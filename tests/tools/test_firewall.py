@@ -62,6 +62,26 @@ class TestSearchFirewallRules:
         sort = call_kwargs.kwargs.get("sort") or call_kwargs[1].get("sort")
         assert sort.sort_by == "interface"
 
+    async def test_destination_port_filter(self, mock_client, mock_make_request, firewall_rules_response):
+        mock_make_request.return_value = firewall_rules_response
+        result = await _search_firewall_rules(destination_port="443")
+        assert result["success"] is True
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.value == "443" for f in filters)
+
+    async def test_search_description_filter(self, mock_client, mock_make_request, firewall_rules_response):
+        mock_make_request.return_value = firewall_rules_response
+        result = await _search_firewall_rules(search_description="Allow")
+        assert result["success"] is True
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.field == "descr" and f.value == "Allow" and f.operator == "contains" for f in filters)
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("connection lost")
+        result = await _search_firewall_rules()
+        assert result["success"] is False
+        assert "connection lost" in result["error"]
+
 
 # ---------------------------------------------------------------------------
 # create_firewall_rule_advanced
@@ -187,6 +207,30 @@ class TestBulkBlockIps:
         assert result["success"] is True
         assert result["successful"] == 2
         assert result["failed"] == 0
+
+    async def test_all_fail(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("API error")
+        result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"])
+        assert result["success"] is False
+        assert result["applied"] is False
+        assert result["failed"] == 2
+        assert result["successful"] == 0
+
+    async def test_apply_failure(self, mock_client, mock_make_request):
+        call_count = 0
+
+        async def side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            # First two calls create rules OK, third call (apply) fails
+            if call_count <= 2:
+                return {"data": {"id": call_count}}
+            raise Exception("apply failed")
+
+        mock_make_request.side_effect = side_effect
+        result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"])
+        assert result["successful"] == 2
+        assert result["applied"] is False
 
     async def test_partial_failure(self, mock_client, mock_make_request):
         call_count = 0

@@ -1,13 +1,9 @@
 """Shared fixtures for pfSense MCP server tests."""
 
 import os
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
-# Exclude integration test that requires a live pfSense instance
-collect_ignore = [str(Path(__file__).parent / "test_enhanced_features.py")]
 
 # Set dummy env vars before importing anything that reads them
 os.environ.setdefault("PFSENSE_URL", "https://192.0.2.1")

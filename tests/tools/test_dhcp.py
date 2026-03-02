@@ -41,6 +41,24 @@ class TestSearchDhcpLeases:
         if_count = sum(1 for f in filters if f.field == "if")
         assert if_count == 1, f"Expected 1 'if' filter, got {if_count}"
 
+    async def test_search_term_filter(self, mock_client, mock_make_request, dhcp_leases_response):
+        mock_make_request.return_value = dhcp_leases_response
+        await _search_dhcp_leases(search_term="laptop")
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.field == "hostname" and f.value == "laptop" and f.operator == "contains" for f in filters)
+
+    async def test_hostname_filter(self, mock_client, mock_make_request, dhcp_leases_response):
+        mock_make_request.return_value = dhcp_leases_response
+        await _search_dhcp_leases(hostname="desktop")
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.field == "hostname" and f.value == "desktop" and f.operator == "contains" for f in filters)
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("DHCP error")
+        result = await _search_dhcp_leases()
+        assert result["success"] is False
+        assert "DHCP error" in result["error"]
+
 
 # ---------------------------------------------------------------------------
 # search_dhcp_static_mappings
@@ -68,6 +86,20 @@ class TestSearchDhcpStaticMappings:
         call_kwargs = mock_make_request.call_args
         filters = call_kwargs.kwargs.get("filters") or call_kwargs[1].get("filters")
         assert any(f.field == "mac" for f in filters)
+
+    async def test_hostname_filter(self, mock_client, mock_make_request, dhcp_static_mappings_response):
+        mock_make_request.return_value = dhcp_static_mappings_response
+        result = await _search_dhcp_static_mappings(hostname="server")
+        assert result["success"] is True
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.field == "hostname" and f.value == "server" and f.operator == "contains" for f in filters)
+
+    async def test_ip_address_filter(self, mock_client, mock_make_request, dhcp_static_mappings_response):
+        mock_make_request.return_value = dhcp_static_mappings_response
+        result = await _search_dhcp_static_mappings(ip_address="192.168.1.200")
+        assert result["success"] is True
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.field == "ipaddr" and f.value == "192.168.1.200" for f in filters)
 
 
 # ---------------------------------------------------------------------------
