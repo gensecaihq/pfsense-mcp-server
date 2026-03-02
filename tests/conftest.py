@@ -38,7 +38,7 @@ def mock_client(mock_make_request):
     Also installs it as the global ``api_client`` used by the MCP tools in
     ``src.main`` so tool functions can be called directly.
     """
-    import src.main as main_mod
+    import src.server as server_mod
 
     client = EnhancedPfSenseAPIClient(
         host="https://192.0.2.1",
@@ -49,9 +49,9 @@ def mock_client(mock_make_request):
     )
     # Replace the instance method with the class-level mock
     client._make_request = mock_make_request
-    main_mod.api_client = client
+    server_mod.api_client = client
     yield client
-    main_mod.api_client = None
+    server_mod.api_client = None
 
 
 # ---------------------------------------------------------------------------

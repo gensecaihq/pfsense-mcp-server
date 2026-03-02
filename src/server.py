@@ -1,0 +1,69 @@
+"""MCP server instance and API client singleton."""
+
+import logging
+import os
+from pathlib import Path
+from typing import Optional
+
+from dotenv import load_dotenv
+from fastmcp import FastMCP
+
+from .client import EnhancedPfSenseAPIClient
+from .models import AuthMethod, PfSenseVersion
+
+# Load environment variables from .env file
+project_root = Path(__file__).parent.parent
+env_path = project_root / ".env"
+load_dotenv(dotenv_path=env_path)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Version
+VERSION = "4.0.0"
+
+# Initialize FastMCP server
+mcp = FastMCP(
+    "pfSense Enhanced MCP Server",
+)
+
+# Global API client
+api_client: Optional[EnhancedPfSenseAPIClient] = None
+
+
+def get_api_client() -> EnhancedPfSenseAPIClient:
+    """Get or create enhanced API client"""
+    global api_client
+    if api_client is None:
+        # Determine version
+        pf_version = os.getenv("PFSENSE_VERSION", "CE_2_8_0")
+        if pf_version == "PLUS_24_11":
+            version = PfSenseVersion.PLUS_24_11
+        else:
+            version = PfSenseVersion.CE_2_8_0
+
+        # Determine auth method
+        auth_method_str = os.getenv("AUTH_METHOD", "api_key").lower()
+        if auth_method_str == "basic":
+            auth_method = AuthMethod.BASIC
+        elif auth_method_str == "jwt":
+            auth_method = AuthMethod.JWT
+        else:
+            auth_method = AuthMethod.API_KEY
+
+        api_client = EnhancedPfSenseAPIClient(
+            host=os.getenv("PFSENSE_URL", "https://pfsense.local"),
+            auth_method=auth_method,
+            username=os.getenv("PFSENSE_USERNAME"),
+            password=os.getenv("PFSENSE_PASSWORD"),
+            api_key=os.getenv("PFSENSE_API_KEY"),
+            verify_ssl=os.getenv("VERIFY_SSL", "true").lower() == "true",
+            version=version,
+            enable_hateoas=os.getenv("ENABLE_HATEOAS", "false").lower() == "true"
+        )
+        logger.info(f"Enhanced API client initialized for pfSense {version.value}")
+    return api_client
