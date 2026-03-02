@@ -7,16 +7,16 @@ __version__ = "4.0.0"
 __author__ = "pfSense MCP Server Team"
 __description__ = "Advanced pfSense management with filtering, sorting, and HATEOAS support"
 
-from .main import get_api_client, mcp
-from .pfsense_api_enhanced import (
+from .client import EnhancedPfSenseAPIClient
+from .models import (
     AuthMethod,
     ControlParameters,
-    EnhancedPfSenseAPIClient,
     PaginationOptions,
     PfSenseVersion,
     QueryFilter,
     SortOptions,
 )
+from .server import get_api_client, mcp
 
 __all__ = [
     "mcp",

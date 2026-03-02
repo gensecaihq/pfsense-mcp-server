@@ -1,0 +1,103 @@
+"""System tools for pfSense MCP server."""
+
+from datetime import datetime
+from typing import Dict, Optional
+
+from ..helpers import create_default_sort, create_pagination
+from ..models import QueryFilter
+from ..server import get_api_client, logger, mcp
+
+
+@mcp.tool()
+async def system_status() -> Dict:
+    """Get current system status including CPU, memory, disk usage, and version info"""
+    client = get_api_client()
+    try:
+        status = await client.get_system_status()
+
+        # Extract HATEOAS links if available
+        links = client.extract_links(status)
+
+        return {
+            "success": True,
+            "data": status.get("data", status),
+            "links": links,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to get system status: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+async def search_interfaces(
+    search_term: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    sort_by: str = "name"
+) -> Dict:
+    """Search and filter network interfaces with advanced options
+
+    Args:
+        search_term: Search in interface names/descriptions
+        status_filter: Filter by status (up, down, etc.)
+        page: Page number for pagination
+        page_size: Number of results per page
+        sort_by: Field to sort by (name, status, etc.)
+    """
+    client = get_api_client()
+    try:
+        filters = []
+
+        if search_term:
+            filters.append(QueryFilter("name", search_term, "contains"))
+
+        if status_filter:
+            filters.append(QueryFilter("status", status_filter))
+
+        pagination = create_pagination(page, page_size)
+        sort = create_default_sort(sort_by)
+
+        interfaces = await client.get_interfaces(
+            filters=filters if filters else None,
+            sort=sort,
+            pagination=pagination
+        )
+
+        return {
+            "success": True,
+            "page": page,
+            "page_size": page_size,
+            "total_results": len(interfaces.get("data", [])),
+            "interfaces": interfaces.get("data", []),
+            "links": client.extract_links(interfaces),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to search interfaces: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+async def find_interfaces_by_status(status: str) -> Dict:
+    """Find interfaces by their current status
+
+    Args:
+        status: Interface status to filter by (up, down, etc.)
+    """
+    client = get_api_client()
+    try:
+        interfaces = await client.find_interfaces_by_status(status)
+
+        return {
+            "success": True,
+            "status_filter": status,
+            "count": len(interfaces.get("data", [])),
+            "interfaces": interfaces.get("data", []),
+            "links": client.extract_links(interfaces),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to find interfaces by status: {e}")
+        return {"success": False, "error": str(e)}
