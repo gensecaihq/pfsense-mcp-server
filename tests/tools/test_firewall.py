@@ -1,0 +1,205 @@
+"""Unit tests for firewall tools (src/tools/firewall.py)."""
+
+from src.tools.firewall import (
+    bulk_block_ips,
+    create_firewall_rule_advanced,
+    delete_firewall_rule,
+    find_blocked_rules,
+    move_firewall_rule,
+    search_firewall_rules,
+    update_firewall_rule,
+)
+
+_search_firewall_rules = search_firewall_rules.fn
+_create_firewall_rule_advanced = create_firewall_rule_advanced.fn
+_update_firewall_rule = update_firewall_rule.fn
+_delete_firewall_rule = delete_firewall_rule.fn
+_find_blocked_rules = find_blocked_rules.fn
+_move_firewall_rule = move_firewall_rule.fn
+_bulk_block_ips = bulk_block_ips.fn
+
+
+# ---------------------------------------------------------------------------
+# search_firewall_rules
+# ---------------------------------------------------------------------------
+
+class TestSearchFirewallRules:
+    async def test_no_filters(self, mock_client, mock_make_request, firewall_rules_response):
+        mock_make_request.return_value = firewall_rules_response
+        result = await _search_firewall_rules()
+        assert result["success"] is True
+        assert result["count"] == 2
+
+    async def test_interface_filter(self, mock_client, mock_make_request, firewall_rules_response):
+        mock_make_request.return_value = firewall_rules_response
+        result = await _search_firewall_rules(interface="lan")
+        assert result["success"] is True
+        call_kwargs = mock_make_request.call_args
+        filters = call_kwargs.kwargs.get("filters") or call_kwargs[1].get("filters")
+        assert any(f.field == "interface" and f.value == "lan" for f in filters)
+
+    async def test_multiple_filters(self, mock_client, mock_make_request, firewall_rules_response):
+        mock_make_request.return_value = firewall_rules_response
+        result = await _search_firewall_rules(
+            interface="wan", source_ip="10.0.0.1", rule_type="block"
+        )
+        assert result["success"] is True
+        assert result["filters_applied"]["interface"] == "wan"
+        assert result["filters_applied"]["source_ip"] == "10.0.0.1"
+        assert result["filters_applied"]["rule_type"] == "block"
+
+    async def test_pagination(self, mock_client, mock_make_request, firewall_rules_response):
+        mock_make_request.return_value = firewall_rules_response
+        result = await _search_firewall_rules(page=2, page_size=10)
+        assert result["page"] == 2
+        assert result["page_size"] == 10
+
+    async def test_sort(self, mock_client, mock_make_request, firewall_rules_response):
+        mock_make_request.return_value = firewall_rules_response
+        result = await _search_firewall_rules(sort_by="interface")
+        assert result["success"] is True
+        call_kwargs = mock_make_request.call_args
+        sort = call_kwargs.kwargs.get("sort") or call_kwargs[1].get("sort")
+        assert sort.sort_by == "interface"
+
+
+# ---------------------------------------------------------------------------
+# create_firewall_rule_advanced
+# ---------------------------------------------------------------------------
+
+class TestCreateFirewallRuleAdvanced:
+    async def test_basic(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 5}}
+        result = await _create_firewall_rule_advanced(
+            interface="lan",
+            rule_type="pass",
+            protocol="tcp",
+            source="any",
+            destination="any",
+            destination_port="443",
+        )
+        assert result["success"] is True
+        call_data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[0][2]
+        assert call_data["interface"] == ["lan"]
+        assert call_data["protocol"] == "tcp"
+
+    async def test_protocol_any_maps_to_null(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 6}}
+        await _create_firewall_rule_advanced(
+            interface="wan", rule_type="block", protocol="any",
+            source="any", destination="any",
+        )
+        data = mock_make_request.call_args[1].get("data") or mock_make_request.call_args.kwargs.get("data")
+        assert data["protocol"] is None
+
+    async def test_position_placement(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 7}}
+        await _create_firewall_rule_advanced(
+            interface="lan", rule_type="pass", protocol="tcp",
+            source="any", destination="any", position=0,
+        )
+        control = mock_make_request.call_args.kwargs.get("control") or mock_make_request.call_args[1].get("control")
+        assert control.placement == 0
+
+
+# ---------------------------------------------------------------------------
+# update_firewall_rule
+# ---------------------------------------------------------------------------
+
+class TestUpdateFirewallRule:
+    async def test_partial_update_field_mapping(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 3}}
+        result = await _update_firewall_rule(rule_id=3, description="new desc")
+        assert result["success"] is True
+        assert "descr" in result["fields_updated"]
+
+    async def test_interface_wrapped_in_list(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 3}}
+        await _update_firewall_rule(rule_id=3, interface="dmz")
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["interface"] == ["dmz"]
+
+    async def test_no_fields_error(self, mock_client, mock_make_request):
+        result = await _update_firewall_rule(rule_id=3)
+        assert result["success"] is False
+        assert "No fields" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# delete_firewall_rule
+# ---------------------------------------------------------------------------
+
+class TestDeleteFirewallRule:
+    async def test_passes_id_and_applies(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {}}
+        result = await _delete_firewall_rule(rule_id=5)
+        assert result["success"] is True
+        assert result["rule_id"] == 5
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["id"] == 5
+
+
+# ---------------------------------------------------------------------------
+# find_blocked_rules
+# ---------------------------------------------------------------------------
+
+class TestFindBlockedRules:
+    async def test_no_interface(self, mock_client, mock_make_request, firewall_rules_response):
+        mock_make_request.return_value = firewall_rules_response
+        result = await _find_blocked_rules()
+        assert result["success"] is True
+        assert result["interface_filter"] is None
+
+    async def test_with_interface(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {
+            "data": [
+                {"id": 0, "type": "block", "interface": "wan"},
+                {"id": 1, "type": "block", "interface": "lan"},
+            ],
+        }
+        result = await _find_blocked_rules(interface="wan")
+        assert result["success"] is True
+        assert result["interface_filter"] == "wan"
+        assert result["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# move_firewall_rule
+# ---------------------------------------------------------------------------
+
+class TestMoveFirewallRule:
+    async def test_position_and_apply(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 2}}
+        result = await _move_firewall_rule(rule_id=2, new_position=0)
+        assert result["success"] is True
+        assert result["rule_id"] == 2
+        assert result["new_position"] == 0
+
+
+# ---------------------------------------------------------------------------
+# bulk_block_ips
+# ---------------------------------------------------------------------------
+
+class TestBulkBlockIps:
+    async def test_success(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 10}}
+        result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"])
+        assert result["success"] is True
+        assert result["successful"] == 2
+        assert result["failed"] == 0
+
+    async def test_partial_failure(self, mock_client, mock_make_request):
+        call_count = 0
+
+        async def side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            # First call succeeds (create rule), second fails, third is apply
+            if call_count == 2:
+                raise Exception("API error")
+            return {"data": {"id": call_count}}
+
+        mock_make_request.side_effect = side_effect
+        result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"])
+        assert result["successful"] == 1
+        assert result["failed"] == 1
