@@ -31,6 +31,26 @@ class TestSearchNatPortForwards:
         assert result["filters_applied"]["interface"] == "wan"
         assert result["filters_applied"]["protocol"] == "tcp"
 
+    async def test_destination_port_filter(self, mock_client, mock_make_request, nat_forwards_response):
+        mock_make_request.return_value = nat_forwards_response
+        result = await _search_nat_port_forwards(destination_port="8080")
+        assert result["success"] is True
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.field == "destination_port" and f.value == "8080" for f in filters)
+
+    async def test_search_description_filter(self, mock_client, mock_make_request, nat_forwards_response):
+        mock_make_request.return_value = nat_forwards_response
+        result = await _search_nat_port_forwards(search_description="Web")
+        assert result["success"] is True
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.field == "descr" and f.value == "Web" and f.operator == "contains" for f in filters)
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("NAT error")
+        result = await _search_nat_port_forwards()
+        assert result["success"] is False
+        assert "NAT error" in result["error"]
+
 
 # ---------------------------------------------------------------------------
 # create_nat_port_forward
@@ -56,6 +76,17 @@ class TestCreateNatPortForward:
         )
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
         assert data["associated_rule_id"] == ""
+
+    async def test_nat_reflection_parameter(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 2}}
+        result = await _create_nat_port_forward(
+            interface="wan", protocol="tcp", destination="wanip",
+            destination_port="443", target="192.168.1.50", local_port="443",
+            nat_reflection="purenat",
+        )
+        assert result["success"] is True
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["natreflection"] == "purenat"
 
 
 # ---------------------------------------------------------------------------

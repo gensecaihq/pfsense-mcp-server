@@ -75,6 +75,18 @@ class TestControlService:
         assert result["success"] is True
         assert result["action"] == "restart"
 
+    async def test_uppercase_action_normalization(self, mock_client, mock_make_request, service_control_response):
+        mock_make_request.return_value = service_control_response
+        result = await _control_service(service_name="dhcpd", action="START")
+        assert result["success"] is True
+        assert result["action"] == "start"
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("service unavailable")
+        result = await _control_service(service_name="dhcpd", action="restart")
+        assert result["success"] is False
+        assert "service unavailable" in result["error"]
+
     async def test_invalid_action(self, mock_client, mock_make_request):
         result = await _control_service(service_name="dhcpd", action="purge")
         assert result["success"] is False

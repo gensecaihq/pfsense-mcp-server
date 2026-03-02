@@ -33,6 +33,19 @@ class TestGetFirewallLog:
         assert result["filters_applied"]["action"] == "block"
         assert result["filters_applied"]["interface"] == "wan"
 
+    async def test_destination_ip_filter(self, mock_client, mock_make_request, firewall_logs_response):
+        mock_make_request.return_value = firewall_logs_response
+        result = await _get_firewall_log(destination_ip="192.168.1.1")
+        assert result["success"] is True
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.field == "dst_ip" and f.value == "192.168.1.1" for f in filters)
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("log fetch failed")
+        result = await _get_firewall_log()
+        assert result["success"] is False
+        assert "log fetch failed" in result["error"]
+
 
 # ---------------------------------------------------------------------------
 # analyze_blocked_traffic
