@@ -207,3 +207,38 @@ def nat_forwards_response():
             },
         ],
     }
+
+
+@pytest.fixture()
+def dhcp_static_mappings_response():
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": [
+            {
+                "id": 0,
+                "mac": "aa:bb:cc:dd:ee:01",
+                "ipaddr": "192.168.1.200",
+                "hostname": "server1",
+                "descr": "Web server reservation",
+                "parent_id": "lan",
+            },
+            {
+                "id": 1,
+                "mac": "aa:bb:cc:dd:ee:02",
+                "ipaddr": "192.168.1.201",
+                "hostname": "server2",
+                "descr": "DB server reservation",
+                "parent_id": "lan",
+            },
+        ],
+    }
+
+
+@pytest.fixture()
+def service_control_response():
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": {"service": "dhcpd", "action": "restart"},
+    }
