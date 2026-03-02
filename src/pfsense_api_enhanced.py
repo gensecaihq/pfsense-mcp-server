@@ -124,7 +124,7 @@ class EnhancedPfSenseAPIClient:
         self.verify_ssl = verify_ssl
         self.timeout = timeout
         self.version = version
-        self.enable_hateoas = enable_hateoas
+        self.hateoas_enabled = enable_hateoas
         self.jwt_token = None
         self.jwt_expiry = None
         self.client = None
@@ -233,7 +233,7 @@ class EnhancedPfSenseAPIClient:
             params.update(control.to_params())
 
         # Add HATEOAS
-        if self.enable_hateoas:
+        if self.hateoas_enabled:
             params["hateoas"] = "true"
 
         # Add extra parameters
@@ -554,6 +554,47 @@ class EnhancedPfSenseAPIClient:
             control=control
         )
 
+    async def update_alias(
+        self,
+        alias_id: int,
+        updates: Dict,
+        control: Optional[ControlParameters] = None
+    ) -> Dict:
+        """Update an alias by ID
+
+        Args:
+            alias_id: Alias ID (array index from GET /firewall/aliases)
+            updates: Fields to update
+            control: Control parameters (apply, etc.)
+        """
+        if not control:
+            control = ControlParameters(apply=True)
+
+        updates["id"] = alias_id
+
+        return await self._make_request(
+            "PATCH", "/firewall/alias",
+            data=updates, control=control
+        )
+
+    async def delete_alias(
+        self,
+        alias_id: int,
+        apply_immediately: bool = True
+    ) -> Dict:
+        """Delete an alias by ID
+
+        Args:
+            alias_id: Alias ID (array index from GET /firewall/aliases)
+            apply_immediately: Whether to apply changes
+        """
+        control = ControlParameters(apply=apply_immediately)
+
+        return await self._make_request(
+            "DELETE", "/firewall/alias",
+            data={"id": alias_id}, control=control
+        )
+
     # Enhanced Log Methods
 
     async def get_firewall_logs(
@@ -613,6 +654,27 @@ class EnhancedPfSenseAPIClient:
         filters = [QueryFilter("status", "stopped")]
         return await self.get_services(filters=filters)
 
+    async def start_service(self, service_name: str) -> Dict:
+        """Start a service by name"""
+        return await self._make_request(
+            "POST", "/services/start",
+            data={"service": service_name}
+        )
+
+    async def stop_service(self, service_name: str) -> Dict:
+        """Stop a service by name"""
+        return await self._make_request(
+            "POST", "/services/stop",
+            data={"service": service_name}
+        )
+
+    async def restart_service(self, service_name: str) -> Dict:
+        """Restart a service by name"""
+        return await self._make_request(
+            "POST", "/services/restart",
+            data={"service": service_name}
+        )
+
     # Enhanced DHCP Methods
 
     async def get_dhcp_leases(
@@ -649,6 +711,80 @@ class EnhancedPfSenseAPIClient:
         filters = [QueryFilter("active_status", "active")]
         sort = SortOptions(sort_by="starts", sort_order="SORT_DESC")
         return await self.get_dhcp_leases(filters=filters, sort=sort)
+
+    # DHCP Static Mapping Methods
+
+    async def get_dhcp_static_mappings(
+        self,
+        filters: Optional[List[QueryFilter]] = None,
+        sort: Optional[SortOptions] = None,
+        pagination: Optional[PaginationOptions] = None
+    ) -> Dict:
+        """Get DHCP static mappings with filtering"""
+        return await self._make_request(
+            "GET", "/services/dhcp_server/static_mappings",
+            filters=filters, sort=sort, pagination=pagination
+        )
+
+    async def create_dhcp_static_mapping(
+        self,
+        mapping_data: Dict,
+        control: Optional[ControlParameters] = None
+    ) -> Dict:
+        """Create a DHCP static mapping
+
+        Args:
+            mapping_data: Mapping data including parent_id, mac, ipaddr, hostname, etc.
+            control: Control parameters (apply, etc.)
+        """
+        if not control:
+            control = ControlParameters(apply=True)
+
+        return await self._make_request(
+            "POST", "/services/dhcp_server/static_mapping",
+            data=mapping_data, control=control
+        )
+
+    async def update_dhcp_static_mapping(
+        self,
+        mapping_id: int,
+        updates: Dict,
+        control: Optional[ControlParameters] = None
+    ) -> Dict:
+        """Update a DHCP static mapping by ID
+
+        Args:
+            mapping_id: Mapping ID
+            updates: Fields to update
+            control: Control parameters (apply, etc.)
+        """
+        if not control:
+            control = ControlParameters(apply=True)
+
+        updates["id"] = mapping_id
+
+        return await self._make_request(
+            "PATCH", "/services/dhcp_server/static_mapping",
+            data=updates, control=control
+        )
+
+    async def delete_dhcp_static_mapping(
+        self,
+        mapping_id: int,
+        apply_immediately: bool = True
+    ) -> Dict:
+        """Delete a DHCP static mapping by ID
+
+        Args:
+            mapping_id: Mapping ID
+            apply_immediately: Whether to apply changes
+        """
+        control = ControlParameters(apply=apply_immediately)
+
+        return await self._make_request(
+            "DELETE", "/services/dhcp_server/static_mapping",
+            data={"id": mapping_id}, control=control
+        )
 
     # Object ID Management
 
@@ -707,12 +843,12 @@ class EnhancedPfSenseAPIClient:
 
     async def enable_hateoas(self) -> Dict:
         """Enable HATEOAS for this session"""
-        self.enable_hateoas = True
+        self.hateoas_enabled = True
         return {"message": "HATEOAS enabled for this session"}
 
     async def disable_hateoas(self) -> Dict:
         """Disable HATEOAS for this session"""
-        self.enable_hateoas = False
+        self.hateoas_enabled = False
         return {"message": "HATEOAS disabled for this session"}
 
     async def close(self):
