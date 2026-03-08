@@ -711,6 +711,72 @@ class EnhancedPfSenseAPIClient:
             data={"id": mapping_id, "parent_id": parent_id}, control=control
         )
 
+    # Firewall Apply
+
+    async def apply_firewall_changes(self) -> Dict:
+        """Force apply pending firewall changes (triggers filter_configure)"""
+        return await self._make_request("POST", "/firewall/apply")
+
+    # DHCP Server Configuration
+
+    async def get_dhcp_servers(
+        self,
+        filters: Optional[List[QueryFilter]] = None,
+        sort: Optional[SortOptions] = None,
+        pagination: Optional[PaginationOptions] = None
+    ) -> Dict:
+        """Get DHCP server configurations for all interfaces"""
+        return await self._make_request(
+            "GET", "/services/dhcp_servers",
+            filters=filters, sort=sort, pagination=pagination
+        )
+
+    async def update_dhcp_server(
+        self,
+        updates: Dict,
+        control: Optional[ControlParameters] = None
+    ) -> Dict:
+        """Update DHCP server configuration
+
+        Args:
+            updates: Fields to update (must include id for the target server)
+            control: Control parameters (apply, etc.)
+        """
+        if not control:
+            control = ControlParameters(apply=True)
+
+        return await self._make_request(
+            "PATCH", "/services/dhcp_server",
+            data=updates, control=control
+        )
+
+    # ARP Table
+
+    async def get_arp_table(
+        self,
+        filters: Optional[List[QueryFilter]] = None,
+        sort: Optional[SortOptions] = None,
+        pagination: Optional[PaginationOptions] = None
+    ) -> Dict:
+        """Get ARP table entries"""
+        return await self._make_request(
+            "GET", "/diagnostics/arp_table",
+            filters=filters, sort=sort, pagination=pagination
+        )
+
+    # Diagnostic Commands
+
+    async def run_diagnostic_command(self, command: str) -> Dict:
+        """Run a diagnostic shell command on pfSense
+
+        Args:
+            command: Shell command to execute
+        """
+        return await self._make_request(
+            "POST", "/diagnostics/command/prompt",
+            data={"shell_cmd": command}
+        )
+
     # Object ID Management
 
     async def refresh_object_ids(self, endpoint: str) -> Dict:

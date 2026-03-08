@@ -1,7 +1,7 @@
 """System tools for pfSense MCP server."""
 
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from ..helpers import create_default_sort, create_pagination
 from ..models import QueryFilter
@@ -100,4 +100,67 @@ async def find_interfaces_by_status(status: str) -> Dict:
         }
     except Exception as e:
         logger.error(f"Failed to find interfaces by status: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+async def get_arp_table(
+    ip_address: Optional[str] = None,
+    mac_address: Optional[str] = None,
+    interface: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+    sort_by: str = "ip"
+) -> Dict:
+    """Get the ARP table to discover devices on the network.
+
+    Shows IP-to-MAC address mappings for all devices that have recently
+    communicated on the network, including those without static DHCP mappings.
+
+    Args:
+        ip_address: Filter by IP address (partial match)
+        mac_address: Filter by MAC address (partial match)
+        interface: Filter by interface (lan, opt1, etc.)
+        page: Page number for pagination
+        page_size: Number of results per page
+        sort_by: Field to sort by (ip, mac, interface)
+    """
+    client = get_api_client()
+    try:
+        filters: List[QueryFilter] = []
+
+        if ip_address:
+            filters.append(QueryFilter("ip", ip_address, "contains"))
+
+        if mac_address:
+            filters.append(QueryFilter("mac", mac_address, "contains"))
+
+        if interface:
+            filters.append(QueryFilter("interface", interface, "contains"))
+
+        pagination = create_pagination(page, page_size)
+        sort = create_default_sort(sort_by)
+
+        result = await client.get_arp_table(
+            filters=filters if filters else None,
+            sort=sort,
+            pagination=pagination
+        )
+
+        return {
+            "success": True,
+            "page": page,
+            "page_size": page_size,
+            "filters_applied": {
+                "ip_address": ip_address,
+                "mac_address": mac_address,
+                "interface": interface,
+            },
+            "count": len(result.get("data", [])),
+            "arp_entries": result.get("data", []),
+            "links": client.extract_links(result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to get ARP table: {e}")
         return {"success": False, "error": str(e)}

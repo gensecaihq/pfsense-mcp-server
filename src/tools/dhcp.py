@@ -159,6 +159,18 @@ async def search_dhcp_static_mappings(
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
+        # 404 typically means DHCP is not enabled on the requested interface
+        if "404" in str(e) and interface:
+            return {
+                "success": True,
+                "page": page,
+                "page_size": page_size,
+                "filters_applied": {"interface": interface},
+                "count": 0,
+                "static_mappings": [],
+                "message": f"No DHCP static mappings found. DHCP may not be enabled on interface '{interface}'.",
+                "timestamp": datetime.utcnow().isoformat()
+            }
         logger.error(f"Failed to search DHCP static mappings: {e}")
         return {"success": False, "error": str(e)}
 
@@ -324,4 +336,122 @@ async def delete_dhcp_static_mapping(
         }
     except Exception as e:
         logger.error(f"Failed to delete DHCP static mapping: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+async def get_dhcp_server_config(
+    interface: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20
+) -> Dict:
+    """Get DHCP server configuration including pool ranges, lease times, etc.
+
+    Args:
+        interface: Filter by interface (lan, opt1, etc.). Returns all if omitted.
+        page: Page number for pagination
+        page_size: Number of results per page
+    """
+    client = get_api_client()
+    try:
+        filters = []
+        if interface:
+            filters.append(QueryFilter("id", interface))
+
+        pagination = create_pagination(page, page_size)
+
+        result = await client.get_dhcp_servers(
+            filters=filters if filters else None,
+            pagination=pagination
+        )
+
+        return {
+            "success": True,
+            "page": page,
+            "page_size": page_size,
+            "interface_filter": interface,
+            "count": len(result.get("data", [])),
+            "dhcp_servers": result.get("data", []),
+            "links": client.extract_links(result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to get DHCP server config: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+async def update_dhcp_server_config(
+    server_id: int,
+    range_from: Optional[str] = None,
+    range_to: Optional[str] = None,
+    gateway: Optional[str] = None,
+    domain: Optional[str] = None,
+    dns_server: Optional[str] = None,
+    default_lease_time: Optional[int] = None,
+    max_lease_time: Optional[int] = None,
+    enable: Optional[bool] = None,
+    apply_immediately: bool = True
+) -> Dict:
+    """Update DHCP server configuration (pool range, lease times, etc.)
+
+    Args:
+        server_id: DHCP server ID (from get_dhcp_server_config)
+        range_from: Pool start IP address
+        range_to: Pool end IP address
+        gateway: Gateway IP override
+        domain: Domain name
+        dns_server: DNS server override
+        default_lease_time: Default lease time in seconds
+        max_lease_time: Maximum lease time in seconds
+        enable: Enable or disable the DHCP server
+        apply_immediately: Whether to apply changes immediately
+    """
+    client = get_api_client()
+    try:
+        field_map = {
+            "range_from": "range_from",
+            "range_to": "range_to",
+            "gateway": "gateway",
+            "domain": "domain",
+            "dns_server": "dnsserver",
+            "default_lease_time": "defaultleasetime",
+            "max_lease_time": "maxleasetime",
+            "enable": "enable",
+        }
+
+        params = {
+            "range_from": range_from,
+            "range_to": range_to,
+            "gateway": gateway,
+            "domain": domain,
+            "dns_server": dns_server,
+            "default_lease_time": default_lease_time,
+            "max_lease_time": max_lease_time,
+            "enable": enable,
+        }
+
+        updates = {"id": server_id}
+        for param_name, value in params.items():
+            if value is not None:
+                updates[field_map[param_name]] = value
+
+        if len(updates) <= 1:
+            return {"success": False, "error": "No fields to update - provide at least one field"}
+
+        control = ControlParameters(apply=apply_immediately)
+        result = await client.update_dhcp_server(updates, control)
+
+        return {
+            "success": True,
+            "message": f"DHCP server {server_id} updated",
+            "server_id": server_id,
+            "fields_updated": [k for k in updates.keys() if k != "id"],
+            "applied": apply_immediately,
+            "result": result.get("data", result),
+            "links": client.extract_links(result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to update DHCP server config: {e}")
         return {"success": False, "error": str(e)}

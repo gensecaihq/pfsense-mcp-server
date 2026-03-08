@@ -162,7 +162,8 @@ async def create_firewall_rule_advanced(
         "source": source,
         "destination": destination,
         "descr": description or f"Created via Enhanced MCP at {datetime.utcnow().isoformat()}",
-        "log": log_matches
+        "log": log_matches,
+        "statetype": "keep state",  # Required for pf filter compiler
     }
 
     # Handle protocol field - try null for "any", otherwise use the specified protocol
@@ -174,14 +175,24 @@ async def create_firewall_rule_advanced(
     if destination_port:
         rule_data["destination_port"] = destination_port
 
-    # Set control parameters
+    # Create rule without placement (placement on POST is unreliable);
+    # we'll move it afterward if a position was requested
     control = ControlParameters(
-        apply=apply_immediately,
-        placement=position
+        apply=apply_immediately if position is None else False,
     )
 
     try:
         result = await client.create_firewall_rule(rule_data, control)
+
+        # If a specific position was requested, move the rule there
+        if position is not None:
+            new_rule_id = result.get("data", {}).get("id")
+            if new_rule_id is not None:
+                await client.move_firewall_rule(
+                    new_rule_id, position, apply_immediately=False
+                )
+            # Force filter reload to ensure compiled ruleset is updated
+            await client.apply_firewall_changes()
 
         return {
             "success": True,
@@ -213,8 +224,13 @@ async def move_firewall_rule(
     client = get_api_client()
     try:
         result = await client.move_firewall_rule(
-            rule_id, new_position, apply_immediately
+            rule_id, new_position, apply_immediately=False
         )
+
+        # The PATCH ?apply=true doesn't reliably trigger filter_configure,
+        # so explicitly apply to ensure the compiled ruleset is updated
+        if apply_immediately:
+            await client.apply_firewall_changes()
 
         return {
             "success": True,
@@ -377,7 +393,8 @@ async def bulk_block_ips(
                 "source": ip,
                 "destination": "any",
                 "descr": f"{description_prefix}: {ip}",
-                "log": True
+                "log": True,
+                "statetype": "keep state",
             }
 
             # Don't apply immediately for bulk operations
@@ -392,7 +409,7 @@ async def bulk_block_ips(
     # Apply all changes at once
     if results:
         try:
-            await client._make_request("POST", "/firewall/apply")
+            await client.apply_firewall_changes()
             applied = True
         except Exception as e:
             applied = False
@@ -410,3 +427,47 @@ async def bulk_block_ips(
         "errors": errors,
         "timestamp": datetime.utcnow().isoformat()
     }
+
+
+@mcp.tool()
+async def apply_firewall_changes() -> Dict:
+    """Force apply pending firewall changes and recompile the pf ruleset.
+
+    Use this after any firewall config change to ensure the compiled ruleset
+    (/tmp/rules.debug) matches the configuration. The apply_immediately
+    parameter on other tools doesn't always trigger full recompilation.
+    """
+    client = get_api_client()
+    try:
+        result = await client.apply_firewall_changes()
+
+        return {
+            "success": True,
+            "message": "Firewall changes applied and filter ruleset recompiled",
+            "result": result.get("data", result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to apply firewall changes: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+async def get_pf_rules() -> Dict:
+    """Read the compiled pf ruleset (/tmp/rules.debug) to verify what pf is
+    actually enforcing vs what's in config.xml.
+
+    Returns the raw compiled rules that the packet filter is using.
+    """
+    client = get_api_client()
+    try:
+        result = await client.run_diagnostic_command("cat /tmp/rules.debug")
+
+        return {
+            "success": True,
+            "compiled_rules": result.get("data", result),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to read compiled rules: {e}")
+        return {"success": False, "error": str(e)}
