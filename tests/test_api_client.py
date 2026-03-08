@@ -342,6 +342,58 @@ class TestDhcpStaticMappingCrud:
 
 
 # ---------------------------------------------------------------------------
+# Firewall apply
+# ---------------------------------------------------------------------------
+
+class TestFirewallApply:
+    async def test_apply(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"status": "applied"}}
+        result = await mock_client.apply_firewall_changes()
+        mock_make_request.assert_called_once_with("POST", "/firewall/apply")
+        assert result["data"]["status"] == "applied"
+
+
+# ---------------------------------------------------------------------------
+# DHCP server CRUD
+# ---------------------------------------------------------------------------
+
+class TestDhcpServerCrud:
+    async def test_get_servers(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": [{"id": 0, "interface": "lan"}]}
+        result = await mock_client.get_dhcp_servers()
+        assert result["data"][0]["interface"] == "lan"
+
+    async def test_update_server(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 0}}
+        await mock_client.update_dhcp_server({"id": 0, "range_from": "10.0.0.2"})
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["range_from"] == "10.0.0.2"
+
+
+# ---------------------------------------------------------------------------
+# ARP table
+# ---------------------------------------------------------------------------
+
+class TestArpTable:
+    async def test_get_arp_table(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": [{"ip": "192.168.1.1", "mac": "aa:bb:cc:dd:ee:01"}]}
+        result = await mock_client.get_arp_table()
+        assert len(result["data"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic command
+# ---------------------------------------------------------------------------
+
+class TestDiagnosticCommand:
+    async def test_run_command(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": "output here"}
+        await mock_client.run_diagnostic_command("cat /tmp/rules.debug")
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["shell_cmd"] == "cat /tmp/rules.debug"
+
+
+# ---------------------------------------------------------------------------
 # Auth methods
 # ---------------------------------------------------------------------------
 

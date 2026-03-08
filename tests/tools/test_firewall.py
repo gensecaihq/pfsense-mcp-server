@@ -1,10 +1,12 @@
 """Unit tests for firewall tools (src/tools/firewall.py)."""
 
 from src.tools.firewall import (
+    apply_firewall_changes,
     bulk_block_ips,
     create_firewall_rule_advanced,
     delete_firewall_rule,
     find_blocked_rules,
+    get_pf_rules,
     move_firewall_rule,
     search_firewall_rules,
     update_firewall_rule,
@@ -17,6 +19,8 @@ _delete_firewall_rule = delete_firewall_rule.fn
 _find_blocked_rules = find_blocked_rules.fn
 _move_firewall_rule = move_firewall_rule.fn
 _bulk_block_ips = bulk_block_ips.fn
+_apply_firewall_changes = apply_firewall_changes.fn
+_get_pf_rules = get_pf_rules.fn
 
 
 # ---------------------------------------------------------------------------
@@ -103,6 +107,16 @@ class TestCreateFirewallRuleAdvanced:
         assert call_data["interface"] == ["lan"]
         assert call_data["protocol"] == "tcp"
 
+    async def test_statetype_included(self, mock_client, mock_make_request):
+        """Rules must include statetype for the pf filter compiler."""
+        mock_make_request.return_value = {"data": {"id": 5}}
+        await _create_firewall_rule_advanced(
+            interface="lan", rule_type="pass", protocol="tcp",
+            source="any", destination="any",
+        )
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["statetype"] == "keep state"
+
     async def test_protocol_any_maps_to_null(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"id": 6}}
         await _create_firewall_rule_advanced(
@@ -112,14 +126,21 @@ class TestCreateFirewallRuleAdvanced:
         data = mock_make_request.call_args[1].get("data") or mock_make_request.call_args.kwargs.get("data")
         assert data["protocol"] is None
 
-    async def test_position_placement(self, mock_client, mock_make_request):
+    async def test_position_creates_then_moves_then_applies(self, mock_client, mock_make_request):
+        """Position creates rule first, then moves it, then forces apply."""
         mock_make_request.return_value = {"data": {"id": 7}}
         await _create_firewall_rule_advanced(
             interface="lan", rule_type="pass", protocol="tcp",
             source="any", destination="any", position=0,
         )
-        control = mock_make_request.call_args.kwargs.get("control") or mock_make_request.call_args[1].get("control")
-        assert control.placement == 0
+        # Create + move + apply = 3 calls
+        assert mock_make_request.call_count == 3
+        # First call: create (no placement)
+        create_control = mock_make_request.call_args_list[0].kwargs.get("control")
+        assert create_control.placement is None
+        # Second call: move to position 0
+        move_control = mock_make_request.call_args_list[1].kwargs.get("control")
+        assert move_control.placement == 0
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +215,15 @@ class TestMoveFirewallRule:
         assert result["success"] is True
         assert result["rule_id"] == 2
         assert result["new_position"] == 0
+        # Move PATCH + explicit apply = 2 calls
+        assert mock_make_request.call_count == 2
+
+    async def test_no_apply(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 2}}
+        result = await _move_firewall_rule(rule_id=2, new_position=0, apply_immediately=False)
+        assert result["success"] is True
+        # Only the move PATCH, no apply call
+        assert mock_make_request.call_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -247,3 +277,46 @@ class TestBulkBlockIps:
         result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"])
         assert result["successful"] == 1
         assert result["failed"] == 1
+
+    async def test_statetype_included(self, mock_client, mock_make_request):
+        """Bulk block rules must include statetype for pf filter compiler."""
+        mock_make_request.return_value = {"data": {"id": 10}}
+        await _bulk_block_ips(ip_addresses=["1.2.3.4"])
+        # First call is the create, second is the apply
+        create_data = mock_make_request.call_args_list[0].kwargs.get("data") or mock_make_request.call_args_list[0][1].get("data")
+        assert create_data["statetype"] == "keep state"
+
+
+# ---------------------------------------------------------------------------
+# apply_firewall_changes
+# ---------------------------------------------------------------------------
+
+class TestApplyFirewallChanges:
+    async def test_success(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"status": "applied"}}
+        result = await _apply_firewall_changes()
+        assert result["success"] is True
+        assert "recompiled" in result["message"]
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("apply failed")
+        result = await _apply_firewall_changes()
+        assert result["success"] is False
+        assert "apply failed" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# get_pf_rules
+# ---------------------------------------------------------------------------
+
+class TestGetPfRules:
+    async def test_success(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": "pass in on em0 all\nblock in on em1 all\n"}
+        result = await _get_pf_rules()
+        assert result["success"] is True
+        assert "compiled_rules" in result
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("command failed")
+        result = await _get_pf_rules()
+        assert result["success"] is False
