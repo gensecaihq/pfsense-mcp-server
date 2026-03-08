@@ -334,10 +334,11 @@ class TestDhcpStaticMappingCrud:
 
     async def test_delete(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {}}
-        await mock_client.delete_dhcp_static_mapping(5)
+        await mock_client.delete_dhcp_static_mapping(5, "lan")
         call_kwargs = mock_make_request.call_args
         data = call_kwargs.kwargs.get("data") or call_kwargs[1].get("data")
         assert data["id"] == 5
+        assert data["parent_id"] == "lan"
 
 
 # ---------------------------------------------------------------------------

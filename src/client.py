@@ -694,19 +694,21 @@ class EnhancedPfSenseAPIClient:
     async def delete_dhcp_static_mapping(
         self,
         mapping_id: int,
+        parent_id: str,
         apply_immediately: bool = True
     ) -> Dict:
         """Delete a DHCP static mapping by ID
 
         Args:
             mapping_id: Mapping ID
+            parent_id: Parent interface (e.g., "lan") - required by pfSense API
             apply_immediately: Whether to apply changes
         """
         control = ControlParameters(apply=apply_immediately)
 
         return await self._make_request(
             "DELETE", "/services/dhcp_server/static_mapping",
-            data={"id": mapping_id}, control=control
+            data={"id": mapping_id, "parent_id": parent_id}, control=control
         )
 
     # Object ID Management
