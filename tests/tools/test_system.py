@@ -1,10 +1,16 @@
 """Unit tests for system tools (src/tools/system.py)."""
 
-from src.tools.system import find_interfaces_by_status, search_interfaces, system_status
+from src.tools.system import (
+    find_interfaces_by_status,
+    get_arp_table,
+    search_interfaces,
+    system_status,
+)
 
 _system_status = system_status.fn
 _find_interfaces_by_status = find_interfaces_by_status.fn
 _search_interfaces = search_interfaces.fn
+_get_arp_table = get_arp_table.fn
 
 
 # ---------------------------------------------------------------------------
@@ -87,3 +93,43 @@ class TestFindInterfacesByStatus:
         assert result["success"] is True
         assert result["status_filter"] == "up"
         assert result["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# get_arp_table
+# ---------------------------------------------------------------------------
+
+class TestGetArpTable:
+    async def test_basic(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {
+            "data": [
+                {"ip": "192.168.1.1", "mac": "aa:bb:cc:dd:ee:01", "interface": "lan"},
+                {"ip": "192.168.1.100", "mac": "aa:bb:cc:dd:ee:02", "interface": "lan"},
+            ]
+        }
+        result = await _get_arp_table()
+        assert result["success"] is True
+        assert result["count"] == 2
+
+    async def test_ip_filter(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": []}
+        await _get_arp_table(ip_address="192.168.1")
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.field == "ip" and f.value == "192.168.1" and f.operator == "contains" for f in filters)
+
+    async def test_mac_filter(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": []}
+        await _get_arp_table(mac_address="aa:bb")
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.field == "mac" and f.value == "aa:bb" for f in filters)
+
+    async def test_interface_filter(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": []}
+        await _get_arp_table(interface="opt1")
+        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
+        assert any(f.field == "interface" and f.value == "opt1" for f in filters)
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("arp failed")
+        result = await _get_arp_table()
+        assert result["success"] is False

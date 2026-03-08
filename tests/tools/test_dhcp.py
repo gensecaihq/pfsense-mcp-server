@@ -3,8 +3,10 @@
 from src.tools.dhcp import (
     create_dhcp_static_mapping,
     delete_dhcp_static_mapping,
+    get_dhcp_server_config,
     search_dhcp_leases,
     search_dhcp_static_mappings,
+    update_dhcp_server_config,
     update_dhcp_static_mapping,
 )
 
@@ -13,6 +15,8 @@ _search_dhcp_static_mappings = search_dhcp_static_mappings.fn
 _create_dhcp_static_mapping = create_dhcp_static_mapping.fn
 _update_dhcp_static_mapping = update_dhcp_static_mapping.fn
 _delete_dhcp_static_mapping = delete_dhcp_static_mapping.fn
+_get_dhcp_server_config = get_dhcp_server_config.fn
+_update_dhcp_server_config = update_dhcp_server_config.fn
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +104,21 @@ class TestSearchDhcpStaticMappings:
         assert result["success"] is True
         filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
         assert any(f.field == "ipaddr" and f.value == "192.168.1.200" for f in filters)
+
+    async def test_404_returns_empty_for_non_lan_interface(self, mock_client, mock_make_request):
+        """404 for non-LAN interfaces should return empty results, not an error."""
+        mock_make_request.side_effect = Exception("Status: 404\nURL: .../static_mappings")
+        result = await _search_dhcp_static_mappings(interface="opt1")
+        assert result["success"] is True
+        assert result["count"] == 0
+        assert result["static_mappings"] == []
+        assert "DHCP may not be enabled" in result.get("message", "")
+
+    async def test_404_without_interface_still_errors(self, mock_client, mock_make_request):
+        """404 without an interface filter is a real error."""
+        mock_make_request.side_effect = Exception("Status: 404")
+        result = await _search_dhcp_static_mappings()
+        assert result["success"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -197,3 +216,61 @@ class TestDeleteDhcpStaticMapping:
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
         assert data["id"] == 3
         assert data["parent_id"] == "opt1"
+
+
+# ---------------------------------------------------------------------------
+# get_dhcp_server_config
+# ---------------------------------------------------------------------------
+
+class TestGetDhcpServerConfig:
+    async def test_no_filter(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {
+            "data": [
+                {"id": 0, "interface": "lan", "range_from": "192.168.1.100", "range_to": "192.168.1.200"},
+                {"id": 1, "interface": "opt1", "range_from": "10.0.0.100", "range_to": "10.0.0.200"},
+            ]
+        }
+        result = await _get_dhcp_server_config()
+        assert result["success"] is True
+        assert result["count"] == 2
+
+    async def test_interface_filter(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {
+            "data": [{"id": 0, "interface": "lan", "range_from": "192.168.1.100"}]
+        }
+        result = await _get_dhcp_server_config(interface="lan")
+        assert result["success"] is True
+        filters = mock_make_request.call_args.kwargs.get("filters")
+        assert any(f.field == "id" and f.value == "lan" for f in filters)
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("not found")
+        result = await _get_dhcp_server_config()
+        assert result["success"] is False
+
+
+# ---------------------------------------------------------------------------
+# update_dhcp_server_config
+# ---------------------------------------------------------------------------
+
+class TestUpdateDhcpServerConfig:
+    async def test_update_pool_range(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 0}}
+        result = await _update_dhcp_server_config(
+            server_id=0, range_from="192.168.1.2", range_to="192.168.1.44"
+        )
+        assert result["success"] is True
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["range_from"] == "192.168.1.2"
+        assert data["range_to"] == "192.168.1.44"
+        assert data["id"] == 0
+
+    async def test_no_fields_error(self, mock_client, mock_make_request):
+        result = await _update_dhcp_server_config(server_id=0)
+        assert result["success"] is False
+        assert "No fields" in result["error"]
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("update failed")
+        result = await _update_dhcp_server_config(server_id=0, range_from="10.0.0.2")
+        assert result["success"] is False
