@@ -8,6 +8,21 @@ from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
 
 
+async def _lookup_mapping_parent_id(client, mapping_id: int) -> str:
+    """Look up a DHCP static mapping's parent_id (interface) by its ID.
+
+    The pfSense API requires parent_id for PATCH/DELETE on child models.
+    """
+    result = await client.get_dhcp_static_mappings(
+        filters=[QueryFilter("id", str(mapping_id))]
+    )
+    mappings = result.get("data", [])
+    for m in mappings:
+        if m.get("id") == mapping_id:
+            return m["parent_id"]
+    raise ValueError(f"DHCP static mapping with ID {mapping_id} not found")
+
+
 @mcp.tool()
 async def search_dhcp_leases(
     search_term: Optional[str] = None,
@@ -255,6 +270,10 @@ async def update_dhcp_static_mapping(
         if not updates:
             return {"success": False, "error": "No fields to update - provide at least one field"}
 
+        # pfSense API requires parent_id for child model operations
+        if "parent_id" not in updates:
+            updates["parent_id"] = await _lookup_mapping_parent_id(client, mapping_id)
+
         control = ControlParameters(apply=apply_immediately)
         result = await client.update_dhcp_static_mapping(mapping_id, updates, control)
 
@@ -276,17 +295,23 @@ async def update_dhcp_static_mapping(
 @mcp.tool()
 async def delete_dhcp_static_mapping(
     mapping_id: int,
+    interface: Optional[str] = None,
     apply_immediately: bool = True
 ) -> Dict:
     """Delete a DHCP static mapping by ID
 
     Args:
         mapping_id: Static mapping ID
+        interface: Interface/DHCP pool the mapping belongs to (e.g., "lan"). Auto-detected if not provided.
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
     try:
-        result = await client.delete_dhcp_static_mapping(mapping_id, apply_immediately)
+        # pfSense API requires parent_id for child model operations
+        if not interface:
+            interface = await _lookup_mapping_parent_id(client, mapping_id)
+
+        result = await client.delete_dhcp_static_mapping(mapping_id, interface, apply_immediately)
 
         return {
             "success": True,
