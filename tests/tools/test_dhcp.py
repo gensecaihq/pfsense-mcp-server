@@ -138,10 +138,30 @@ class TestCreateDhcpStaticMapping:
 
 class TestUpdateDhcpStaticMapping:
     async def test_partial_update(self, mock_client, mock_make_request):
-        mock_make_request.return_value = {"data": {"id": 0}}
+        # First call: lookup parent_id; second call: the PATCH
+        mock_make_request.side_effect = [
+            {"data": [{"id": 0, "parent_id": "lan", "mac": "aa:bb:cc:dd:ee:01"}]},
+            {"data": {"id": 0}},
+        ]
         result = await _update_dhcp_static_mapping(mapping_id=0, hostname="newhostname")
         assert result["success"] is True
         assert "hostname" in result["fields_updated"]
+        # Verify parent_id was included in the PATCH request
+        patch_call = mock_make_request.call_args_list[1]
+        data = patch_call.kwargs.get("data") or patch_call[1].get("data")
+        assert data["parent_id"] == "lan"
+
+    async def test_explicit_interface_skips_lookup(self, mock_client, mock_make_request):
+        """When interface is provided, no lookup call is needed."""
+        mock_make_request.return_value = {"data": {"id": 0}}
+        result = await _update_dhcp_static_mapping(
+            mapping_id=0, hostname="newhostname", interface="opt1"
+        )
+        assert result["success"] is True
+        # Only one call (the PATCH), no lookup
+        assert mock_make_request.call_count == 1
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["parent_id"] == "opt1"
 
     async def test_no_fields_error(self, mock_client, mock_make_request):
         result = await _update_dhcp_static_mapping(mapping_id=0)
@@ -154,10 +174,26 @@ class TestUpdateDhcpStaticMapping:
 # ---------------------------------------------------------------------------
 
 class TestDeleteDhcpStaticMapping:
-    async def test_passes_id(self, mock_client, mock_make_request):
-        mock_make_request.return_value = {"data": {}}
+    async def test_passes_id_and_parent_id(self, mock_client, mock_make_request):
+        # First call: lookup parent_id; second call: the DELETE
+        mock_make_request.side_effect = [
+            {"data": [{"id": 3, "parent_id": "lan", "mac": "aa:bb:cc:dd:ee:03"}]},
+            {"data": {}},
+        ]
         result = await _delete_dhcp_static_mapping(mapping_id=3)
         assert result["success"] is True
         assert result["mapping_id"] == 3
+        delete_call = mock_make_request.call_args_list[1]
+        data = delete_call.kwargs.get("data") or delete_call[1].get("data")
+        assert data["id"] == 3
+        assert data["parent_id"] == "lan"
+
+    async def test_explicit_interface_skips_lookup(self, mock_client, mock_make_request):
+        """When interface is provided, no lookup call is needed."""
+        mock_make_request.return_value = {"data": {}}
+        result = await _delete_dhcp_static_mapping(mapping_id=3, interface="opt1")
+        assert result["success"] is True
+        assert mock_make_request.call_count == 1
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
         assert data["id"] == 3
+        assert data["parent_id"] == "opt1"
