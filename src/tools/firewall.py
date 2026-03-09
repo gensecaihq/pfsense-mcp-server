@@ -100,9 +100,6 @@ async def find_blocked_rules(
     """
     client = get_api_client()
     try:
-        create_pagination(page, page_size)
-        create_default_sort("tracker")
-
         rules = await client.find_blocked_rules()
 
         # Apply interface filter if specified

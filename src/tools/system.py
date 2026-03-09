@@ -110,7 +110,6 @@ async def get_arp_table(
     interface: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
-    sort_by: str = "ip"
 ) -> Dict:
     """Get the ARP table to discover devices on the network.
 
@@ -123,7 +122,6 @@ async def get_arp_table(
         interface: Filter by interface (lan, opt1, etc.)
         page: Page number for pagination
         page_size: Number of results per page
-        sort_by: Field to sort by (ip, mac, interface)
     """
     client = get_api_client()
     try:
@@ -139,11 +137,9 @@ async def get_arp_table(
             filters.append(QueryFilter("interface", interface, "contains"))
 
         pagination = create_pagination(page, page_size)
-        sort = create_default_sort(sort_by)
 
         result = await client.get_arp_table(
             filters=filters if filters else None,
-            sort=sort,
             pagination=pagination
         )
 

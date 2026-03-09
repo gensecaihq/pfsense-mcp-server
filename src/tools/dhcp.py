@@ -382,7 +382,7 @@ async def get_dhcp_server_config(
 
 @mcp.tool()
 async def update_dhcp_server_config(
-    server_id: int,
+    interface: str,
     range_from: Optional[str] = None,
     range_to: Optional[str] = None,
     gateway: Optional[str] = None,
@@ -396,7 +396,7 @@ async def update_dhcp_server_config(
     """Update DHCP server configuration (pool range, lease times, etc.)
 
     Args:
-        server_id: DHCP server ID (from get_dhcp_server_config)
+        interface: Interface name identifying the DHCP server (e.g., "lan", "opt1")
         range_from: Pool start IP address
         range_to: Pool end IP address
         gateway: Gateway IP override
@@ -431,7 +431,7 @@ async def update_dhcp_server_config(
             "enable": enable,
         }
 
-        updates = {"id": server_id}
+        updates = {"id": interface}
         for param_name, value in params.items():
             if value is not None:
                 updates[field_map[param_name]] = value
@@ -444,8 +444,8 @@ async def update_dhcp_server_config(
 
         return {
             "success": True,
-            "message": f"DHCP server {server_id} updated",
-            "server_id": server_id,
+            "message": f"DHCP server '{interface}' updated",
+            "interface": interface,
             "fields_updated": [k for k in updates.keys() if k != "id"],
             "applied": apply_immediately,
             "result": result.get("data", result),

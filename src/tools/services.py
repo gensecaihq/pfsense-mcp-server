@@ -12,7 +12,6 @@ async def search_services(
     status_filter: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
-    sort_by: str = "name"
 ) -> Dict:
     """Search and filter system services
 
@@ -21,7 +20,6 @@ async def search_services(
         status_filter: Filter by status (running, stopped)
         page: Page number for pagination
         page_size: Number of results per page
-        sort_by: Field to sort by (name, status, description)
     """
     client = get_api_client()
     try:
