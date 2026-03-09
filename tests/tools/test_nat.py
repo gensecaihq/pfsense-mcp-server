@@ -57,6 +57,15 @@ class TestSearchNatPortForwards:
 # ---------------------------------------------------------------------------
 
 class TestCreateNatPortForward:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("create failed")
+        result = await _create_nat_port_forward(
+            interface="wan", protocol="tcp", destination="wanip",
+            destination_port="8080", target="192.168.1.50", local_port="80",
+        )
+        assert result["success"] is False
+        assert "create failed" in result["error"]
+
     async def test_basic(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"id": 1}}
         result = await _create_nat_port_forward(
@@ -94,6 +103,12 @@ class TestCreateNatPortForward:
 # ---------------------------------------------------------------------------
 
 class TestDeleteNatPortForward:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("delete failed")
+        result = await _delete_nat_port_forward(port_forward_id=3)
+        assert result["success"] is False
+        assert "delete failed" in result["error"]
+
     async def test_passes_id(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {}}
         result = await _delete_nat_port_forward(port_forward_id=3)
@@ -107,6 +122,12 @@ class TestDeleteNatPortForward:
 # ---------------------------------------------------------------------------
 
 class TestUpdateNatPortForward:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("update failed")
+        result = await _update_nat_port_forward(port_forward_id=0, target="10.0.0.1")
+        assert result["success"] is False
+        assert "update failed" in result["error"]
+
     async def test_basic_update(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"id": 0}}
         result = await _update_nat_port_forward(

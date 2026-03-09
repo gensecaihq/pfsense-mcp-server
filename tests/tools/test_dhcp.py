@@ -126,6 +126,14 @@ class TestSearchDhcpStaticMappings:
 # ---------------------------------------------------------------------------
 
 class TestCreateDhcpStaticMapping:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("create failed")
+        result = await _create_dhcp_static_mapping(
+            interface="lan", mac_address="aa:bb:cc:dd:ee:03", ip_address="192.168.1.202"
+        )
+        assert result["success"] is False
+        assert "create failed" in result["error"]
+
     async def test_required_fields(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"id": 0}}
         result = await _create_dhcp_static_mapping(
@@ -156,6 +164,12 @@ class TestCreateDhcpStaticMapping:
 # ---------------------------------------------------------------------------
 
 class TestUpdateDhcpStaticMapping:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("update failed")
+        result = await _update_dhcp_static_mapping(mapping_id=0, hostname="x")
+        assert result["success"] is False
+        assert "update failed" in result["error"]
+
     async def test_partial_update(self, mock_client, mock_make_request):
         # First call: lookup parent_id; second call: the PATCH
         mock_make_request.side_effect = [
@@ -193,6 +207,12 @@ class TestUpdateDhcpStaticMapping:
 # ---------------------------------------------------------------------------
 
 class TestDeleteDhcpStaticMapping:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("delete failed")
+        result = await _delete_dhcp_static_mapping(mapping_id=3, interface="lan")
+        assert result["success"] is False
+        assert "delete failed" in result["error"]
+
     async def test_passes_id_and_parent_id(self, mock_client, mock_make_request):
         # First call: lookup parent_id; second call: the DELETE
         mock_make_request.side_effect = [
