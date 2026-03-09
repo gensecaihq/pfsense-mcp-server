@@ -3,7 +3,6 @@
 from datetime import datetime
 from typing import Dict, Optional
 
-from ..helpers import create_default_sort
 from ..models import PaginationOptions, QueryFilter
 from ..server import get_api_client, logger, mcp
 
@@ -17,7 +16,6 @@ async def get_firewall_log(
     destination_ip: Optional[str] = None,
     destination_port: Optional[str] = None,
     protocol: Optional[str] = None,
-    sort_by: str = "timestamp"
 ) -> Dict:
     """Get firewall log entries with optional filtering
 
@@ -29,7 +27,6 @@ async def get_firewall_log(
         destination_ip: Filter by destination IP address
         destination_port: Filter by destination port
         protocol: Filter by protocol (tcp, udp, icmp)
-        sort_by: Field to sort by (default "timestamp" descending)
     """
     client = get_api_client()
     try:
@@ -48,12 +45,11 @@ async def get_firewall_log(
         if protocol:
             filters.append(QueryFilter("protocol", protocol))
 
-        sort = create_default_sort(sort_by, descending=True)
-
+        # Log endpoints don't support sort_by — logs are returned in
+        # reverse chronological order by pfSense already
         logs = await client.get_firewall_logs(
             lines=min(lines, 50),
             filters=filters if filters else None,
-            sort=sort,
         )
 
         return {
@@ -92,8 +88,7 @@ async def analyze_blocked_traffic(
     """
     client = get_api_client()
     try:
-        # Get blocked traffic logs
-        create_default_sort("timestamp", descending=True)
+        # Get blocked traffic logs (already reverse-chronological)
         logs = await client.get_blocked_traffic_logs(lines=limit)
 
         log_data = logs.get("data", [])
