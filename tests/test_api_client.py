@@ -11,7 +11,13 @@ import httpx
 import pytest
 
 from src.client import EnhancedPfSenseAPIClient
-from src.helpers import create_default_sort, create_interface_filter, create_pagination
+from src.helpers import (
+    create_date_range_filters,
+    create_default_sort,
+    create_interface_filter,
+    create_ip_filter,
+    create_pagination,
+)
 from src.models import (
     AuthMethod,
     ControlParameters,
@@ -104,6 +110,22 @@ class TestHelperFunctions:
         assert f.field == "interface"
         assert f.value == "wan"
         assert f.operator == "contains"
+
+    def test_create_ip_filter(self):
+        f = create_ip_filter("10.0.0.1")
+        assert f.field == "ip"
+        assert f.value == "10.0.0.1"
+        assert f.operator == "exact"
+
+    def test_create_date_range_filters_both(self):
+        filters = create_date_range_filters("starts", "2025-01-01", "2025-12-31")
+        assert len(filters) == 2
+        assert filters[0].operator == "gte"
+        assert filters[1].operator == "lte"
+
+    def test_create_date_range_filters_empty(self):
+        filters = create_date_range_filters("starts")
+        assert filters == []
 
 
 # ---------------------------------------------------------------------------

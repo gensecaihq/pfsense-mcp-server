@@ -85,6 +85,12 @@ class TestSearchInterfaces:
 # ---------------------------------------------------------------------------
 
 class TestFindInterfacesByStatus:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("status failed")
+        result = await _find_interfaces_by_status(status="up")
+        assert result["success"] is False
+        assert "status failed" in result["error"]
+
     async def test_basic(self, mock_client, mock_make_request):
         mock_make_request.return_value = {
             "data": [{"name": "wan", "status": "up"}],
