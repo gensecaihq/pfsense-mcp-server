@@ -255,22 +255,22 @@ class TestGetDhcpServerConfig:
 
 class TestUpdateDhcpServerConfig:
     async def test_update_pool_range(self, mock_client, mock_make_request):
-        mock_make_request.return_value = {"data": {"id": 0}}
+        mock_make_request.return_value = {"data": {"id": "lan"}}
         result = await _update_dhcp_server_config(
-            server_id=0, range_from="192.168.1.2", range_to="192.168.1.44"
+            interface="lan", range_from="192.168.1.2", range_to="192.168.1.44"
         )
         assert result["success"] is True
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
         assert data["range_from"] == "192.168.1.2"
         assert data["range_to"] == "192.168.1.44"
-        assert data["id"] == 0
+        assert data["id"] == "lan"
 
     async def test_no_fields_error(self, mock_client, mock_make_request):
-        result = await _update_dhcp_server_config(server_id=0)
+        result = await _update_dhcp_server_config(interface="lan")
         assert result["success"] is False
         assert "No fields" in result["error"]
 
     async def test_error(self, mock_client, mock_make_request):
         mock_make_request.side_effect = Exception("update failed")
-        result = await _update_dhcp_server_config(server_id=0, range_from="10.0.0.2")
+        result = await _update_dhcp_server_config(interface="lan", range_from="10.0.0.2")
         assert result["success"] is False
