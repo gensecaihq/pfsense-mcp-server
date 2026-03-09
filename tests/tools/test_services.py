@@ -11,6 +11,12 @@ _control_service = control_service.fn
 # ---------------------------------------------------------------------------
 
 class TestSearchServices:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("service error")
+        result = await _search_services()
+        assert result["success"] is False
+        assert "service error" in result["error"]
+
     async def test_no_filters(self, mock_client, mock_make_request, services_response):
         mock_make_request.return_value = services_response
         result = await _search_services()

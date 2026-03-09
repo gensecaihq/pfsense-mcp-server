@@ -92,6 +92,15 @@ class TestSearchFirewallRules:
 # ---------------------------------------------------------------------------
 
 class TestCreateFirewallRuleAdvanced:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("create failed")
+        result = await _create_firewall_rule_advanced(
+            interface="lan", rule_type="pass", protocol="tcp",
+            source="any", destination="any",
+        )
+        assert result["success"] is False
+        assert "create failed" in result["error"]
+
     async def test_basic(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"id": 5}}
         result = await _create_firewall_rule_advanced(
@@ -148,6 +157,12 @@ class TestCreateFirewallRuleAdvanced:
 # ---------------------------------------------------------------------------
 
 class TestUpdateFirewallRule:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("update failed")
+        result = await _update_firewall_rule(rule_id=3, description="x")
+        assert result["success"] is False
+        assert "update failed" in result["error"]
+
     async def test_partial_update_field_mapping(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"id": 3}}
         result = await _update_firewall_rule(rule_id=3, description="new desc")
@@ -171,6 +186,12 @@ class TestUpdateFirewallRule:
 # ---------------------------------------------------------------------------
 
 class TestDeleteFirewallRule:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("delete failed")
+        result = await _delete_firewall_rule(rule_id=5)
+        assert result["success"] is False
+        assert "delete failed" in result["error"]
+
     async def test_passes_id_and_applies(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {}}
         result = await _delete_firewall_rule(rule_id=5)
@@ -185,6 +206,12 @@ class TestDeleteFirewallRule:
 # ---------------------------------------------------------------------------
 
 class TestFindBlockedRules:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("query failed")
+        result = await _find_blocked_rules()
+        assert result["success"] is False
+        assert "query failed" in result["error"]
+
     async def test_no_interface(self, mock_client, mock_make_request, firewall_rules_response):
         mock_make_request.return_value = firewall_rules_response
         result = await _find_blocked_rules()
@@ -209,6 +236,12 @@ class TestFindBlockedRules:
 # ---------------------------------------------------------------------------
 
 class TestMoveFirewallRule:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("move failed")
+        result = await _move_firewall_rule(rule_id=2, new_position=0)
+        assert result["success"] is False
+        assert "move failed" in result["error"]
+
     async def test_position_and_apply(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"id": 2}}
         result = await _move_firewall_rule(rule_id=2, new_position=0)

@@ -60,6 +60,12 @@ class TestGetFirewallLog:
 # ---------------------------------------------------------------------------
 
 class TestAnalyzeBlockedTraffic:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("analysis failed")
+        result = await _analyze_blocked_traffic()
+        assert result["success"] is False
+        assert "analysis failed" in result["error"]
+
     async def test_grouped(self, mock_client, mock_make_request, firewall_logs_response):
         mock_make_request.return_value = firewall_logs_response
         result = await _analyze_blocked_traffic(group_by_source=True)
@@ -79,6 +85,12 @@ class TestAnalyzeBlockedTraffic:
 # ---------------------------------------------------------------------------
 
 class TestSearchLogsByIp:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("search failed")
+        result = await _search_logs_by_ip(ip_address="10.0.0.1")
+        assert result["success"] is False
+        assert "search failed" in result["error"]
+
     async def test_firewall_type(self, mock_client, mock_make_request, firewall_logs_response):
         mock_make_request.return_value = firewall_logs_response
         result = await _search_logs_by_ip(ip_address="203.0.113.5", log_type="firewall")

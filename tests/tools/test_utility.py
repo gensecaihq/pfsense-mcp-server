@@ -24,6 +24,14 @@ _test_enhanced_connection = test_enhanced_connection.fn
 # ---------------------------------------------------------------------------
 
 class TestFollowApiLink:
+    async def test_error(self, mock_client, mock_make_request):
+        from unittest.mock import AsyncMock, MagicMock
+        mock_client.client = MagicMock()
+        mock_client.client.get = AsyncMock(side_effect=Exception("link failed"))
+        result = await _follow_api_link(link_url="/firewall/rules")
+        assert result["success"] is False
+        assert "link failed" in result["error"]
+
     async def test_basic(self, mock_client, mock_make_request):
         # follow_link uses client.client directly, not _make_request
         from unittest.mock import AsyncMock, MagicMock
@@ -58,6 +66,12 @@ class TestEnableDisableHateoas:
 # ---------------------------------------------------------------------------
 
 class TestRefreshObjectIds:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("refresh failed")
+        result = await _refresh_object_ids(endpoint="/firewall/rules")
+        assert result["success"] is False
+        assert "refresh failed" in result["error"]
+
     async def test_basic(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": [{"id": 0}, {"id": 1}]}
         result = await _refresh_object_ids(endpoint="/firewall/rules")
@@ -70,6 +84,14 @@ class TestRefreshObjectIds:
 # ---------------------------------------------------------------------------
 
 class TestFindObjectByField:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("find failed")
+        result = await _find_object_by_field(
+            endpoint="/firewall/aliases", field="name", value="x"
+        )
+        assert result["success"] is False
+        assert "find failed" in result["error"]
+
     async def test_found(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": [{"id": 3, "name": "blocked_hosts"}]}
         result = await _find_object_by_field(
@@ -93,6 +115,12 @@ class TestFindObjectByField:
 # ---------------------------------------------------------------------------
 
 class TestGetApiCapabilities:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("caps failed")
+        result = await _get_api_capabilities()
+        assert result["success"] is False
+        assert "caps failed" in result["error"]
+
     async def test_basic(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"version": "2.0"}}
         result = await _get_api_capabilities()

@@ -53,6 +53,14 @@ class TestSearchAliases:
 # ---------------------------------------------------------------------------
 
 class TestCreateAlias:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("create failed")
+        result = await _create_alias(
+            name="a", alias_type="host", addresses=["10.0.0.1"],
+        )
+        assert result["success"] is False
+        assert "create failed" in result["error"]
+
     async def test_correct_data(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"id": 2, "name": "test_alias"}}
         result = await _create_alias(
@@ -91,6 +99,14 @@ class TestCreateAlias:
 # ---------------------------------------------------------------------------
 
 class TestManageAliasAddresses:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("alias update failed")
+        result = await _manage_alias_addresses(
+            alias_id=0, action="add", addresses=["10.0.0.3"],
+        )
+        assert result["success"] is False
+        assert "alias update failed" in result["error"]
+
     async def test_add(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"id": 0}}
         result = await _manage_alias_addresses(
@@ -120,6 +136,12 @@ class TestManageAliasAddresses:
 # ---------------------------------------------------------------------------
 
 class TestUpdateAlias:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("patch failed")
+        result = await _update_alias(alias_id=0, name="x")
+        assert result["success"] is False
+        assert "patch failed" in result["error"]
+
     async def test_basic_update(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"id": 0, "name": "updated"}}
         result = await _update_alias(alias_id=0, name="updated", description="new desc")
@@ -145,6 +167,12 @@ class TestUpdateAlias:
 # ---------------------------------------------------------------------------
 
 class TestDeleteAlias:
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("delete failed")
+        result = await _delete_alias(alias_id=0)
+        assert result["success"] is False
+        assert "delete failed" in result["error"]
+
     async def test_passes_id_and_applies(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {}}
         result = await _delete_alias(alias_id=2)
