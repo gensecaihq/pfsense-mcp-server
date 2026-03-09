@@ -40,6 +40,14 @@ class TestGetFirewallLog:
         filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
         assert any(f.field == "dst_ip" and f.value == "192.168.1.1" for f in filters)
 
+    async def test_no_sort_sent(self, mock_client, mock_make_request, firewall_logs_response):
+        """Log endpoints don't support sort_by — verify none is sent."""
+        mock_make_request.return_value = firewall_logs_response
+        await _get_firewall_log()
+        call_kwargs = mock_make_request.call_args
+        sort = call_kwargs.kwargs.get("sort") or call_kwargs[1].get("sort", None)
+        assert sort is None
+
     async def test_error(self, mock_client, mock_make_request):
         mock_make_request.side_effect = Exception("log fetch failed")
         result = await _get_firewall_log()
