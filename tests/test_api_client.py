@@ -17,6 +17,7 @@ from src.helpers import (
     create_interface_filter,
     create_ip_filter,
     create_pagination,
+    validate_port_value,
 )
 from src.models import (
     AuthMethod,
@@ -96,6 +97,11 @@ class TestHelperFunctions:
         assert p.limit == 25
         assert p.offset == 50  # (3-1)*25
 
+    def test_create_pagination_caps_at_max(self):
+        p = create_pagination(page=1, page_size=10000)
+        assert p.limit == 200  # MAX_PAGE_SIZE cap
+        assert p.offset == 0
+
     def test_create_default_sort_asc(self):
         s = create_default_sort("name")
         assert s.sort_by == "name"
@@ -104,6 +110,26 @@ class TestHelperFunctions:
     def test_create_default_sort_desc(self):
         s = create_default_sort("name", descending=True)
         assert s.sort_order == "SORT_DESC"
+
+    # Port validation tests
+
+    @pytest.mark.parametrize("value", ["443", "80", "1", "65535"])
+    def test_validate_port_single_port_ok(self, value):
+        assert validate_port_value(value) is None
+
+    @pytest.mark.parametrize("value", ["1024-65535", "80-443"])
+    def test_validate_port_range_ok(self, value):
+        assert validate_port_value(value) is None
+
+    @pytest.mark.parametrize("value", ["DNS_ports", "MyAlias", "web_servers_v2"])
+    def test_validate_port_alias_name_ok(self, value):
+        assert validate_port_value(value) is None
+
+    @pytest.mark.parametrize("value", ["53 853", "80, 443", "80 443 8080"])
+    def test_validate_port_rejects_multiple(self, value):
+        err = validate_port_value(value, "destination_port")
+        assert err is not None
+        assert "Invalid destination_port" in err
 
     def test_create_interface_filter(self):
         f = create_interface_filter("wan")
@@ -303,26 +329,31 @@ class TestDeleteAliasClient:
 
 class TestServiceControlClient:
     async def test_start_endpoint(self, mock_client, mock_make_request):
-        mock_make_request.return_value = {"data": {"service": "dhcpd"}}
+        mock_make_request.return_value = {"data": {"name": "dhcpd"}}
         await mock_client.start_service("dhcpd")
         call_args = mock_make_request.call_args
-        assert call_args[0][1] == "/services/start"
+        assert call_args[0][1] == "/status/service"
         data = call_args.kwargs.get("data") or call_args[1].get("data")
-        assert data["service"] == "dhcpd"
+        assert data["name"] == "dhcpd"
+        assert data["action"] == "start"
 
     async def test_stop_endpoint(self, mock_client, mock_make_request):
-        mock_make_request.return_value = {"data": {"service": "dhcpd"}}
+        mock_make_request.return_value = {"data": {"name": "dhcpd"}}
         await mock_client.stop_service("dhcpd")
         call_args = mock_make_request.call_args
-        assert call_args[0][1] == "/services/stop"
+        assert call_args[0][1] == "/status/service"
+        data = call_args.kwargs.get("data") or call_args[1].get("data")
+        assert data["name"] == "dhcpd"
+        assert data["action"] == "stop"
 
     async def test_restart_endpoint(self, mock_client, mock_make_request):
-        mock_make_request.return_value = {"data": {"service": "unbound"}}
+        mock_make_request.return_value = {"data": {"name": "unbound"}}
         await mock_client.restart_service("unbound")
         call_args = mock_make_request.call_args
-        assert call_args[0][1] == "/services/restart"
+        assert call_args[0][1] == "/status/service"
         data = call_args.kwargs.get("data") or call_args[1].get("data")
-        assert data["service"] == "unbound"
+        assert data["name"] == "unbound"
+        assert data["action"] == "restart"
 
 
 # ---------------------------------------------------------------------------

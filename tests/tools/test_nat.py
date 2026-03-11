@@ -97,6 +97,24 @@ class TestCreateNatPortForward:
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
         assert data["natreflection"] == "purenat"
 
+    async def test_rejects_invalid_destination_port(self, mock_client, mock_make_request):
+        result = await _create_nat_port_forward(
+            interface="wan", protocol="tcp", destination="wanip",
+            destination_port="53 853", target="192.168.1.50", local_port="80",
+        )
+        assert result["success"] is False
+        assert "Invalid destination_port" in result["error"]
+        mock_make_request.assert_not_called()
+
+    async def test_rejects_invalid_local_port(self, mock_client, mock_make_request):
+        result = await _create_nat_port_forward(
+            interface="wan", protocol="tcp", destination="wanip",
+            destination_port="80", target="192.168.1.50", local_port="80, 443",
+        )
+        assert result["success"] is False
+        assert "Invalid local_port" in result["error"]
+        mock_make_request.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # delete_nat_port_forward
@@ -153,3 +171,9 @@ class TestUpdateNatPortForward:
         await _update_nat_port_forward(port_forward_id=0, interface="lan")
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
         assert data["interface"] == ["lan"]
+
+    async def test_rejects_invalid_port(self, mock_client, mock_make_request):
+        result = await _update_nat_port_forward(port_forward_id=0, destination_port="53 853")
+        assert result["success"] is False
+        assert "Invalid destination_port" in result["error"]
+        mock_make_request.assert_not_called()

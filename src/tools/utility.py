@@ -62,7 +62,7 @@ async def refresh_object_ids(endpoint: str) -> Dict:
     """Refresh object IDs by re-querying an endpoint (handles ID changes after deletions)
 
     Args:
-        endpoint: API endpoint to refresh (e.g., '/firewall/rule')
+        endpoint: Relative API path without the /api/v2 prefix (e.g. "/firewall/rule", "/firewall/aliases")
     """
     client = get_api_client()
     try:
@@ -91,7 +91,7 @@ async def find_object_by_field(
     """Find an object by a specific field value (safer than using IDs)
 
     Args:
-        endpoint: API endpoint to search
+        endpoint: Relative API path without the /api/v2 prefix (e.g. "/services/dhcp_server", "/firewall/rules", "/firewall/aliases")
         field: Field name to search by
         value: Value to search for
     """

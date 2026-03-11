@@ -8,6 +8,7 @@ from ..helpers import (
     create_interface_filter,
     create_pagination,
     create_port_filter,
+    validate_port_value,
 )
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
@@ -142,15 +143,21 @@ async def create_firewall_rule_advanced(
         interface: Interface for the rule (wan, lan, etc.)
         rule_type: Rule type (pass, block, reject)
         protocol: Protocol (tcp, udp, icmp, any)
-        source: Source address (any, IP, network, alias)
-        destination: Destination address (any, IP, network, alias)
+        source: Source address (any, IP, network, alias name)
+        destination: Destination address (any, IP, network, alias name)
         description: Optional rule description
-        destination_port: Optional destination port or range
+        destination_port: Single port (443), range (1024-65535), or alias name (MyPorts). Do NOT pass multiple space/comma-separated ports — create a port alias first instead.
         position: Optional position to insert rule (0 = top)
         apply_immediately: Whether to apply changes immediately
         log_matches: Whether to log rule matches
     """
     client = get_api_client()
+
+    # Validate port format before sending to API
+    if destination_port:
+        port_error = validate_port_value(destination_port, "destination_port")
+        if port_error:
+            return {"success": False, "error": port_error}
 
     rule_data = {
         "interface": [interface] if isinstance(interface, str) else interface,
@@ -266,10 +273,10 @@ async def update_firewall_rule(
         rule_type: Rule type (pass, block, reject)
         interface: Interface for the rule (wan, lan, etc.)
         protocol: Protocol (tcp, udp, icmp, any)
-        source: Source address (any, IP, network, alias)
-        destination: Destination address (any, IP, network, alias)
-        source_port: Source port or range
-        destination_port: Destination port or range
+        source: Source address (any, IP, network, alias name)
+        destination: Destination address (any, IP, network, alias name)
+        source_port: Single port (443), range (1024-65535), or alias name
+        destination_port: Single port (443), range (1024-65535), or alias name. Do NOT pass multiple space/comma-separated ports — create a port alias first instead.
         description: Rule description
         disabled: Whether the rule is disabled
         log_matches: Whether to log rule matches
@@ -277,6 +284,13 @@ async def update_firewall_rule(
     """
     client = get_api_client()
     try:
+        # Validate port formats before sending to API
+        for port_param, port_val in [("source_port", source_port), ("destination_port", destination_port)]:
+            if port_val:
+                port_error = validate_port_value(port_val, port_param)
+                if port_error:
+                    return {"success": False, "error": port_error}
+
         # Map Python parameter names to pfSense API field names
         field_map = {
             "rule_type": "type",

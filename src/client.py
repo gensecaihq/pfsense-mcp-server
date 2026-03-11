@@ -262,6 +262,8 @@ class EnhancedPfSenseAPIClient:
         pagination: Optional[PaginationOptions] = None
     ) -> Dict:
         """Get interfaces with advanced filtering and sorting"""
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
         return await self._make_request(
             "GET", "/status/interfaces",
             filters=filters, sort=sort, pagination=pagination
@@ -299,6 +301,8 @@ class EnhancedPfSenseAPIClient:
         if sort and sort.sort_by == "sequence":
             sort = SortOptions(sort_by="tracker", sort_order=sort.sort_order)
 
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
         return await self._make_request(
             "GET", "/firewall/rules",
             filters=filters, sort=sort, pagination=pagination
@@ -418,6 +422,8 @@ class EnhancedPfSenseAPIClient:
         elif alias_type and filters:
             filters.append(QueryFilter("type", alias_type))
 
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
         return await self._make_request(
             "GET", "/firewall/aliases",
             filters=filters, sort=sort, pagination=pagination
@@ -559,12 +565,15 @@ class EnhancedPfSenseAPIClient:
     async def get_services(
         self,
         filters: Optional[List[QueryFilter]] = None,
-        sort: Optional[SortOptions] = None
+        sort: Optional[SortOptions] = None,
+        pagination: Optional[PaginationOptions] = None
     ) -> Dict:
         """Get services with filtering"""
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
         return await self._make_request(
             "GET", "/status/services",
-            filters=filters, sort=sort
+            filters=filters, sort=sort, pagination=pagination
         )
 
     async def find_running_services(self) -> Dict:
@@ -580,22 +589,22 @@ class EnhancedPfSenseAPIClient:
     async def start_service(self, service_name: str) -> Dict:
         """Start a service by name"""
         return await self._make_request(
-            "POST", "/services/start",
-            data={"service": service_name}
+            "POST", "/status/service",
+            data={"name": service_name, "action": "start"}
         )
 
     async def stop_service(self, service_name: str) -> Dict:
         """Stop a service by name"""
         return await self._make_request(
-            "POST", "/services/stop",
-            data={"service": service_name}
+            "POST", "/status/service",
+            data={"name": service_name, "action": "stop"}
         )
 
     async def restart_service(self, service_name: str) -> Dict:
         """Restart a service by name"""
         return await self._make_request(
-            "POST", "/services/restart",
-            data={"service": service_name}
+            "POST", "/status/service",
+            data={"name": service_name, "action": "restart"}
         )
 
     # Enhanced DHCP Methods
@@ -608,6 +617,8 @@ class EnhancedPfSenseAPIClient:
         pagination: Optional[PaginationOptions] = None
     ) -> Dict:
         """Get DHCP leases with filtering"""
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
         # DHCP field is 'if' not 'interface'
         if interface and not filters:
             filters = [QueryFilter("if", interface, "contains")]
@@ -644,6 +655,8 @@ class EnhancedPfSenseAPIClient:
         pagination: Optional[PaginationOptions] = None
     ) -> Dict:
         """Get DHCP static mappings with filtering"""
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
         return await self._make_request(
             "GET", "/services/dhcp_server/static_mappings",
             filters=filters, sort=sort, pagination=pagination
@@ -726,6 +739,8 @@ class EnhancedPfSenseAPIClient:
         pagination: Optional[PaginationOptions] = None
     ) -> Dict:
         """Get DHCP server configurations for all interfaces"""
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
         return await self._make_request(
             "GET", "/services/dhcp_servers",
             filters=filters, sort=sort, pagination=pagination
@@ -759,6 +774,8 @@ class EnhancedPfSenseAPIClient:
         pagination: Optional[PaginationOptions] = None
     ) -> Dict:
         """Get ARP table entries"""
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
         return await self._make_request(
             "GET", "/diagnostics/arp_table",
             filters=filters, sort=sort, pagination=pagination
@@ -781,7 +798,8 @@ class EnhancedPfSenseAPIClient:
 
     async def refresh_object_ids(self, endpoint: str) -> Dict:
         """Refresh object IDs by re-querying endpoint"""
-        return await self._make_request("GET", endpoint)
+        pagination = PaginationOptions(limit=200)
+        return await self._make_request("GET", endpoint, pagination=pagination)
 
     async def find_object_by_field(
         self,
@@ -791,9 +809,10 @@ class EnhancedPfSenseAPIClient:
     ) -> Optional[Dict]:
         """Find object by specific field value (handles ID changes)"""
         filters = [QueryFilter(field, value)]
+        pagination = PaginationOptions(limit=50)
         result = await self._make_request(
             "GET", endpoint,
-            filters=filters
+            filters=filters, pagination=pagination
         )
 
         data = result.get("data", [])

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Dict, Optional, Union
 
-from ..helpers import create_default_sort, create_interface_filter, create_pagination
+from ..helpers import create_default_sort, create_interface_filter, create_pagination, validate_port_value
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
 
@@ -96,9 +96,9 @@ async def create_nat_port_forward(
         interface: Interface for the rule (typically "wan")
         protocol: Protocol (tcp, udp, tcp/udp)
         destination: External address (e.g., "wanip", "any", or specific IP/alias)
-        destination_port: External port or range (e.g., "80", "8080-8090")
+        destination_port: Single port (80), range (8080-8090), or alias name. Do NOT pass multiple space/comma-separated ports — create a port alias first instead.
         target: Internal host IP address or alias to forward to
-        local_port: Internal port to forward to (e.g., "80")
+        local_port: Single port (80), range (8080-8090), or alias name
         source: Source address filter (default: "any")
         description: Optional rule description
         disabled: Whether the rule starts disabled
@@ -108,6 +108,12 @@ async def create_nat_port_forward(
     """
     client = get_api_client()
     try:
+        # Validate port formats before sending to API
+        for port_param, port_val in [("destination_port", destination_port), ("local_port", local_port)]:
+            port_error = validate_port_value(port_val, port_param)
+            if port_error:
+                return {"success": False, "error": port_error}
+
         forward_data = {
             "interface": [interface] if isinstance(interface, str) else interface,
             "protocol": protocol,
@@ -205,9 +211,9 @@ async def update_nat_port_forward(
         interface: Interface for the rule (wan, lan, etc.)
         protocol: Protocol (tcp, udp, tcp/udp)
         destination: External address (e.g., "wanip", "any", or specific IP/alias)
-        destination_port: External port or range
+        destination_port: Single port (80), range (8080-8090), or alias name
         target: Internal host IP address or alias
-        local_port: Internal port to forward to
+        local_port: Single port (80), range (8080-8090), or alias name
         source: Source address filter
         description: Rule description
         disabled: Whether the rule is disabled
@@ -216,6 +222,13 @@ async def update_nat_port_forward(
     """
     client = get_api_client()
     try:
+        # Validate port formats before sending to API
+        for port_param, port_val in [("destination_port", destination_port), ("local_port", local_port)]:
+            if port_val:
+                port_error = validate_port_value(port_val, port_param)
+                if port_error:
+                    return {"success": False, "error": port_error}
+
         field_map = {
             "interface": "interface",
             "protocol": "protocol",

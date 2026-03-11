@@ -151,6 +151,32 @@ class TestCreateFirewallRuleAdvanced:
         move_control = mock_make_request.call_args_list[1].kwargs.get("control")
         assert move_control.placement == 0
 
+    async def test_rejects_space_separated_ports(self, mock_client, mock_make_request):
+        """Port values like '53 853' must be rejected before hitting the API."""
+        result = await _create_firewall_rule_advanced(
+            interface="lan", rule_type="pass", protocol="tcp",
+            source="any", destination="any", destination_port="53 853",
+        )
+        assert result["success"] is False
+        assert "Invalid destination_port" in result["error"]
+        mock_make_request.assert_not_called()
+
+    async def test_rejects_comma_separated_ports(self, mock_client, mock_make_request):
+        result = await _create_firewall_rule_advanced(
+            interface="lan", rule_type="pass", protocol="tcp",
+            source="any", destination="any", destination_port="80, 443",
+        )
+        assert result["success"] is False
+        mock_make_request.assert_not_called()
+
+    async def test_accepts_alias_name(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 8}}
+        result = await _create_firewall_rule_advanced(
+            interface="lan", rule_type="pass", protocol="tcp",
+            source="any", destination="any", destination_port="DNS_ports",
+        )
+        assert result["success"] is True
+
 
 # ---------------------------------------------------------------------------
 # update_firewall_rule
@@ -179,6 +205,18 @@ class TestUpdateFirewallRule:
         result = await _update_firewall_rule(rule_id=3)
         assert result["success"] is False
         assert "No fields" in result["error"]
+
+    async def test_rejects_invalid_port(self, mock_client, mock_make_request):
+        result = await _update_firewall_rule(rule_id=3, destination_port="53 853")
+        assert result["success"] is False
+        assert "Invalid destination_port" in result["error"]
+        mock_make_request.assert_not_called()
+
+    async def test_rejects_invalid_source_port(self, mock_client, mock_make_request):
+        result = await _update_firewall_rule(rule_id=3, source_port="80, 443")
+        assert result["success"] is False
+        assert "Invalid source_port" in result["error"]
+        mock_make_request.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
