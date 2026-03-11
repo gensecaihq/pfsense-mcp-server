@@ -1,5 +1,6 @@
 """Standalone helper functions for common query patterns."""
 
+import re
 from typing import List, Optional, Union
 
 from .models import PaginationOptions, QueryFilter, SortOptions
@@ -34,10 +35,14 @@ def create_date_range_filters(
     return filters
 
 
+MAX_PAGE_SIZE = 200
+
+
 def create_pagination(page: int, page_size: int = 50) -> PaginationOptions:
-    """Create pagination options"""
-    offset = (page - 1) * page_size
-    return PaginationOptions(limit=page_size, offset=offset)
+    """Create pagination options (capped to avoid pfSense PHP memory exhaustion)"""
+    safe_size = min(page_size, MAX_PAGE_SIZE)
+    offset = (page - 1) * safe_size
+    return PaginationOptions(limit=safe_size, offset=offset)
 
 
 def create_default_sort(field: str, descending: bool = False) -> SortOptions:
@@ -45,4 +50,19 @@ def create_default_sort(field: str, descending: bool = False) -> SortOptions:
     return SortOptions(
         sort_by=field,
         sort_order="SORT_DESC" if descending else "SORT_ASC"
+    )
+
+
+# Valid port value: single port (443), range (1024-65535), or alias name (alphanumeric/underscore)
+_PORT_RE = re.compile(r"^(\d{1,5}(-\d{1,5})?|[A-Za-z_]\w*)$")
+
+
+def validate_port_value(value: str, field_name: str = "port") -> Optional[str]:
+    """Return an error message if the port value looks invalid, else None."""
+    if not value or _PORT_RE.match(value.strip()):
+        return None
+    return (
+        f"Invalid {field_name} '{value}'. "
+        "Use a single port (443), a range (1024-65535), or an alias name. "
+        "Multiple ports require a port alias — create one first with create_alias."
     )

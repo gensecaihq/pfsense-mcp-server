@@ -199,8 +199,8 @@ This audit analyzes the utilization of the pfSense REST API v2 (pfrest.org) in o
 #### **Implemented Endpoints:**
 | Endpoint | HTTP Method | Purpose | MCP Tool(s) |
 |----------|-------------|---------|-------------|
-| `/api/v2/services` | GET | Service status listing | `list_services()`, `find_running_services()`, `find_stopped_services()` |
-| `/api/v2/services/{action}` | POST | Service control | `restart_service()` |
+| `/api/v2/status/services` | GET | Service status listing | `list_services()`, `find_running_services()`, `find_stopped_services()` |
+| `/api/v2/status/service` | POST | Service control (start/stop/restart) | `start_service()`, `stop_service()`, `restart_service()` |
 
 #### **Information Covered:**
 - **Service Status**: Running, stopped, failed states

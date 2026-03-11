@@ -158,7 +158,7 @@ async def analyze_blocked_traffic(
 async def search_logs_by_ip(
     ip_address: str,
     log_type: str = "firewall",
-    lines: int = 100,
+    lines: int = 50,
     include_related: bool = True
 ) -> Dict:
     """Search logs for activity related to a specific IP address
@@ -166,20 +166,21 @@ async def search_logs_by_ip(
     Args:
         ip_address: IP address to search for
         log_type: Type of logs to search (firewall, system, etc.)
-        lines: Number of log lines to retrieve
+        lines: Number of log lines to retrieve (default 50, max 50)
         include_related: Whether to include related traffic (src and dst)
     """
     client = get_api_client()
     try:
+        safe_lines = min(lines, 50)
         if log_type == "firewall":
-            logs = await client.get_logs_by_ip(ip_address, lines)
+            logs = await client.get_logs_by_ip(ip_address, safe_lines)
         else:
             # For other log types, use general log search
             filters = [QueryFilter("message", ip_address, "contains")]
             logs = await client._make_request(
                 "GET", f"/diagnostics/log/{log_type}",
                 filters=filters,
-                pagination=PaginationOptions(limit=lines)
+                pagination=PaginationOptions(limit=safe_lines)
             )
 
         log_entries = logs.get("data", [])
