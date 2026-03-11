@@ -104,3 +104,11 @@ class TestSearchLogsByIp:
         assert result["success"] is True
         assert result["log_type"] == "system"
         assert result["patterns"] is None
+
+    async def test_non_firewall_lines_capped_at_50(self, mock_client, mock_make_request):
+        """Non-firewall log requests should also be capped to prevent memory exhaustion."""
+        mock_make_request.return_value = {"data": []}
+        await _search_logs_by_ip(ip_address="10.0.0.1", log_type="system", lines=500)
+        pagination = mock_make_request.call_args.kwargs.get("pagination")
+        assert pagination is not None
+        assert pagination.limit == 50
