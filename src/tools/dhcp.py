@@ -122,9 +122,6 @@ async def search_dhcp_static_mappings(
     try:
         filters = []
 
-        if interface:
-            filters.append(QueryFilter("parent_id", interface))
-
         if mac_address:
             filters.append(QueryFilter("mac", mac_address))
 
@@ -138,6 +135,7 @@ async def search_dhcp_static_mappings(
         sort = create_default_sort(sort_by)
 
         result = await client.get_dhcp_static_mappings(
+            interface=interface,
             filters=filters if filters else None,
             sort=sort,
             pagination=pagination
