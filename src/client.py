@@ -650,16 +650,24 @@ class EnhancedPfSenseAPIClient:
 
     async def get_dhcp_static_mappings(
         self,
+        interface: Optional[str] = None,
         filters: Optional[List[QueryFilter]] = None,
         sort: Optional[SortOptions] = None,
         pagination: Optional[PaginationOptions] = None
     ) -> Dict:
-        """Get DHCP static mappings with filtering"""
+        """Get DHCP static mappings with filtering
+
+        Args:
+            interface: Parent DHCP server interface (e.g. "lan", "opt1").
+                       Passed as parent_id query param, not a filter.
+        """
         if pagination is None:
             pagination = PaginationOptions(limit=200)
+        extra = {"parent_id": interface} if interface else None
         return await self._make_request(
             "GET", "/services/dhcp_server/static_mappings",
-            filters=filters, sort=sort, pagination=pagination
+            filters=filters, sort=sort, pagination=pagination,
+            extra_params=extra
         )
 
     async def create_dhcp_static_mapping(
