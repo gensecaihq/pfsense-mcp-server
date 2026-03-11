@@ -361,12 +361,14 @@ class TestServiceControlClient:
 # ---------------------------------------------------------------------------
 
 class TestDhcpStaticMappingCrud:
-    async def test_get_with_filters(self, mock_client, mock_make_request):
+    async def test_get_with_interface(self, mock_client, mock_make_request):
+        """Interface passed as parent_id extra_param, not a filter."""
         mock_make_request.return_value = {"data": []}
-        filters = [QueryFilter("parent_id", "lan")]
-        await mock_client.get_dhcp_static_mappings(filters=filters)
+        await mock_client.get_dhcp_static_mappings(interface="lan")
         call_kwargs = mock_make_request.call_args
         assert call_kwargs[0][1] == "/services/dhcp_server/static_mappings"
+        extra = call_kwargs.kwargs.get("extra_params") or call_kwargs[1].get("extra_params")
+        assert extra == {"parent_id": "lan"}
 
     async def test_create_with_parent_id(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"id": 0}}

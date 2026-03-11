@@ -75,13 +75,18 @@ class TestSearchDhcpStaticMappings:
         assert result["success"] is True
         assert result["count"] == 2
 
-    async def test_interface_filter(self, mock_client, mock_make_request, dhcp_static_mappings_response):
+    async def test_interface_passed_as_extra_param(self, mock_client, mock_make_request, dhcp_static_mappings_response):
+        """Interface should be passed as parent_id query param, not a filter."""
         mock_make_request.return_value = dhcp_static_mappings_response
         result = await _search_dhcp_static_mappings(interface="lan")
         assert result["success"] is True
         call_kwargs = mock_make_request.call_args
+        extra = call_kwargs.kwargs.get("extra_params") or call_kwargs[1].get("extra_params")
+        assert extra == {"parent_id": "lan"}
+        # Verify parent_id is NOT in filters
         filters = call_kwargs.kwargs.get("filters") or call_kwargs[1].get("filters")
-        assert any(f.field == "parent_id" and f.value == "lan" for f in filters)
+        if filters:
+            assert not any(f.field == "parent_id" for f in filters)
 
     async def test_mac_filter(self, mock_client, mock_make_request, dhcp_static_mappings_response):
         mock_make_request.return_value = dhcp_static_mappings_response
