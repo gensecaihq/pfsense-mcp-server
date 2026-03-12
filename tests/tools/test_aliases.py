@@ -21,11 +21,21 @@ _delete_alias = delete_alias.fn
 
 class TestSearchAliases:
     async def test_search_by_name(self, mock_client, mock_make_request, aliases_response):
+        """search_term does client-side filtering on name and description."""
         mock_make_request.return_value = aliases_response
         result = await _search_aliases(search_term="blocked")
         assert result["success"] is True
-        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
-        assert any(f.field == "name" and f.value == "blocked" for f in filters)
+        # Client-side filter: should match "blocked_hosts" by name
+        assert result["count"] == 1
+        assert result["aliases"][0]["name"] == "blocked_hosts"
+
+    async def test_search_by_description(self, mock_client, mock_make_request, aliases_response):
+        """search_term should also match descriptions."""
+        mock_make_request.return_value = aliases_response
+        result = await _search_aliases(search_term="Web ports")
+        assert result["success"] is True
+        assert result["count"] == 1
+        assert result["aliases"][0]["name"] == "web_ports"
 
     async def test_filter_by_type(self, mock_client, mock_make_request, aliases_response):
         mock_make_request.return_value = aliases_response

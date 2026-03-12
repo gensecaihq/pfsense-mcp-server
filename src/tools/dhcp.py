@@ -18,8 +18,11 @@ async def _lookup_mapping_parent_id(client, mapping_id: int) -> str:
     )
     mappings = result.get("data", [])
     for m in mappings:
-        if m.get("id") == mapping_id:
-            return m["parent_id"]
+        if str(m.get("id")) == str(mapping_id):
+            pid = m.get("parent_id")
+            if pid:
+                return pid
+            raise ValueError(f"DHCP static mapping {mapping_id} has no parent_id")
     raise ValueError(f"DHCP static mapping with ID {mapping_id} not found")
 
 
@@ -50,9 +53,6 @@ async def search_dhcp_leases(
     try:
         filters = []
 
-        if search_term:
-            filters.append(QueryFilter("hostname", search_term, "contains"))
-
         if interface:
             # DHCP uses 'if' field, not 'interface'
             filters.append(QueryFilter("if", interface, "contains"))
@@ -67,7 +67,7 @@ async def search_dhcp_leases(
             # DHCP uses 'active_status' field, not 'state'
             filters.append(QueryFilter("active_status", state))
 
-        pagination = create_pagination(page, page_size)
+        pagination, page, page_size = create_pagination(page, page_size)
         sort = create_default_sort(sort_by, descending=True)
 
         leases = await client.get_dhcp_leases(
@@ -75,6 +75,18 @@ async def search_dhcp_leases(
             sort=sort,
             pagination=pagination
         )
+
+        lease_data = leases.get("data", [])
+
+        # Client-side filtering: search_term matches hostname or IP
+        if search_term:
+            term_lower = search_term.lower()
+            lease_data = [
+                entry for entry in lease_data
+                if term_lower in entry.get("hostname", "").lower()
+                or term_lower in entry.get("ip", "").lower()
+                or term_lower in entry.get("mac", "").lower()
+            ]
 
         return {
             "success": True,
@@ -87,8 +99,8 @@ async def search_dhcp_leases(
                 "hostname": hostname,
                 "state": state
             },
-            "count": len(leases.get("data", [])),
-            "leases": leases.get("data", []),
+            "count": len(lease_data),
+            "leases": lease_data,
             "links": client.extract_links(leases),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
@@ -131,7 +143,7 @@ async def search_dhcp_static_mappings(
         if ip_address:
             filters.append(QueryFilter("ipaddr", ip_address))
 
-        pagination = create_pagination(page, page_size)
+        pagination, page, page_size = create_pagination(page, page_size)
         sort = create_default_sort(sort_by)
 
         result = await client.get_dhcp_static_mappings(
@@ -356,7 +368,7 @@ async def get_dhcp_server_config(
         if interface:
             filters.append(QueryFilter("id", interface))
 
-        pagination = create_pagination(page, page_size)
+        pagination, page, page_size = create_pagination(page, page_size)
 
         result = await client.get_dhcp_servers(
             filters=filters if filters else None,

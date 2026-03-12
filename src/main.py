@@ -75,7 +75,6 @@ def main():
         finally:
             # Close the client so the MCP server event loop gets a fresh one
             await client.close()
-            client.reset()
 
     connected = asyncio.run(test_conn())
     if not connected:
@@ -95,13 +94,16 @@ def main():
         else:
             app = mcp.sse_app()
 
-        # Wrap with bearer auth if MCP_API_KEY is set
+        # Require bearer auth for HTTP transport — fail closed
         api_key = os.getenv("MCP_API_KEY")
-        if api_key:
-            app = BearerAuthMiddleware(app, api_key)
-            logger.info("Bearer token auth enabled (MCP_API_KEY is set)")
-        else:
-            logger.warning("No MCP_API_KEY set - HTTP endpoint is unauthenticated")
+        if not api_key:
+            logger.error(
+                "MCP_API_KEY must be set for streamable-http transport. "
+                "Set MCP_API_KEY or use --transport stdio."
+            )
+            sys.exit(1)
+        app = BearerAuthMiddleware(app, api_key)
+        logger.info("Bearer token auth enabled (MCP_API_KEY is set)")
 
         logger.info(f"Starting MCP server on http://{args.host}:{args.port}/mcp")
         uvicorn.run(app, host=args.host, port=args.port)

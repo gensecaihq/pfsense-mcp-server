@@ -38,7 +38,7 @@
 - **🔒 Multi-Auth Support**: API Key, Basic Auth, JWT with security best practices
 - **📈 Production Monitoring**: Health checks, metrics, audit logging
 - **🐳 Container Ready**: Docker deployment with security hardening
-- **🎨 42 MCP Tools**: Full CRUD for core resources (firewall rules, aliases, NAT, DHCP, services)
+- **🎨 41 MCP Tools**: Full CRUD for core resources (firewall rules, aliases, NAT, DHCP, services)
 - **⚡ High Performance**: Async operations, caching, connection pooling
 
 ### 🎮 **Supported pfSense Versions**
@@ -407,7 +407,7 @@ Contributors will be:
 - 🔗 HATEOAS navigation support
 - ⚙️ Control parameters implementation
 - 🆔 Dynamic object ID management
-- 🛠️ 42 MCP tools with full CRUD for core resources
+- 🛠️ 41 MCP tools with full CRUD for core resources
 - 📚 Comprehensive documentation
 
 ### v3.0.0 - FastMCP Integration

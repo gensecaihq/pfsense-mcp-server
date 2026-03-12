@@ -200,6 +200,8 @@ async def search_logs_by_ip(
                 if key not in seen:
                     seen.add(key)
                     merged.append(entry)
+            # Sort by timestamp descending before truncating to keep most recent
+            merged.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
             logs = src_logs  # preserve links/metadata from first response
             logs["data"] = merged[:safe_lines]
         else:

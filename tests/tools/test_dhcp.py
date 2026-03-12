@@ -46,10 +46,19 @@ class TestSearchDhcpLeases:
         assert if_count == 1, f"Expected 1 'if' filter, got {if_count}"
 
     async def test_search_term_filter(self, mock_client, mock_make_request, dhcp_leases_response):
+        """search_term does client-side filtering on hostname, IP, and MAC."""
         mock_make_request.return_value = dhcp_leases_response
-        await _search_dhcp_leases(search_term="laptop")
-        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
-        assert any(f.field == "hostname" and f.value == "laptop" and f.operator == "contains" for f in filters)
+        result = await _search_dhcp_leases(search_term="laptop")
+        # Should match the "laptop" lease via hostname
+        assert result["count"] == 1
+        assert result["leases"][0]["hostname"] == "laptop"
+
+    async def test_search_term_matches_ip(self, mock_client, mock_make_request, dhcp_leases_response):
+        """search_term should also match IP addresses."""
+        mock_make_request.return_value = dhcp_leases_response
+        result = await _search_dhcp_leases(search_term="192.168.1.100")
+        assert result["count"] == 1
+        assert result["leases"][0]["ip"] == "192.168.1.100"
 
     async def test_hostname_filter(self, mock_client, mock_make_request, dhcp_leases_response):
         mock_make_request.return_value = dhcp_leases_response

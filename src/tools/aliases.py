@@ -31,16 +31,13 @@ async def search_aliases(
     try:
         filters = []
 
-        if search_term:
-            filters.append(QueryFilter("name", search_term, "contains"))
-
         if alias_type:
             filters.append(QueryFilter("type", alias_type))
 
         if containing_ip:
             filters.append(QueryFilter("address", containing_ip, "contains"))
 
-        pagination = create_pagination(page, page_size)
+        pagination, page, page_size = create_pagination(page, page_size)
         sort = create_default_sort(sort_by)
 
         aliases = await client.get_aliases(
@@ -48,6 +45,17 @@ async def search_aliases(
             sort=sort,
             pagination=pagination
         )
+
+        alias_list = aliases.get("data", [])
+
+        # Client-side filtering: search_term matches name or description
+        if search_term:
+            term_lower = search_term.lower()
+            alias_list = [
+                a for a in alias_list
+                if term_lower in a.get("name", "").lower()
+                or term_lower in a.get("descr", "").lower()
+            ]
 
         return {
             "success": True,
@@ -58,8 +66,8 @@ async def search_aliases(
                 "alias_type": alias_type,
                 "containing_ip": containing_ip
             },
-            "count": len(aliases.get("data", [])),
-            "aliases": aliases.get("data", []),
+            "count": len(alias_list),
+            "aliases": alias_list,
             "links": client.extract_links(aliases),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
