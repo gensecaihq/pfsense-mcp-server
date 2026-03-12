@@ -56,7 +56,7 @@ async def search_interfaces(
         if status_filter:
             filters.append(QueryFilter("status", status_filter))
 
-        pagination = create_pagination(page, page_size)
+        pagination, page, page_size = create_pagination(page, page_size)
         sort = create_default_sort(sort_by)
 
         interfaces = await client.get_interfaces(
@@ -136,7 +136,7 @@ async def get_arp_table(
         if interface:
             filters.append(QueryFilter("interface", interface, "contains"))
 
-        pagination = create_pagination(page, page_size)
+        pagination, page, page_size = create_pagination(page, page_size)
 
         result = await client.get_arp_table(
             filters=filters if filters else None,

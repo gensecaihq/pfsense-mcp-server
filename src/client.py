@@ -534,8 +534,8 @@ class EnhancedPfSenseAPIClient:
         sort: Optional[SortOptions] = None
     ) -> Dict:
         """Get firewall logs with filtering (small limits to avoid memory issues)"""
-        # Cap limit to avoid pfSense PHP memory exhaustion
-        safe_lines = min(lines, 50)
+        # Clamp to valid range and cap to avoid pfSense PHP memory exhaustion
+        safe_lines = max(1, min(lines, 50))
         pagination = PaginationOptions(limit=safe_lines)
 
         return await self._make_request(
@@ -868,9 +868,10 @@ class EnhancedPfSenseAPIClient:
         return {"message": "HATEOAS disabled for this session"}
 
     async def close(self):
-        """Close HTTP client"""
+        """Close HTTP client and reset state"""
         if self.client is not None:
             await self.client.aclose()
+        self.reset()
 
     def reset(self):
         """Reset client state for reuse in a new event loop."""
