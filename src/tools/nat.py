@@ -1,6 +1,6 @@
 """NAT port forward tools for pfSense MCP server."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional, Union
 
 from ..helpers import (
@@ -73,7 +73,7 @@ async def search_nat_port_forwards(
             "count": len(result.get("data", [])),
             "port_forwards": result.get("data", []),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to search NAT port forwards: {e}")
@@ -136,7 +136,7 @@ async def create_nat_port_forward(
         if description:
             forward_data["descr"] = description
         else:
-            forward_data["descr"] = f"Port forward via MCP at {datetime.utcnow().isoformat()}"
+            forward_data["descr"] = f"Port forward via MCP at {datetime.now(timezone.utc).isoformat()}"
 
         if nat_reflection:
             forward_data["natreflection"] = nat_reflection
@@ -155,7 +155,7 @@ async def create_nat_port_forward(
             "applied": apply_immediately,
             "associated_rule_created": create_associated_rule,
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to create NAT port forward: {e}")
@@ -189,7 +189,7 @@ async def delete_nat_port_forward(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to delete NAT port forward: {e}")
@@ -290,7 +290,7 @@ async def update_nat_port_forward(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to update NAT port forward: {e}")

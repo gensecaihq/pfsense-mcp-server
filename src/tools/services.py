@@ -1,9 +1,11 @@
 """Service tools for pfSense MCP server."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional
 
 from ..server import get_api_client, logger, mcp
+
+_VALID_STATUS_FILTERS = {"running", "stopped"}
 
 
 @mcp.tool()
@@ -19,6 +21,12 @@ async def search_services(
     """
     client = get_api_client()
     try:
+        if status_filter is not None and status_filter not in _VALID_STATUS_FILTERS:
+            return {
+                "success": False,
+                "error": f"Invalid status_filter '{status_filter}'. Must be 'running' or 'stopped'",
+            }
+
         if status_filter == "running":
             result = await client.find_running_services()
         elif status_filter == "stopped":
@@ -45,7 +53,7 @@ async def search_services(
             "count": len(services),
             "services": services,
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to search services: {e}")
@@ -84,8 +92,8 @@ async def control_service(
             "service": service_name,
             "action": action_lower,
             "result": result.get("data", result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
-        logger.error(f"Failed to {action} service {service_name}: {e}")
+        logger.error(f"Failed to {action_lower} service {service_name}: {e}")
         return {"success": False, "error": str(e)}

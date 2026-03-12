@@ -42,6 +42,8 @@ def create_pagination(page: int, page_size: int = 50) -> PaginationOptions:
     """Create pagination options (capped to avoid pfSense PHP memory exhaustion)"""
     if page < 1:
         page = 1
+    if page_size < 1:
+        page_size = 50
     safe_size = min(page_size, MAX_PAGE_SIZE)
     offset = (page - 1) * safe_size
     return PaginationOptions(limit=safe_size, offset=offset)

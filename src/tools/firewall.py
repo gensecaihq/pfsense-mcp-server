@@ -1,6 +1,7 @@
 """Firewall tools for pfSense MCP server."""
 
-from datetime import datetime
+import ipaddress
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Union
 
 from ..helpers import (
@@ -79,7 +80,7 @@ async def search_firewall_rules(
             "count": len(rules.get("data", [])),
             "rules": rules.get("data", []),
             "links": client.extract_links(rules),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to search firewall rules: {e}")
@@ -113,7 +114,7 @@ async def find_blocked_rules(
             "count": len(rules.get("data", [])),
             "blocked_rules": rules.get("data", []),
             "links": client.extract_links(rules),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to find blocked rules: {e}")
@@ -161,7 +162,7 @@ async def create_firewall_rule_advanced(
         "ipprotocol": "inet",
         "source": source,
         "destination": destination,
-        "descr": description or f"Created via Enhanced MCP at {datetime.utcnow().isoformat()}",
+        "descr": description or f"Created via Enhanced MCP at {datetime.now(timezone.utc).isoformat()}",
         "log": log_matches,
         "statetype": "keep state",  # Required for pf filter compiler
     }
@@ -201,7 +202,7 @@ async def create_firewall_rule_advanced(
             "applied_immediately": apply_immediately,
             "position": position,
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to create advanced firewall rule: {e}")
@@ -240,7 +241,7 @@ async def move_firewall_rule(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to move firewall rule: {e}")
@@ -337,7 +338,7 @@ async def update_firewall_rule(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to update firewall rule: {e}")
@@ -366,7 +367,7 @@ async def delete_firewall_rule(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to delete firewall rule: {e}")
@@ -391,6 +392,14 @@ async def bulk_block_ips(
     errors = []
 
     for ip in ip_addresses:
+        # Validate IP/network before making API call
+        try:
+            ipaddress.ip_network(ip, strict=False)
+        except ValueError:
+            logger.error(f"Invalid IP address/network: {ip}")
+            errors.append({"ip": ip, "error": f"Invalid IP address or network: {ip}"})
+            continue
+
         try:
             rule_data = {
                 "interface": [interface] if isinstance(interface, str) else interface,
@@ -432,7 +441,7 @@ async def bulk_block_ips(
         "applied": applied,
         "results": results,
         "errors": errors,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -452,7 +461,7 @@ async def apply_firewall_changes() -> Dict:
             "success": True,
             "message": "Firewall changes applied and filter ruleset recompiled",
             "result": result.get("data", result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to apply firewall changes: {e}")
@@ -473,7 +482,7 @@ async def get_pf_rules() -> Dict:
         return {
             "success": True,
             "compiled_rules": result.get("data", result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to read compiled rules: {e}")
