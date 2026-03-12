@@ -185,6 +185,13 @@ Add to your Claude Desktop configuration:
 | `/status/logs/firewall` | Read | `get_firewall_log`, `analyze_blocked_traffic`, `search_logs_by_ip` | Partial |
 | `/status/system` | Read | `system_status` | Yes |
 
+### Diagnostics
+
+| Endpoint | Operations | MCP Tool(s) | Tested |
+|----------|-----------|-------------|--------|
+| `/diagnostics/arp_table` | Read | `get_arp_table` | Partial |
+| `/diagnostics/command/prompt` | Execute | `get_pf_rules` | Partial |
+
 ### System & API
 
 | Endpoint | Operations | MCP Tool(s) | Tested |
@@ -207,7 +214,7 @@ Major pfSense API v2 endpoint categories not yet covered:
 - **Advanced Firewall** -- schedules, traffic shaper, virtual IPs, connection states
 - **Interface Config** -- VLANs, bridges, LAGs, individual interface settings
 - **Other Logs** -- system, DHCP, VPN, captive portal logs
-- **Diagnostics** -- ARP table, routing table, DNS lookups, command execution
+- **Diagnostics** -- routing table, DNS lookups
 
 ## 💬 Enhanced Example Prompts
 
@@ -244,7 +251,7 @@ Major pfSense API v2 endpoint categories not yet covered:
 ## 🧪 Testing
 
 ```bash
-# Run the full test suite (114 tests)
+# Run the full test suite
 pytest tests/ -v
 
 # Run with coverage report

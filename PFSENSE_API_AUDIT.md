@@ -28,9 +28,8 @@ This audit analyzes the utilization of the pfSense REST API v2 (pfrest.org) in o
 #### **Implemented Endpoints:**
 | Endpoint | HTTP Method | Purpose | MCP Tool(s) |
 |----------|-------------|---------|-------------|
-| `/api/v2/status/system` | GET | System status, CPU, memory, disk | `system_status()` |
-| `/api/v2/status/interface` | GET | Interface status and statistics | `search_interfaces()`, `find_interfaces_by_status()` |
-| `/api/v2/status/interface/{id}` | GET | Specific interface details | `get_interface_details()` |
+| `/api/v2/status/system` | GET | System status, CPU, memory, disk | `system_status` |
+| `/api/v2/status/interfaces` | GET | Interface status and statistics | `search_interfaces`, `find_interfaces_by_status` |
 
 #### **Information Covered:**
 - **System Health**: CPU usage, memory utilization, disk space, uptime
@@ -51,10 +50,11 @@ This audit analyzes the utilization of the pfSense REST API v2 (pfrest.org) in o
 #### **Implemented Endpoints:**
 | Endpoint | HTTP Method | Purpose | MCP Tool(s) |
 |----------|-------------|---------|-------------|
-| `/api/v2/firewall/rule` | GET | List firewall rules | `search_firewall_rules()`, `find_blocked_rules()` |
-| `/api/v2/firewall/rule/{id}` | GET, PATCH, DELETE | Individual rule operations | `get_firewall_rule()`, `update_firewall_rule()`, `delete_firewall_rule()` |
-| `/api/v2/firewall/rule` | POST | Create new rules | `create_firewall_rule_advanced()`, `bulk_block_ips()` |
-| `/api/v2/firewall/apply` | POST | Apply pending changes | All firewall modification tools |
+| `/api/v2/firewall/rules` | GET | List firewall rules | `search_firewall_rules`, `find_blocked_rules` |
+| `/api/v2/firewall/rule` | POST | Create new rules | `create_firewall_rule_advanced`, `bulk_block_ips` |
+| `/api/v2/firewall/rule` | PATCH | Update/move rules | `update_firewall_rule`, `move_firewall_rule` |
+| `/api/v2/firewall/rule` | DELETE | Delete rules | `delete_firewall_rule` |
+| `/api/v2/firewall/apply` | POST | Apply pending changes | `apply_firewall_changes` |
 
 #### **Information Covered:**
 - **Rule Configuration**: Interface, action (pass/block/reject), protocol, source/destination
@@ -81,7 +81,8 @@ This audit analyzes the utilization of the pfSense REST API v2 (pfrest.org) in o
 #### **Implemented Endpoints:**
 | Endpoint | HTTP Method | Purpose | MCP Tool(s) |
 |----------|-------------|---------|-------------|
-| `/api/v2/firewall/nat/rule` | GET, POST | NAT rule management | `list_nat_rules()`, `create_port_forward()` |
+| `/api/v2/firewall/nat/port_forwards` | GET | List NAT rules | `search_nat_port_forwards` |
+| `/api/v2/firewall/nat/port_forward` | POST, PATCH, DELETE | NAT rule CRUD | `create_nat_port_forward`, `update_nat_port_forward`, `delete_nat_port_forward` |
 
 #### **Information Covered:**
 - **Port Forwarding**: External to internal port mapping
@@ -100,8 +101,8 @@ This audit analyzes the utilization of the pfSense REST API v2 (pfrest.org) in o
 #### **Implemented Endpoints:**
 | Endpoint | HTTP Method | Purpose | MCP Tool(s) |
 |----------|-------------|---------|-------------|
-| `/api/v2/firewall/alias` | GET, POST | Alias operations | `search_aliases()`, `create_alias()` |
-| `/api/v2/firewall/alias/{id}` | PATCH | Modify alias contents | `manage_alias_addresses()` |
+| `/api/v2/firewall/aliases` | GET | List aliases | `search_aliases` |
+| `/api/v2/firewall/alias` | POST, PATCH, DELETE | Alias CRUD | `create_alias`, `update_alias`, `manage_alias_addresses`, `delete_alias` |
 
 #### **Information Covered:**
 - **IP Lists**: Host aliases, network aliases
@@ -127,8 +128,9 @@ This audit analyzes the utilization of the pfSense REST API v2 (pfrest.org) in o
 #### **Implemented Endpoints:**
 | Endpoint | HTTP Method | Purpose | MCP Tool(s) |
 |----------|-------------|---------|-------------|
-| `/api/v2/services/dhcpd/lease` | GET | DHCP lease information | `search_dhcp_leases()`, `list_dhcp_leases()` |
-| `/api/v2/services/dhcpd/static_mapping` | GET | Static DHCP mappings | `list_dhcp_static_mappings()` |
+| `/api/v2/status/dhcp_server/leases` | GET | DHCP lease information | `search_dhcp_leases` |
+| `/api/v2/services/dhcp_server/static_mappings` | GET | List static mappings | `search_dhcp_static_mappings` |
+| `/api/v2/services/dhcp_server/static_mapping` | POST, PATCH, DELETE | Static mapping CRUD | `create_dhcp_static_mapping`, `update_dhcp_static_mapping`, `delete_dhcp_static_mapping` |
 
 #### **Information Covered:**
 - **Active Leases**: IP assignments, MAC addresses, hostnames, lease duration
@@ -149,8 +151,8 @@ This audit analyzes the utilization of the pfSense REST API v2 (pfrest.org) in o
 #### **Implemented Endpoints:**
 | Endpoint | HTTP Method | Purpose | MCP Tool(s) |
 |----------|-------------|---------|-------------|
-| `/api/v2/status/ipsec` | GET | IPsec VPN status | `get_ipsec_status()` |
-| `/api/v2/status/openvpn` | GET | OpenVPN status | `get_openvpn_status()` |
+| `/api/v2/status/ipsec` | GET | IPsec VPN status | Not yet implemented |
+| `/api/v2/status/openvpn` | GET | OpenVPN status | Not yet implemented |
 
 #### **Information Covered:**
 - **VPN Tunnels**: Connection status, tunnel configuration
@@ -171,9 +173,8 @@ This audit analyzes the utilization of the pfSense REST API v2 (pfrest.org) in o
 #### **Implemented Endpoints:**
 | Endpoint | HTTP Method | Purpose | MCP Tool(s) |
 |----------|-------------|---------|-------------|
-| `/api/v2/diagnostics/log/firewall` | GET | Firewall logs | `get_firewall_logs()`, `search_logs_by_ip()`, `analyze_blocked_traffic()` |
-| `/api/v2/diagnostics/log/system` | GET | System logs | `get_system_logs()` |
-| `/api/v2/diagnostics/arp_table` | GET | ARP table | `get_arp_table()` |
+| `/api/v2/status/logs/firewall` | GET | Firewall logs | `get_firewall_log`, `search_logs_by_ip`, `analyze_blocked_traffic` |
+| `/api/v2/diagnostics/arp_table` | GET | ARP table | `get_arp_table` |
 
 #### **Information Covered:**
 - **Security Events**: Blocked traffic, rule matches, attack patterns
@@ -199,8 +200,8 @@ This audit analyzes the utilization of the pfSense REST API v2 (pfrest.org) in o
 #### **Implemented Endpoints:**
 | Endpoint | HTTP Method | Purpose | MCP Tool(s) |
 |----------|-------------|---------|-------------|
-| `/api/v2/status/services` | GET | Service status listing | `list_services()`, `find_running_services()`, `find_stopped_services()` |
-| `/api/v2/status/service` | POST | Service control (start/stop/restart) | `start_service()`, `stop_service()`, `restart_service()` |
+| `/api/v2/status/services` | GET | Service status listing | `search_services` |
+| `/api/v2/status/service` | POST | Service control (start/stop/restart) | `control_service` |
 
 #### **Information Covered:**
 - **Service Status**: Running, stopped, failed states
@@ -219,8 +220,7 @@ This audit analyzes the utilization of the pfSense REST API v2 (pfrest.org) in o
 #### **Implemented Endpoints:**
 | Endpoint | HTTP Method | Purpose | MCP Tool(s) |
 |----------|-------------|---------|-------------|
-| `/api/v2/system/config/backup` | GET, POST | Backup management | `list_config_backups()`, `create_config_backup()` |
-| `/api/v2/system/restapi/settings` | GET, PATCH | API configuration | `get_api_capabilities()`, `update_api_settings()` |
+| `/api/v2/system/restapi/settings` | GET | API configuration | `get_api_capabilities` |
 
 #### **Information Covered:**
 - **Configuration Backups**: Automated backup creation, restoration points
@@ -239,7 +239,7 @@ This audit analyzes the utilization of the pfSense REST API v2 (pfrest.org) in o
 #### **Implemented Endpoints:**
 | Endpoint | HTTP Method | Purpose | MCP Tool(s) |
 |----------|-------------|---------|-------------|
-| `/api/v2/user` | GET, POST | User account management | `list_users()`, `create_user()` |
+| `/api/v2/user` | GET, POST | User account management | Not yet implemented |
 
 #### **Information Covered:**
 - **User Accounts**: Username, privileges, status

@@ -25,22 +25,13 @@ _test_enhanced_connection = test_enhanced_connection.fn
 
 class TestFollowApiLink:
     async def test_error(self, mock_client, mock_make_request):
-        from unittest.mock import AsyncMock, MagicMock
-        mock_client.client = MagicMock()
-        mock_client.client.get = AsyncMock(side_effect=Exception("link failed"))
+        mock_make_request.side_effect = Exception("link failed")
         result = await _follow_api_link(link_url="/firewall/rules")
         assert result["success"] is False
         assert "link failed" in result["error"]
 
     async def test_basic(self, mock_client, mock_make_request):
-        # follow_link uses client.client directly, not _make_request
-        from unittest.mock import AsyncMock, MagicMock
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"data": [{"id": 1}], "_links": {}}
-        mock_response.raise_for_status = MagicMock()
-        mock_client.client = MagicMock()
-        mock_client.client.get = AsyncMock(return_value=mock_response)
+        mock_make_request.return_value = {"data": [{"id": 1}], "_links": {}}
         result = await _follow_api_link(link_url="/firewall/rules")
         assert result["success"] is True
 

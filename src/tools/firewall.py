@@ -89,27 +89,23 @@ async def search_firewall_rules(
 @mcp.tool()
 async def find_blocked_rules(
     interface: Optional[str] = None,
-    page: int = 1,
-    page_size: int = 20
 ) -> Dict:
     """Find all firewall rules that block or reject traffic
 
     Args:
-        interface: Optional interface filter
-        page: Page number for pagination
-        page_size: Number of results per page
+        interface: Optional interface filter (wan, lan, etc.)
     """
     client = get_api_client()
     try:
         rules = await client.find_blocked_rules()
 
         # Apply interface filter if specified
+        # interface field is a list (e.g. ["wan"]), so use 'in' not '=='
         if interface:
-            filtered_rules = []
-            for rule in rules.get("data", []):
-                if rule.get("interface") == interface:
-                    filtered_rules.append(rule)
-            rules["data"] = filtered_rules
+            rules["data"] = [
+                rule for rule in rules.get("data", [])
+                if interface in (rule.get("interface") or [])
+            ]
 
         return {
             "success": True,
