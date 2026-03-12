@@ -75,8 +75,7 @@ def main():
         finally:
             # Close the client so the MCP server event loop gets a fresh one
             await client.close()
-            client.client = None
-            client._client_loop = None
+            client.reset()
 
     connected = asyncio.run(test_conn())
     if not connected:

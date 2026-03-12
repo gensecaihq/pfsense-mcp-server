@@ -1,7 +1,7 @@
 """Utility tools for pfSense MCP server."""
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict
 
 from ..models import PaginationOptions, QueryFilter, SortOptions
@@ -24,7 +24,7 @@ async def follow_api_link(link_url: str) -> Dict:
             "followed_link": link_url,
             "data": result.get("data", result),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to follow link: {e}")
@@ -40,7 +40,7 @@ async def enable_hateoas() -> Dict:
         "success": True,
         "message": "HATEOAS enabled - API responses will now include navigation links",
         "result": result,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -53,7 +53,7 @@ async def disable_hateoas() -> Dict:
         "success": True,
         "message": "HATEOAS disabled - API responses will be more compact",
         "result": result,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -75,7 +75,7 @@ async def refresh_object_ids(endpoint: str) -> Dict:
             "objects": result.get("data", []),
             "message": "Object IDs refreshed - use updated IDs for future operations",
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to refresh object IDs: {e}")
@@ -108,7 +108,7 @@ async def find_object_by_field(
                 "found": True,
                 "object": obj,
                 "object_id": obj.get("id"),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
         else:
             return {
@@ -118,7 +118,7 @@ async def find_object_by_field(
                 "search_value": value,
                 "found": False,
                 "message": "No object found matching criteria",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
     except Exception as e:
         logger.error(f"Failed to find object by field: {e}")
@@ -147,7 +147,7 @@ async def get_api_capabilities() -> Dict:
                 "control_parameters": "Apply, async, placement, append, remove"
             },
             "links": client.extract_links(capabilities),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to get API capabilities: {e}")
@@ -166,7 +166,7 @@ async def test_enhanced_connection() -> Dict:
             return {
                 "success": False,
                 "message": "Basic connection failed",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
         # Test advanced features
@@ -212,7 +212,7 @@ async def test_enhanced_connection() -> Dict:
             "basic_connection": True,
             "feature_tests": tests,
             "hateoas_enabled": client.hateoas_enabled,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Enhanced connection test failed: {e}")

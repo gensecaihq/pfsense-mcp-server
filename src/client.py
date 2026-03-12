@@ -465,8 +465,8 @@ class EnhancedPfSenseAPIClient:
         control = ControlParameters(append=True, apply=True)
 
         return await self._make_request(
-            "PATCH", f"/firewall/alias/{alias_id}",
-            data={"address": addresses},
+            "PATCH", "/firewall/alias",
+            data={"id": alias_id, "address": addresses},
             control=control
         )
 
@@ -479,8 +479,8 @@ class EnhancedPfSenseAPIClient:
         control = ControlParameters(remove=True, apply=True)
 
         return await self._make_request(
-            "PATCH", f"/firewall/alias/{alias_id}",
-            data={"address": addresses},
+            "PATCH", "/firewall/alias",
+            data={"id": alias_id, "address": addresses},
             control=control
         )
 
@@ -871,3 +871,8 @@ class EnhancedPfSenseAPIClient:
         """Close HTTP client"""
         if self.client is not None:
             await self.client.aclose()
+
+    def reset(self):
+        """Reset client state for reuse in a new event loop."""
+        self.client = None
+        self._client_loop = None

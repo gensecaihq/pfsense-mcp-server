@@ -1,10 +1,13 @@
 """Log analysis tools for pfSense MCP server."""
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
 from ..models import PaginationOptions, QueryFilter
 from ..server import get_api_client, logger, mcp
+
+# Allowlist of valid pfSense log types to prevent path traversal
+_VALID_LOG_TYPES = {"firewall", "system", "dhcp", "vpn", "gateways", "resolver", "portalauth"}
 
 
 @mcp.tool()
@@ -47,14 +50,15 @@ async def get_firewall_log(
 
         # Log endpoints don't support sort_by — logs are returned in
         # reverse chronological order by pfSense already
+        safe_lines = max(1, min(lines, 50))
         logs = await client.get_firewall_logs(
-            lines=min(lines, 50),
+            lines=safe_lines,
             filters=filters if filters else None,
         )
 
         return {
             "success": True,
-            "lines_requested": min(lines, 50),
+            "lines_requested": safe_lines,
             "filters_applied": {
                 "action": action_filter,
                 "interface": interface,
@@ -66,7 +70,7 @@ async def get_firewall_log(
             "count": len(logs.get("data", [])),
             "log_entries": logs.get("data", []),
             "links": client.extract_links(logs),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to get firewall log: {e}")
@@ -89,9 +93,18 @@ async def analyze_blocked_traffic(
     client = get_api_client()
     try:
         # Get blocked traffic logs (already reverse-chronological)
-        logs = await client.get_blocked_traffic_logs(lines=limit)
+        safe_limit = max(1, min(limit, 50))
+        logs = await client.get_blocked_traffic_logs(lines=safe_limit)
 
         log_data = logs.get("data", [])
+
+        # Filter by hours_back if timestamps are available
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+        cutoff_str = cutoff.isoformat()
+        log_data = [
+            entry for entry in log_data
+            if not entry.get("timestamp") or entry["timestamp"] >= cutoff_str
+        ]
 
         if group_by_source:
             # Group by source IP
@@ -149,7 +162,7 @@ async def analyze_blocked_traffic(
             "total_entries_analyzed": len(log_data),
             "analysis": analysis,
             "links": client.extract_links(logs),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to analyze blocked traffic: {e}")
@@ -171,10 +184,31 @@ async def search_logs_by_ip(
     """
     client = get_api_client()
     try:
-        safe_lines = min(lines, 50)
+        safe_lines = max(1, min(lines, 50))
         if log_type == "firewall":
-            logs = await client.get_logs_by_ip(ip_address, safe_lines)
+            # Search both source and destination IPs, merge results
+            src_logs = await client.get_logs_by_ip(ip_address, safe_lines)
+            dst_filters = [QueryFilter("dst_ip", ip_address)]
+            dst_logs = await client.get_firewall_logs(
+                lines=safe_lines, filters=dst_filters
+            )
+            # Merge and deduplicate (use timestamp+src_ip+dst_ip as key)
+            seen = set()
+            merged = []
+            for entry in src_logs.get("data", []) + dst_logs.get("data", []):
+                key = (entry.get("timestamp"), entry.get("src_ip"), entry.get("dst_ip"), entry.get("dst_port"))
+                if key not in seen:
+                    seen.add(key)
+                    merged.append(entry)
+            logs = src_logs  # preserve links/metadata from first response
+            logs["data"] = merged[:safe_lines]
         else:
+            # Validate log_type against allowlist to prevent path traversal
+            if log_type not in _VALID_LOG_TYPES:
+                return {
+                    "success": False,
+                    "error": f"Invalid log_type '{log_type}'. Must be one of: {', '.join(sorted(_VALID_LOG_TYPES))}",
+                }
             # For other log types, use general log search
             filters = [QueryFilter("message", ip_address, "contains")]
             logs = await client._make_request(
@@ -222,7 +256,7 @@ async def search_logs_by_ip(
             "patterns": patterns,
             "log_entries": log_entries,
             "links": client.extract_links(logs),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to search logs by IP: {e}")

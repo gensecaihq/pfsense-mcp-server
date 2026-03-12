@@ -1,6 +1,6 @@
 """System tools for pfSense MCP server."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from ..helpers import create_default_sort, create_pagination
@@ -22,7 +22,7 @@ async def system_status() -> Dict:
             "success": True,
             "data": status.get("data", status),
             "links": links,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to get system status: {e}")
@@ -72,7 +72,7 @@ async def search_interfaces(
             "total_results": len(interfaces.get("data", [])),
             "interfaces": interfaces.get("data", []),
             "links": client.extract_links(interfaces),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to search interfaces: {e}")
@@ -96,7 +96,7 @@ async def find_interfaces_by_status(status: str) -> Dict:
             "count": len(interfaces.get("data", [])),
             "interfaces": interfaces.get("data", []),
             "links": client.extract_links(interfaces),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to find interfaces by status: {e}")
@@ -155,7 +155,7 @@ async def get_arp_table(
             "count": len(result.get("data", [])),
             "arp_entries": result.get("data", []),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to get ARP table: {e}")

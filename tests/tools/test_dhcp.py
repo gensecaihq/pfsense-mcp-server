@@ -119,11 +119,13 @@ class TestSearchDhcpStaticMappings:
         assert result["static_mappings"] == []
         assert "DHCP may not be enabled" in result.get("message", "")
 
-    async def test_404_without_interface_still_errors(self, mock_client, mock_make_request):
-        """404 without an interface filter is a real error."""
+    async def test_404_with_default_interface(self, mock_client, mock_make_request):
+        """404 with default interface returns empty (DHCP may not be enabled)."""
         mock_make_request.side_effect = Exception("Status: 404")
         result = await _search_dhcp_static_mappings()
-        assert result["success"] is False
+        assert result["success"] is True
+        assert result["count"] == 0
+        assert "DHCP may not be enabled" in result.get("message", "")
 
 
 # ---------------------------------------------------------------------------
