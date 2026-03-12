@@ -5,11 +5,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-# Set dummy env vars before importing anything that reads them
-os.environ.setdefault("PFSENSE_URL", "https://192.0.2.1")
-os.environ.setdefault("PFSENSE_API_KEY", "test-key")
-os.environ.setdefault("AUTH_METHOD", "api_key")
-os.environ.setdefault("VERIFY_SSL", "false")
+# Force test env vars — override any real values to prevent leaking
+# real credentials into tests
+os.environ["PFSENSE_URL"] = "https://192.0.2.1"
+os.environ["PFSENSE_API_KEY"] = "test-key"
+os.environ["AUTH_METHOD"] = "api_key"
+os.environ["VERIFY_SSL"] = "false"
 
 from src.pfsense_api_enhanced import (  # noqa: E402
     AuthMethod,

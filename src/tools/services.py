@@ -10,16 +10,12 @@ from ..server import get_api_client, logger, mcp
 async def search_services(
     search_term: Optional[str] = None,
     status_filter: Optional[str] = None,
-    page: int = 1,
-    page_size: int = 20,
 ) -> Dict:
     """Search and filter system services
 
     Args:
         search_term: Search in service names or descriptions
         status_filter: Filter by status (running, stopped)
-        page: Page number for pagination
-        page_size: Number of results per page
     """
     client = get_api_client()
     try:
@@ -42,8 +38,6 @@ async def search_services(
 
         return {
             "success": True,
-            "page": page,
-            "page_size": page_size,
             "filters_applied": {
                 "search_term": search_term,
                 "status_filter": status_filter,

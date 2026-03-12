@@ -62,8 +62,11 @@ EXPOSE 3000
 
 VOLUME ["${MCP_LOGS}"]
 
+# HEALTHCHECK only applies when running in HTTP transport mode.
+# In stdio mode (the default), there is no HTTP endpoint to probe.
+# Override with: docker run ... -t streamable-http
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -sf http://localhost:${MCP_PORT:-3000}/mcp || exit 1
+    CMD if [ "${MCP_TRANSPORT:-stdio}" = "stdio" ]; then exit 0; else curl -sf http://localhost:${MCP_PORT:-3000}/mcp || exit 1; fi
 
-ENTRYPOINT ["python", "src/main.py"]
+ENTRYPOINT ["python", "-m", "src.main"]
 CMD ["-t", "stdio"]

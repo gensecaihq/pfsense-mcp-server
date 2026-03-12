@@ -115,6 +115,8 @@ async def create_nat_port_forward(
     try:
         # Validate port formats before sending to API
         for port_param, port_val in [("destination_port", destination_port), ("local_port", local_port)]:
+            if not port_val or not port_val.strip():
+                return {"success": False, "error": f"{port_param} is required and cannot be empty"}
             port_error = validate_port_value(port_val, port_param)
             if port_error:
                 return {"success": False, "error": port_error}

@@ -110,6 +110,7 @@ class EnhancedPfSenseAPIClient:
         if not self.username or not self.password:
             raise ValueError("Username and password required for JWT auth")
 
+        self._ensure_client()
         response = await self.client.post(
             f"{self.api_base}/auth/jwt",
             json={"username": self.username, "password": self.password}
@@ -840,10 +841,7 @@ class EnhancedPfSenseAPIClient:
         else:
             endpoint = link_url
 
-        headers = await self._get_auth_headers()
-        response = await self.client.get(f"{self.api_base}{endpoint}", headers=headers)
-        response.raise_for_status()
-        return response.json()
+        return await self._make_request("GET", endpoint)
 
     # Utility Methods
 
@@ -871,4 +869,5 @@ class EnhancedPfSenseAPIClient:
 
     async def close(self):
         """Close HTTP client"""
-        await self.client.aclose()
+        if self.client is not None:
+            await self.client.aclose()
