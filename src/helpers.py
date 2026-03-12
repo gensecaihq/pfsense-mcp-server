@@ -11,9 +11,9 @@ def create_ip_filter(ip_address: str, operator: str = "exact") -> QueryFilter:
     return QueryFilter("ip", ip_address, operator)
 
 
-def create_port_filter(port: Union[int, str], operator: str = "exact") -> QueryFilter:
+def create_port_filter(port: Union[int, str], field: str = "destination_port", operator: str = "exact") -> QueryFilter:
     """Create filter for port fields"""
-    return QueryFilter("port", str(port), operator)
+    return QueryFilter(field, str(port), operator)
 
 
 def create_interface_filter(interface: str) -> QueryFilter:
@@ -38,15 +38,19 @@ def create_date_range_filters(
 MAX_PAGE_SIZE = 200
 
 
-def create_pagination(page: int, page_size: int = 50) -> PaginationOptions:
-    """Create pagination options (capped to avoid pfSense PHP memory exhaustion)"""
+def create_pagination(page: int, page_size: int = 50) -> tuple:
+    """Create pagination options (capped to avoid pfSense PHP memory exhaustion).
+
+    Returns:
+        (PaginationOptions, normalized_page, normalized_page_size)
+    """
     if page < 1:
         page = 1
     if page_size < 1:
         page_size = 50
     safe_size = min(page_size, MAX_PAGE_SIZE)
     offset = (page - 1) * safe_size
-    return PaginationOptions(limit=safe_size, offset=offset)
+    return PaginationOptions(limit=safe_size, offset=offset), page, safe_size
 
 
 def create_default_sort(field: str, descending: bool = False) -> SortOptions:

@@ -50,7 +50,7 @@ async def search_nat_port_forwards(
         if search_description:
             filters.append(QueryFilter("descr", search_description, "contains"))
 
-        pagination = create_pagination(page, page_size)
+        pagination, page, page_size = create_pagination(page, page_size)
         sort = create_default_sort(sort_by)
 
         result = await client._make_request(

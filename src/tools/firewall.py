@@ -57,7 +57,7 @@ async def search_firewall_rules(
         if search_description:
             filters.append(QueryFilter("descr", search_description, "contains"))
 
-        pagination = create_pagination(page, page_size)
+        pagination, page, page_size = create_pagination(page, page_size)
         sort = create_default_sort(sort_by)
 
         rules = await client.get_firewall_rules(
@@ -192,8 +192,9 @@ async def create_firewall_rule_advanced(
                 await client.move_firewall_rule(
                     new_rule_id, position, apply_immediately=False
                 )
-            # Force filter reload to ensure compiled ruleset is updated
-            await client.apply_firewall_changes()
+            # Only apply if requested — honor the caller's apply_immediately flag
+            if apply_immediately:
+                await client.apply_firewall_changes()
 
         return {
             "success": True,
@@ -321,6 +322,8 @@ async def update_firewall_rule(
                 api_field = field_map[param_name]
                 if param_name == "interface":
                     updates[api_field] = [value] if isinstance(value, str) else value
+                elif param_name == "protocol" and isinstance(value, str) and value.lower() == "any":
+                    updates[api_field] = None
                 else:
                     updates[api_field] = value
 

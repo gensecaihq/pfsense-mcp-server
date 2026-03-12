@@ -95,5 +95,5 @@ async def control_service(
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
-        logger.error(f"Failed to {action_lower} service {service_name}: {e}")
+        logger.error(f"Failed to {action} service {service_name}: {e}")
         return {"success": False, "error": str(e)}

@@ -93,14 +93,26 @@ class TestControlParameters:
 
 class TestHelperFunctions:
     def test_create_pagination(self):
-        p = create_pagination(page=3, page_size=25)
+        p, page, page_size = create_pagination(page=3, page_size=25)
         assert p.limit == 25
         assert p.offset == 50  # (3-1)*25
+        assert page == 3
+        assert page_size == 25
 
     def test_create_pagination_caps_at_max(self):
-        p = create_pagination(page=1, page_size=10000)
+        p, page, page_size = create_pagination(page=1, page_size=10000)
         assert p.limit == 200  # MAX_PAGE_SIZE cap
         assert p.offset == 0
+        assert page_size == 200
+
+    def test_create_pagination_clamps_negative_page(self):
+        p, page, page_size = create_pagination(page=-1, page_size=20)
+        assert page == 1
+        assert p.offset == 0
+
+    def test_create_pagination_clamps_zero_page_size(self):
+        p, page, page_size = create_pagination(page=1, page_size=0)
+        assert page_size == 50  # default fallback
 
     def test_create_default_sort_asc(self):
         s = create_default_sort("name")
