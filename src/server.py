@@ -35,6 +35,12 @@ mcp = FastMCP(
 api_client: Optional[EnhancedPfSenseAPIClient] = None
 
 
+def reset_api_client():
+    """Reset the global API client singleton (call after close())."""
+    global api_client
+    api_client = None
+
+
 def get_api_client() -> EnhancedPfSenseAPIClient:
     """Get or create enhanced API client"""
     global api_client

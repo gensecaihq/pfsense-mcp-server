@@ -1,5 +1,6 @@
 """Log analysis tools for pfSense MCP server."""
 
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
@@ -8,6 +9,20 @@ from ..server import get_api_client, logger, mcp
 
 # Allowlist of valid pfSense log types to prevent path traversal
 _VALID_LOG_TYPES = {"firewall", "system", "dhcp", "vpn", "gateways", "resolver", "portalauth"}
+
+
+def _parse_timestamp(value: Optional[str]) -> Optional[datetime]:
+    """Parse a timestamp string to a timezone-aware datetime (assumes UTC if naive)."""
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        # Assume UTC if no timezone info present
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
 
 
 @mcp.tool()
@@ -98,12 +113,11 @@ async def analyze_blocked_traffic(
 
         log_data = logs.get("data", [])
 
-        # Filter by hours_back if timestamps are available
+        # Filter by hours_back using parsed timestamps
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours_back)
-        cutoff_str = cutoff.isoformat()
         log_data = [
             entry for entry in log_data
-            if not entry.get("timestamp") or entry["timestamp"] >= cutoff_str
+            if (ts := _parse_timestamp(entry.get("timestamp"))) is None or ts >= cutoff
         ]
 
         if group_by_source:
@@ -127,9 +141,10 @@ async def analyze_blocked_traffic(
                 if entry.get("dst_ip"):
                     source_stats[src_ip]["destinations"].add(entry["dst_ip"])
 
-                if entry.get("timestamp"):
-                    current = source_stats[src_ip]["latest_time"]
-                    if current is None or entry["timestamp"] > current:
+                ts = _parse_timestamp(entry.get("timestamp"))
+                if ts:
+                    current = _parse_timestamp(source_stats[src_ip]["latest_time"])
+                    if current is None or ts > current:
                         source_stats[src_ip]["latest_time"] = entry["timestamp"]
 
             # Convert sets to lists for JSON serialization
@@ -192,11 +207,11 @@ async def search_logs_by_ip(
             dst_logs = await client.get_firewall_logs(
                 lines=safe_lines, filters=dst_filters
             )
-            # Merge and deduplicate (use timestamp+src_ip+dst_ip as key)
+            # Merge and deduplicate using full entry as key
             seen = set()
             merged = []
             for entry in src_logs.get("data", []) + dst_logs.get("data", []):
-                key = (entry.get("timestamp"), entry.get("src_ip"), entry.get("dst_ip"), entry.get("dst_port"))
+                key = json.dumps(entry, sort_keys=True, default=str)
                 if key not in seen:
                     seen.add(key)
                     merged.append(entry)

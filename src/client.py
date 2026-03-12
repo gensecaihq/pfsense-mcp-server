@@ -6,7 +6,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import httpx
 
@@ -133,7 +133,8 @@ class EnhancedPfSenseAPIClient:
         sort: Optional[SortOptions] = None,
         pagination: Optional[PaginationOptions] = None,
         control: Optional[ControlParameters] = None,
-        extra_params: Optional[Dict[str, str]] = None
+        extra_params: Optional[Dict[str, str]] = None,
+        hateoas: Optional[bool] = None
     ) -> str:
         """Build query parameters for requests"""
         params = {}
@@ -156,8 +157,9 @@ class EnhancedPfSenseAPIClient:
         if control:
             params.update(control.to_params())
 
-        # Add HATEOAS
-        if self.hateoas_enabled:
+        # Add HATEOAS (per-request override, or fall back to session default)
+        use_hateoas = hateoas if hateoas is not None else self.hateoas_enabled
+        if use_hateoas:
             params["hateoas"] = "true"
 
         # Add extra parameters
@@ -175,7 +177,8 @@ class EnhancedPfSenseAPIClient:
         sort: Optional[SortOptions] = None,
         pagination: Optional[PaginationOptions] = None,
         control: Optional[ControlParameters] = None,
-        extra_params: Optional[Dict[str, str]] = None
+        extra_params: Optional[Dict[str, str]] = None,
+        hateoas: Optional[bool] = None
     ) -> Dict:
         """Make API request with enhanced features"""
         # Ensure client is created for current event loop
@@ -185,13 +188,13 @@ class EnhancedPfSenseAPIClient:
 
         # Build query string
         query_string = self._build_query_params(
-            filters, sort, pagination, control, extra_params
+            filters, sort, pagination, control, extra_params, hateoas=hateoas
         )
         if query_string:
             url += f"?{query_string}"
 
-        # Log the full URL being requested
-        logger.info(f"API Request: {method} {url}")
+        # Log request (endpoint only — no query params that may contain sensitive data)
+        logger.info("API Request: %s %s", method, endpoint)
 
         # Don't send Content-Type on GET or bodyless DELETE - pfSense API ignores
         # query params when Content-Type: application/json is present on bodyless requests
@@ -223,24 +226,23 @@ class EnhancedPfSenseAPIClient:
                 error_message = error_body
                 error_detail = error_body
 
-            # Log detailed error info at DEBUG level
+            # Log error info at DEBUG level (endpoint only, no sensitive data)
             logger.debug(
-                f"API Error - Status: {response.status_code}, "
-                f"URL: {url}, Method: {method}"
+                "API Error - Status: %s, Endpoint: %s, Method: %s",
+                response.status_code, endpoint, method
             )
-            logger.debug(f"Request Data: {json.dumps(data, indent=2) if data else 'None'}")
-            logger.debug(f"Response: {error_detail}")
+            logger.debug("Response: %s", error_detail)
 
             # Log concise error at ERROR level
             logger.error(f"pfSense API {response.status_code}: {error_message}")
 
-            # Raise with detailed error message for debugging
+            # Raise with error info (no request data to avoid leaking sensitive payloads)
+            url_path = urlparse(url).path
             error_msg = (
                 f"\n=== pfSense API Error ===\n"
                 f"Status: {response.status_code}\n"
-                f"URL: {url}\n"
+                f"Endpoint: {url_path}\n"
                 f"Method: {method}\n"
-                f"Request Data: {json.dumps(data, indent=2) if data else 'None'}\n"
                 f"Response: {error_detail}\n"
                 f"========================\n"
             )
@@ -731,6 +733,62 @@ class EnhancedPfSenseAPIClient:
         return await self._make_request(
             "DELETE", "/services/dhcp_server/static_mapping",
             data={"id": mapping_id, "parent_id": parent_id}, control=control
+        )
+
+    # NAT Port Forward Methods
+
+    async def get_nat_port_forwards(
+        self,
+        filters: Optional[List[QueryFilter]] = None,
+        sort: Optional[SortOptions] = None,
+        pagination: Optional[PaginationOptions] = None
+    ) -> Dict:
+        """Get NAT port forwarding rules with filtering"""
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
+        return await self._make_request(
+            "GET", "/firewall/nat/port_forwards",
+            filters=filters, sort=sort, pagination=pagination
+        )
+
+    async def create_nat_port_forward(
+        self,
+        forward_data: Dict,
+        control: Optional[ControlParameters] = None
+    ) -> Dict:
+        """Create a NAT port forward rule"""
+        if not control:
+            control = ControlParameters(apply=True)
+        return await self._make_request(
+            "POST", "/firewall/nat/port_forward",
+            data=forward_data, control=control
+        )
+
+    async def update_nat_port_forward(
+        self,
+        port_forward_id: int,
+        updates: Dict,
+        control: Optional[ControlParameters] = None
+    ) -> Dict:
+        """Update a NAT port forward rule"""
+        if not control:
+            control = ControlParameters(apply=True)
+        updates["id"] = port_forward_id
+        return await self._make_request(
+            "PATCH", "/firewall/nat/port_forward",
+            data=updates, control=control
+        )
+
+    async def delete_nat_port_forward(
+        self,
+        port_forward_id: int,
+        apply_immediately: bool = True
+    ) -> Dict:
+        """Delete a NAT port forward rule"""
+        control = ControlParameters(apply=apply_immediately)
+        return await self._make_request(
+            "DELETE", "/firewall/nat/port_forward",
+            data={"id": port_forward_id}, control=control
         )
 
     # Firewall Apply
