@@ -115,7 +115,9 @@ async def analyze_blocked_traffic(
                     source_stats[src_ip]["destinations"].add(entry["dst_ip"])
 
                 if entry.get("timestamp"):
-                    source_stats[src_ip]["latest_time"] = entry["timestamp"]
+                    current = source_stats[src_ip]["latest_time"]
+                    if current is None or entry["timestamp"] > current:
+                        source_stats[src_ip]["latest_time"] = entry["timestamp"]
 
             # Convert sets to lists for JSON serialization
             for ip, stats in source_stats.items():
@@ -159,7 +161,6 @@ async def search_logs_by_ip(
     ip_address: str,
     log_type: str = "firewall",
     lines: int = 50,
-    include_related: bool = True
 ) -> Dict:
     """Search logs for activity related to a specific IP address
 
@@ -167,7 +168,6 @@ async def search_logs_by_ip(
         ip_address: IP address to search for
         log_type: Type of logs to search (firewall, system, etc.)
         lines: Number of log lines to retrieve (default 50, max 50)
-        include_related: Whether to include related traffic (src and dst)
     """
     client = get_api_client()
     try:
