@@ -1,6 +1,6 @@
 """DHCP tools for pfSense MCP server."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional
 
 from ..helpers import create_default_sort, create_pagination
@@ -90,7 +90,7 @@ async def search_dhcp_leases(
             "count": len(leases.get("data", [])),
             "leases": leases.get("data", []),
             "links": client.extract_links(leases),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to search DHCP leases: {e}")
@@ -99,7 +99,7 @@ async def search_dhcp_leases(
 
 @mcp.tool()
 async def search_dhcp_static_mappings(
-    interface: Optional[str] = None,
+    interface: str = "lan",
     mac_address: Optional[str] = None,
     hostname: Optional[str] = None,
     ip_address: Optional[str] = None,
@@ -110,7 +110,7 @@ async def search_dhcp_static_mappings(
     """Search DHCP static mappings (reservations) with filtering
 
     Args:
-        interface: Filter by interface (lan, opt1, etc.)
+        interface: DHCP server interface — required by pfSense API (default: lan)
         mac_address: Filter by MAC address
         hostname: Filter by hostname (partial match)
         ip_address: Filter by IP address
@@ -154,7 +154,7 @@ async def search_dhcp_static_mappings(
             "count": len(result.get("data", [])),
             "static_mappings": result.get("data", []),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         # 404 typically means DHCP is not enabled on the requested interface
@@ -167,7 +167,7 @@ async def search_dhcp_static_mappings(
                 "count": 0,
                 "static_mappings": [],
                 "message": f"No DHCP static mappings found. DHCP may not be enabled on interface '{interface}'.",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
         logger.error(f"Failed to search DHCP static mappings: {e}")
         return {"success": False, "error": str(e)}
@@ -226,7 +226,7 @@ async def create_dhcp_static_mapping(
             "static_mapping": result.get("data", result),
             "applied": apply_immediately,
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to create DHCP static mapping: {e}")
@@ -295,7 +295,7 @@ async def update_dhcp_static_mapping(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to update DHCP static mapping: {e}")
@@ -330,7 +330,7 @@ async def delete_dhcp_static_mapping(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to delete DHCP static mapping: {e}")
@@ -371,7 +371,7 @@ async def get_dhcp_server_config(
             "count": len(result.get("data", [])),
             "dhcp_servers": result.get("data", []),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to get DHCP server config: {e}")
@@ -448,7 +448,7 @@ async def update_dhcp_server_config(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to update DHCP server config: {e}")

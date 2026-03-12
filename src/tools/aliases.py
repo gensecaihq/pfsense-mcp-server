@@ -1,6 +1,6 @@
 """Alias tools for pfSense MCP server."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from ..helpers import create_default_sort, create_pagination
@@ -61,7 +61,7 @@ async def search_aliases(
             "count": len(aliases.get("data", [])),
             "aliases": aliases.get("data", []),
             "links": client.extract_links(aliases),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to search aliases: {e}")
@@ -100,7 +100,7 @@ async def manage_alias_addresses(
             "addresses": addresses,
             "result": result.get("data", result),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to manage alias addresses: {e}")
@@ -149,7 +149,7 @@ async def create_alias(
             "alias": result.get("data", result),
             "applied": apply_immediately,
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to create alias: {e}")
@@ -214,7 +214,7 @@ async def update_alias(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to update alias: {e}")
@@ -243,7 +243,7 @@ async def delete_alias(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
         logger.error(f"Failed to delete alias: {e}")

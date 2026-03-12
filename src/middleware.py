@@ -1,5 +1,7 @@
 """Bearer token auth middleware for HTTP transport."""
 
+import hmac
+
 
 class BearerAuthMiddleware:
     """ASGI middleware that checks for a valid Bearer token in the Authorization header."""
@@ -12,7 +14,7 @@ class BearerAuthMiddleware:
         if scope["type"] == "http":
             headers = dict(scope.get("headers", []))
             auth_header = headers.get(b"authorization", b"").decode()
-            if not auth_header.startswith("Bearer ") or auth_header[7:] != self.api_key:
+            if not auth_header.startswith("Bearer ") or not hmac.compare_digest(auth_header[7:], self.api_key):
                 from starlette.responses import JSONResponse
                 response = JSONResponse({"error": "Unauthorized"}, status_code=401)
                 await response(scope, receive, send)

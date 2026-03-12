@@ -38,7 +38,7 @@
 - **🔒 Multi-Auth Support**: API Key, Basic Auth, JWT with security best practices
 - **📈 Production Monitoring**: Health checks, metrics, audit logging
 - **🐳 Container Ready**: Docker deployment with security hardening
-- **🎨 36 MCP Tools**: Full CRUD for core resources (firewall rules, aliases, NAT, DHCP, services)
+- **🎨 42 MCP Tools**: Full CRUD for core resources (firewall rules, aliases, NAT, DHCP, services)
 - **⚡ High Performance**: Async operations, caching, connection pooling
 
 ### 🎮 **Supported pfSense Versions**
@@ -112,7 +112,8 @@ Add to your Claude Desktop configuration:
   "mcpServers": {
     "pfsense-enhanced": {
       "command": "python",
-      "args": ["/path/to/pfsense-mcp-server/main_enhanced_mcp.py"],
+      "args": ["-m", "src.main"],
+      "cwd": "/path/to/pfsense-mcp-server",
       "env": {
         "PFSENSE_URL": "https://your-pfsense.local",
         "PFSENSE_API_KEY": "your-api-key",
@@ -164,9 +165,7 @@ Add to your Claude Desktop configuration:
 | Endpoint | Operations | MCP Tool(s) | Tested |
 |----------|-----------|-------------|--------|
 | `/status/services` | Read | `search_services` | Yes |
-| `/services/start` | Action | `control_service` | Yes |
-| `/services/stop` | Action | `control_service` | Yes |
-| `/services/restart` | Action | `control_service` | Yes |
+| `/status/service` | Action (start/stop/restart) | `control_service` | Yes |
 
 ### DHCP
 
@@ -408,7 +407,7 @@ Contributors will be:
 - 🔗 HATEOAS navigation support
 - ⚙️ Control parameters implementation
 - 🆔 Dynamic object ID management
-- 🛠️ 36 MCP tools with full CRUD for core resources
+- 🛠️ 42 MCP tools with full CRUD for core resources
 - 📚 Comprehensive documentation
 
 ### v3.0.0 - FastMCP Integration
