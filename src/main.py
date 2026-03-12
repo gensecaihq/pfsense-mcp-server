@@ -9,7 +9,7 @@ import asyncio
 import os
 import sys
 
-from .server import VERSION, get_api_client, logger, mcp
+from .server import VERSION, get_api_client, logger, mcp, reset_api_client
 
 # Import tool modules — each registers tools via @mcp.tool() on import
 from .tools import (  # noqa: F401
@@ -73,8 +73,10 @@ def main():
             logger.error(traceback.format_exc())
             return False
         finally:
-            # Close the client so the MCP server event loop gets a fresh one
+            # Close the client and clear the singleton so the MCP server
+            # event loop gets a completely fresh instance
             await client.close()
+            reset_api_client()
 
     connected = asyncio.run(test_conn())
     if not connected:

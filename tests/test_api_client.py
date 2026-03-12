@@ -335,6 +335,37 @@ class TestDeleteAliasClient:
         assert method == "DELETE"
 
 
+class TestAddToAliasClient:
+    async def test_add_uses_patch_with_append(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 9}}
+        await mock_client.add_to_alias(9, ["10.0.0.5"])
+        call_kwargs = mock_make_request.call_args
+        method = call_kwargs[0][0] if call_kwargs[0] else call_kwargs.kwargs.get("method")
+        assert method == "PATCH"
+        endpoint = call_kwargs[0][1] if len(call_kwargs[0]) > 1 else call_kwargs.kwargs.get("endpoint")
+        assert endpoint == "/firewall/alias"
+        data = call_kwargs.kwargs.get("data") or call_kwargs[1].get("data")
+        assert data["id"] == 9
+        assert data["address"] == ["10.0.0.5"]
+        control = call_kwargs.kwargs.get("control") or call_kwargs[1].get("control")
+        assert control.append is True
+
+
+class TestRemoveFromAliasClient:
+    async def test_remove_uses_patch_with_remove(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 9}}
+        await mock_client.remove_from_alias(9, ["10.0.0.5"])
+        call_kwargs = mock_make_request.call_args
+        method = call_kwargs[0][0] if call_kwargs[0] else call_kwargs.kwargs.get("method")
+        assert method == "PATCH"
+        endpoint = call_kwargs[0][1] if len(call_kwargs[0]) > 1 else call_kwargs.kwargs.get("endpoint")
+        assert endpoint == "/firewall/alias"
+        data = call_kwargs.kwargs.get("data") or call_kwargs[1].get("data")
+        assert data["id"] == 9
+        control = call_kwargs.kwargs.get("control") or call_kwargs[1].get("control")
+        assert control.remove is True
+
+
 # ---------------------------------------------------------------------------
 # Service control client methods
 # ---------------------------------------------------------------------------

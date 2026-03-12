@@ -53,8 +53,7 @@ async def search_nat_port_forwards(
         pagination, page, page_size = create_pagination(page, page_size)
         sort = create_default_sort(sort_by)
 
-        result = await client._make_request(
-            "GET", "/firewall/nat/port_forwards",
+        result = await client.get_nat_port_forwards(
             filters=filters if filters else None,
             sort=sort,
             pagination=pagination
@@ -139,14 +138,14 @@ async def create_nat_port_forward(
             forward_data["descr"] = f"Port forward via MCP at {datetime.now(timezone.utc).isoformat()}"
 
         if nat_reflection:
+            allowed = ("enable", "disable", "purenat")
+            if nat_reflection not in allowed:
+                return {"success": False, "error": f"nat_reflection must be one of: {', '.join(allowed)}"}
             forward_data["natreflection"] = nat_reflection
 
         control = ControlParameters(apply=apply_immediately)
 
-        result = await client._make_request(
-            "POST", "/firewall/nat/port_forward",
-            data=forward_data, control=control
-        )
+        result = await client.create_nat_port_forward(forward_data, control)
 
         return {
             "success": True,
@@ -175,12 +174,7 @@ async def delete_nat_port_forward(
     """
     client = get_api_client()
     try:
-        control = ControlParameters(apply=apply_immediately)
-
-        result = await client._make_request(
-            "DELETE", "/firewall/nat/port_forward",
-            data={"id": port_forward_id}, control=control
-        )
+        result = await client.delete_nat_port_forward(port_forward_id, apply_immediately)
 
         return {
             "success": True,
@@ -274,13 +268,9 @@ async def update_nat_port_forward(
         if not updates:
             return {"success": False, "error": "No fields to update - provide at least one field"}
 
-        updates["id"] = port_forward_id
         control = ControlParameters(apply=apply_immediately)
 
-        result = await client._make_request(
-            "PATCH", "/firewall/nat/port_forward",
-            data=updates, control=control
-        )
+        result = await client.update_nat_port_forward(port_forward_id, updates, control)
 
         return {
             "success": True,
