@@ -69,7 +69,7 @@ async def get_firewall_log(
         )
 
         # Client-side filtering on the raw text lines for remaining params
-        entries = logs.get("data", [])
+        entries = logs.get("data") or []
         if entries:
             def _matches(entry):
                 text = entry.get("text", "")
@@ -100,8 +100,8 @@ async def get_firewall_log(
                 "destination_port": destination_port,
                 "protocol": protocol,
             },
-            "count": len(logs.get("data", [])),
-            "log_entries": logs.get("data", []),
+            "count": len(logs.get("data") or []),
+            "log_entries": logs.get("data") or [],
             "links": client.extract_links(logs),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
@@ -129,49 +129,41 @@ async def analyze_blocked_traffic(
         safe_limit = max(1, min(limit, 50))
         logs = await client.get_blocked_traffic_logs(lines=safe_limit)
 
-        log_data = logs.get("data", [])
-
-        # Filter by hours_back using parsed timestamps
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours_back)
-        log_data = [
-            entry for entry in log_data
-            if (ts := _parse_timestamp(entry.get("timestamp"))) is None or ts >= cutoff
-        ]
+        log_data = logs.get("data") or []
 
         if group_by_source:
-            # Group by source IP
-            source_stats = {}
+            # The firewall log model only has a 'text' field with raw syslog lines.
+            # Parse IPs from the raw text using a simple regex pattern.
+            # pfSense filterlog format: ...src_ip,dst_ip,...dst_port,...
+            import re
+            _IP_RE = re.compile(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b")
+
+            source_stats: dict = {}
             for entry in log_data:
-                src_ip = entry.get("src_ip", "unknown")
+                text = entry.get("text", "")
+                ips = _IP_RE.findall(text)
+                # In filterlog format, source IP is typically the first IP found
+                src_ip = ips[0] if ips else "unknown"
+                dst_ip = ips[1] if len(ips) > 1 else None
+
                 if src_ip not in source_stats:
                     source_stats[src_ip] = {
                         "count": 0,
-                        "ports": set(),
                         "destinations": set(),
-                        "latest_time": None
+                        "sample_line": "",
                     }
 
                 source_stats[src_ip]["count"] += 1
+                if dst_ip:
+                    source_stats[src_ip]["destinations"].add(dst_ip)
+                if not source_stats[src_ip]["sample_line"]:
+                    source_stats[src_ip]["sample_line"] = text[:200]
 
-                if entry.get("dst_port"):
-                    source_stats[src_ip]["ports"].add(entry["dst_port"])
+            # Convert sets to lists and add threat score
+            for stats in source_stats.values():
+                stats["destinations"] = sorted(stats["destinations"])
+                stats["threat_score"] = min(10, stats["count"] / 5)
 
-                if entry.get("dst_ip"):
-                    source_stats[src_ip]["destinations"].add(entry["dst_ip"])
-
-                ts = _parse_timestamp(entry.get("timestamp"))
-                if ts:
-                    current = _parse_timestamp(source_stats[src_ip]["latest_time"])
-                    if current is None or ts > current:
-                        source_stats[src_ip]["latest_time"] = entry["timestamp"]
-
-            # Convert sets to lists for JSON serialization
-            for ip, stats in source_stats.items():
-                stats["ports"] = list(stats["ports"])
-                stats["destinations"] = list(stats["destinations"])
-                stats["threat_score"] = min(10, stats["count"] / 10)
-
-            # Sort by count
             sorted_sources = sorted(
                 source_stats.items(),
                 key=lambda x: x[1]["count"],
@@ -236,7 +228,7 @@ async def search_logs_by_ip(
                 filters=filters,
             )
 
-        log_entries = logs.get("data", [])
+        log_entries = logs.get("data") or []
 
         # Pattern analysis on raw text lines
         # Firewall log entries are raw text; we search for keywords

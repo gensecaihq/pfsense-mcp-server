@@ -34,7 +34,7 @@ async def search_services(
         else:
             result = await client.get_services()
 
-        services = result.get("data", [])
+        services = result.get("data") or []
 
         if search_term:
             term_lower = search_term.lower()

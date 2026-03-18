@@ -71,8 +71,8 @@ async def refresh_object_ids(endpoint: str) -> Dict:
         return {
             "success": True,
             "endpoint": endpoint,
-            "refreshed_count": len(result.get("data", [])),
-            "objects": result.get("data", []),
+            "refreshed_count": len(result.get("data") or []),
+            "objects": result.get("data") or [],
             "message": "Object IDs refreshed - use updated IDs for future operations",
             "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat()

@@ -69,8 +69,8 @@ async def search_interfaces(
             "success": True,
             "page": page,
             "page_size": page_size,
-            "total_results": len(interfaces.get("data", [])),
-            "interfaces": interfaces.get("data", []),
+            "total_results": len(interfaces.get("data") or []),
+            "interfaces": interfaces.get("data") or [],
             "links": client.extract_links(interfaces),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
@@ -93,8 +93,8 @@ async def find_interfaces_by_status(status: str) -> Dict:
         return {
             "success": True,
             "status_filter": status,
-            "count": len(interfaces.get("data", [])),
-            "interfaces": interfaces.get("data", []),
+            "count": len(interfaces.get("data") or []),
+            "interfaces": interfaces.get("data") or [],
             "links": client.extract_links(interfaces),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
@@ -152,8 +152,8 @@ async def get_arp_table(
                 "mac_address": mac_address,
                 "interface": interface,
             },
-            "count": len(result.get("data", [])),
-            "arp_entries": result.get("data", []),
+            "count": len(result.get("data") or []),
+            "arp_entries": result.get("data") or [],
             "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
