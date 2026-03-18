@@ -46,7 +46,7 @@ async def search_aliases(
             pagination=pagination
         )
 
-        alias_list = aliases.get("data", [])
+        alias_list = aliases.get("data") or []
 
         # Client-side filtering: search_term matches name or description
         if search_term:

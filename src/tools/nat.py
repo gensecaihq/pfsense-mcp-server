@@ -69,8 +69,8 @@ async def search_nat_port_forwards(
                 "destination_port": destination_port,
                 "search_description": search_description
             },
-            "count": len(result.get("data", [])),
-            "port_forwards": result.get("data", []),
+            "count": len(result.get("data") or []),
+            "port_forwards": result.get("data") or [],
             "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }

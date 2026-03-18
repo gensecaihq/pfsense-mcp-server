@@ -77,8 +77,8 @@ async def search_firewall_rules(
                 "rule_type": rule_type,
                 "search_description": search_description
             },
-            "count": len(rules.get("data", [])),
-            "rules": rules.get("data", []),
+            "count": len(rules.get("data") or []),
+            "rules": rules.get("data") or [],
             "links": client.extract_links(rules),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
@@ -104,15 +104,15 @@ async def find_blocked_rules(
         # interface field is a list (e.g. ["wan"]), so use 'in' not '=='
         if interface:
             rules["data"] = [
-                rule for rule in rules.get("data", [])
+                rule for rule in rules.get("data") or []
                 if interface in (rule.get("interface") or [])
             ]
 
         return {
             "success": True,
             "interface_filter": interface,
-            "count": len(rules.get("data", [])),
-            "blocked_rules": rules.get("data", []),
+            "count": len(rules.get("data") or []),
+            "blocked_rules": rules.get("data") or [],
             "links": client.extract_links(rules),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }

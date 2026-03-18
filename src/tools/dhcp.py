@@ -16,7 +16,7 @@ async def _lookup_mapping_parent_id(client, mapping_id: int) -> str:
     result = await client.get_dhcp_static_mappings(
         filters=[QueryFilter("id", str(mapping_id))]
     )
-    mappings = result.get("data", [])
+    mappings = result.get("data") or []
     for m in mappings:
         if str(m.get("id")) == str(mapping_id):
             pid = m.get("parent_id")
@@ -76,7 +76,7 @@ async def search_dhcp_leases(
             pagination=pagination
         )
 
-        lease_data = leases.get("data", [])
+        lease_data = leases.get("data") or []
 
         # Client-side filtering: search_term matches hostname or IP
         if search_term:
@@ -163,8 +163,8 @@ async def search_dhcp_static_mappings(
                 "hostname": hostname,
                 "ip_address": ip_address,
             },
-            "count": len(result.get("data", [])),
-            "static_mappings": result.get("data", []),
+            "count": len(result.get("data") or []),
+            "static_mappings": result.get("data") or [],
             "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
@@ -380,8 +380,8 @@ async def get_dhcp_server_config(
             "page": page,
             "page_size": page_size,
             "interface_filter": interface,
-            "count": len(result.get("data", [])),
-            "dhcp_servers": result.get("data", []),
+            "count": len(result.get("data") or []),
+            "dhcp_servers": result.get("data") or [],
             "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }

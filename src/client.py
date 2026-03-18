@@ -657,7 +657,7 @@ class EnhancedPfSenseAPIClient:
         result = await self.get_services(
             filters=[QueryFilter("name", service_name)]
         )
-        services = result.get("data", [])
+        services = result.get("data") or []
         for svc in services:
             if svc.get("name") == service_name:
                 svc_id = svc.get("id")
@@ -958,7 +958,7 @@ class EnhancedPfSenseAPIClient:
             filters=filters, pagination=pagination
         )
 
-        data = result.get("data", [])
+        data = result.get("data") or []
         return data[0] if data else None
 
     # HATEOAS Navigation
