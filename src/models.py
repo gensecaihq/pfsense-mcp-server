@@ -29,7 +29,19 @@ class QueryFilter:
     """Represents a query filter for API requests"""
     field: str
     value: Any
-    operator: str = "exact"  # exact, startswith, endswith, contains, lt, lte, gt, gte, regex
+    operator: str = "exact"
+
+    VALID_OPERATORS = frozenset({
+        "exact", "startswith", "endswith", "contains",
+        "lt", "lte", "gt", "gte", "regex",
+    })
+
+    def __post_init__(self):
+        if self.operator not in self.VALID_OPERATORS:
+            raise ValueError(
+                f"Invalid filter operator '{self.operator}'. "
+                f"Must be one of: {', '.join(sorted(self.VALID_OPERATORS))}"
+            )
 
     def to_param(self) -> str:
         """Convert filter to URL parameter"""

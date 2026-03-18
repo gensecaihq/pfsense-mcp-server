@@ -57,7 +57,12 @@ class EnhancedPfSenseAPIClient:
         self.api_base = f"{self.host}/api/v2"
 
     def _ensure_client(self):
-        """Ensure HTTP client is created for current event loop"""
+        """Ensure HTTP client is created for current event loop.
+
+        When the event loop changes (e.g. between connection test and MCP server),
+        the old httpx client is discarded. We don't attempt to close it from a
+        different loop — httpx handles cleanup via garbage collection.
+        """
         try:
             current_loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -65,13 +70,9 @@ class EnhancedPfSenseAPIClient:
 
         # Recreate client if loop changed or client doesn't exist
         if self.client is None or self._client_loop != current_loop:
-            if self.client is not None:
-                # Close old client if it exists
-                try:
-                    asyncio.create_task(self.client.aclose())
-                except Exception:
-                    pass
-
+            # Discard the old client — it belongs to a different event loop
+            # and cannot be safely closed from here. The explicit close()
+            # method should be used before switching loops.
             self.client = httpx.AsyncClient(
                 verify=self.verify_ssl,
                 timeout=self.timeout,
@@ -302,6 +303,7 @@ class EnhancedPfSenseAPIClient:
 
         # 'sequence' is not a valid model field; use 'tracker' for rule ordering
         if sort and sort.sort_by == "sequence":
+            logger.debug("Remapping sort field 'sequence' to 'tracker' (pfSense API v2)")
             sort = SortOptions(sort_by="tracker", sort_order=sort.sort_order)
 
         if pagination is None:
@@ -561,6 +563,24 @@ class EnhancedPfSenseAPIClient:
         return await self.get_firewall_logs(
             filters=filters,
             lines=min(lines, 50)
+        )
+
+    async def get_logs(
+        self,
+        log_type: str,
+        lines: int = 20,
+        filters: Optional[List[QueryFilter]] = None,
+    ) -> Dict:
+        """Get logs of any type. Log endpoints do NOT support sort_by.
+
+        Valid log_type values: firewall, system, dhcp, vpn, gateways, resolver, portalauth
+        """
+        safe_lines = max(1, min(lines, 50))
+        pagination = PaginationOptions(limit=safe_lines)
+        endpoint = f"/status/logs/{log_type}"
+        return await self._make_request(
+            "GET", endpoint,
+            filters=filters, pagination=pagination
         )
 
     # Enhanced Service Methods

@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
-from ..models import PaginationOptions, QueryFilter
+from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
 
 # Allowlist of valid pfSense log types to prevent path traversal
@@ -228,10 +228,10 @@ async def search_logs_by_ip(
                 }
             # For other log types, use general log search
             filters = [QueryFilter("message", ip_address, "contains")]
-            logs = await client._make_request(
-                "GET", f"/diagnostics/log/{log_type}",
+            logs = await client.get_logs(
+                log_type=log_type,
+                lines=safe_lines,
                 filters=filters,
-                pagination=PaginationOptions(limit=safe_lines)
             )
 
         log_entries = logs.get("data", [])
