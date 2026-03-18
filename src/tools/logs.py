@@ -219,24 +219,8 @@ async def search_logs_by_ip(
     try:
         safe_lines = max(1, min(lines, 50))
         if log_type == "firewall":
-            # Search both source and destination IPs, merge results
-            src_logs = await client.get_logs_by_ip(ip_address, safe_lines)
-            dst_filters = [QueryFilter("dst_ip", ip_address)]
-            dst_logs = await client.get_firewall_logs(
-                lines=safe_lines, filters=dst_filters
-            )
-            # Merge and deduplicate using full entry as key
-            seen = set()
-            merged = []
-            for entry in src_logs.get("data", []) + dst_logs.get("data", []):
-                key = json.dumps(entry, sort_keys=True, default=str)
-                if key not in seen:
-                    seen.add(key)
-                    merged.append(entry)
-            # Sort by timestamp descending before truncating to keep most recent
-            merged.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
-            logs = src_logs  # preserve links/metadata from first response
-            logs["data"] = merged[:safe_lines]
+            # Firewall log model only has 'text' field — use text__contains
+            logs = await client.get_logs_by_ip(ip_address, safe_lines)
         else:
             # Validate log_type against allowlist to prevent path traversal
             if log_type not in _VALID_LOG_TYPES:
@@ -244,8 +228,8 @@ async def search_logs_by_ip(
                     "success": False,
                     "error": f"Invalid log_type '{log_type}'. Must be one of: {', '.join(sorted(_VALID_LOG_TYPES))}",
                 }
-            # For other log types, use general log search
-            filters = [QueryFilter("message", ip_address, "contains")]
+            # Non-firewall log models may have a 'message' field
+            filters = [QueryFilter("text", ip_address, "contains")]
             logs = await client.get_logs(
                 log_type=log_type,
                 lines=safe_lines,
@@ -254,32 +238,21 @@ async def search_logs_by_ip(
 
         log_entries = logs.get("data", [])
 
-        # Analyze patterns if firewall logs
+        # Pattern analysis on raw text lines
+        # Firewall log entries are raw text; we search for keywords
         if log_type == "firewall" and log_entries:
             patterns = {
                 "total_entries": len(log_entries),
                 "blocked_count": 0,
                 "allowed_count": 0,
-                "ports_accessed": set(),
-                "protocols_used": set()
             }
 
             for entry in log_entries:
-                action = entry.get("action", "").lower()
-                if "block" in action or "reject" in action:
+                text = entry.get("text", "").lower()
+                if "block" in text or "reject" in text:
                     patterns["blocked_count"] += 1
-                elif "pass" in action or "allow" in action:
+                elif "pass" in text:
                     patterns["allowed_count"] += 1
-
-                if entry.get("dst_port"):
-                    patterns["ports_accessed"].add(entry["dst_port"])
-
-                if entry.get("protocol"):
-                    patterns["protocols_used"].add(entry["protocol"])
-
-            # Convert sets to lists
-            patterns["ports_accessed"] = list(patterns["ports_accessed"])
-            patterns["protocols_used"] = list(patterns["protocols_used"])
         else:
             patterns = None
 

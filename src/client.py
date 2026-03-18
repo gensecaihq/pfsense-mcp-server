@@ -219,7 +219,7 @@ class EnhancedPfSenseAPIClient:
                     except (ValueError, TypeError):
                         body_params[k] = v
             if data is not None:
-                data.update(body_params)
+                data = {**data, **body_params}
             else:
                 data = body_params
 
@@ -399,12 +399,9 @@ class EnhancedPfSenseAPIClient:
         if not control:
             control = ControlParameters(apply=True)
 
-        # Add id to the updates
-        updates["id"] = rule_id
-
         return await self._make_request(
             "PATCH", "/firewall/rule",
-            data=updates, control=control
+            data={**updates, "id": rule_id}, control=control
         )
 
     async def move_firewall_rule(
@@ -540,11 +537,9 @@ class EnhancedPfSenseAPIClient:
         if not control:
             control = ControlParameters(apply=True)
 
-        updates["id"] = alias_id
-
         return await self._make_request(
             "PATCH", "/firewall/alias",
-            data=updates, control=control
+            data={**updates, "id": alias_id}, control=control
         )
 
     async def delete_alias(
@@ -571,21 +566,26 @@ class EnhancedPfSenseAPIClient:
         self,
         lines: int = 20,
         filters: Optional[List[QueryFilter]] = None,
-        sort: Optional[SortOptions] = None
     ) -> Dict:
-        """Get firewall logs with filtering (small limits to avoid memory issues)"""
-        # Clamp to valid range and cap to avoid pfSense PHP memory exhaustion
+        """Get firewall logs with filtering (small limits to avoid memory issues).
+
+        Note: Log endpoints do NOT support sort_by. The firewall log model only
+        has a 'text' field — use QueryFilter("text", value, "contains") for filtering.
+        """
         safe_lines = max(1, min(lines, 50))
         pagination = PaginationOptions(limit=safe_lines)
 
         return await self._make_request(
             "GET", "/status/logs/firewall",
-            filters=filters, sort=sort, pagination=pagination
+            filters=filters, pagination=pagination
         )
 
     async def get_logs_by_ip(self, ip_address: str, lines: int = 20) -> Dict:
-        """Get logs for specific IP address"""
-        filters = [QueryFilter("src_ip", ip_address)]
+        """Get firewall logs containing a specific IP address.
+
+        Uses text__contains since the firewall log model only has a 'text' field.
+        """
+        filters = [QueryFilter("text", ip_address, "contains")]
 
         return await self.get_firewall_logs(
             filters=filters,
@@ -593,8 +593,11 @@ class EnhancedPfSenseAPIClient:
         )
 
     async def get_blocked_traffic_logs(self, lines: int = 20) -> Dict:
-        """Get logs of blocked traffic"""
-        filters = [QueryFilter("action", "block")]
+        """Get firewall logs containing 'block' in the raw text.
+
+        Uses text__contains since the firewall log model only has a 'text' field.
+        """
+        filters = [QueryFilter("text", "block", "contains")]
 
         return await self.get_firewall_logs(
             filters=filters,
@@ -609,7 +612,7 @@ class EnhancedPfSenseAPIClient:
     ) -> Dict:
         """Get logs of any type. Log endpoints do NOT support sort_by.
 
-        Valid log_type values: firewall, system, dhcp, vpn, gateways, resolver, portalauth
+        Valid log_type values: firewall, system, dhcp, openvpn, auth
         """
         safe_lines = max(1, min(lines, 50))
         pagination = PaginationOptions(limit=safe_lines)
@@ -784,11 +787,9 @@ class EnhancedPfSenseAPIClient:
         if not control:
             control = ControlParameters(apply=True)
 
-        updates["id"] = mapping_id
-
         return await self._make_request(
             "PATCH", "/services/dhcp_server/static_mapping",
-            data=updates, control=control
+            data={**updates, "id": mapping_id}, control=control
         )
 
     async def delete_dhcp_static_mapping(
@@ -849,10 +850,9 @@ class EnhancedPfSenseAPIClient:
         """Update a NAT port forward rule"""
         if not control:
             control = ControlParameters(apply=True)
-        updates["id"] = port_forward_id
         return await self._make_request(
             "PATCH", "/firewall/nat/port_forward",
-            data=updates, control=control
+            data={**updates, "id": port_forward_id}, control=control
         )
 
     async def delete_nat_port_forward(
@@ -871,7 +871,7 @@ class EnhancedPfSenseAPIClient:
 
     async def apply_firewall_changes(self) -> Dict:
         """Force apply pending firewall changes (triggers filter_configure)"""
-        return await self._make_request("POST", "/firewall/apply")
+        return await self._make_request("POST", "/firewall/apply", data={})
 
     # DHCP Server Configuration
 
