@@ -7,7 +7,15 @@ from typing import Any, Dict, Optional
 
 class PfSenseVersion(str, Enum):
     CE_2_8_0 = "2.8.0"
+    CE_2_8_1 = "2.8.1"
+    CE_26_03 = "26.03"      # Requires REST API package build for 26.03 when available
     PLUS_24_11 = "24.11"
+    PLUS_25_11 = "25.11"
+
+
+# Sort order constants (for use outside SortOptions)
+SORT_ASC = "SORT_ASC"
+SORT_DESC = "SORT_DESC"
 
 
 class AuthMethod(str, Enum):

@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Version
-VERSION = "4.0.0"
+VERSION = "5.0.0"
 
 # Initialize FastMCP server
 mcp = FastMCP(
@@ -47,10 +47,14 @@ def get_api_client() -> EnhancedPfSenseAPIClient:
     if api_client is None:
         # Determine version
         pf_version = os.getenv("PFSENSE_VERSION", "CE_2_8_0")
-        if pf_version == "PLUS_24_11":
-            version = PfSenseVersion.PLUS_24_11
-        else:
-            version = PfSenseVersion.CE_2_8_0
+        version_map = {
+            "CE_2_8_0": PfSenseVersion.CE_2_8_0,
+            "CE_2_8_1": PfSenseVersion.CE_2_8_1,
+            "CE_26_03": PfSenseVersion.CE_26_03,
+            "PLUS_24_11": PfSenseVersion.PLUS_24_11,
+            "PLUS_25_11": PfSenseVersion.PLUS_25_11,
+        }
+        version = version_map.get(pf_version, PfSenseVersion.CE_2_8_0)
 
         # Determine auth method
         auth_method_str = os.getenv("AUTH_METHOD", "api_key").lower()

@@ -1,5 +1,7 @@
 # pfSense Enhanced MCP Server
 
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/gensecaihq-pfsense-mcp-server-badge.png)](https://mseep.ai/app/gensecaihq-pfsense-mcp-server)
+
 🚀 **A next-generation Model Context Protocol (MCP) server** that enables natural language interaction with pfSense firewalls through Claude Desktop and other GenAI applications. Now with **advanced API features** by pfrest.org including intelligent filtering, HATEOAS navigation, and enterprise-grade controls.
 
 

@@ -5,14 +5,12 @@
       "args": ["-m", "src.main"],
       "cwd": "/path/to/pfsense-mcp-server",
       "env": {
-        "MCP_MODE": "stdio",
         "PFSENSE_URL": "https://your-pfsense.local",
         "PFSENSE_VERSION": "CE_2_8_0",
         "AUTH_METHOD": "api_key",
         "PFSENSE_API_KEY": "your-api-key",
         "VERIFY_SSL": "true",
         "ENABLE_HATEOAS": "false",
-        "DEFAULT_PAGE_SIZE": "20",
         "LOG_LEVEL": "INFO"
       }
     }
