@@ -166,11 +166,12 @@ class TestUpdateNatPortForward:
         assert result["success"] is False
         assert "No fields" in result["error"]
 
-    async def test_interface_wrapped_in_list(self, mock_client, mock_make_request):
+    async def test_interface_is_plain_string(self, mock_client, mock_make_request):
+        """NAT PortForward uses a single string for interface, not an array."""
         mock_make_request.return_value = {"data": {"id": 0}}
         await _update_nat_port_forward(port_forward_id=0, interface="lan")
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
-        assert data["interface"] == ["lan"]
+        assert data["interface"] == "lan"
 
     async def test_rejects_invalid_port(self, mock_client, mock_make_request):
         result = await _update_nat_port_forward(port_forward_id=0, destination_port="53 853")

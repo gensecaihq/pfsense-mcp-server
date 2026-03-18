@@ -128,10 +128,10 @@ async def get_arp_table(
         filters: List[QueryFilter] = []
 
         if ip_address:
-            filters.append(QueryFilter("ip", ip_address, "contains"))
+            filters.append(QueryFilter("ip_address", ip_address, "contains"))
 
         if mac_address:
-            filters.append(QueryFilter("mac", mac_address, "contains"))
+            filters.append(QueryFilter("mac_address", mac_address, "contains"))
 
         if interface:
             filters.append(QueryFilter("interface", interface, "contains"))

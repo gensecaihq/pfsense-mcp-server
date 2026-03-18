@@ -15,8 +15,16 @@ services:
       VERIFY_SSL: ${VERIFY_SSL:-true}
       # MCP bearer token auth (required for HTTP mode)
       MCP_API_KEY: ${MCP_API_KEY}
+      # Transport mode (must match command arg for healthcheck)
+      MCP_TRANSPORT: streamable-http
     command: ["-t", "streamable-http"]
     volumes:
       - ./logs:/logs:rw
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:3000/mcp')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3

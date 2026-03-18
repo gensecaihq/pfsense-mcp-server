@@ -37,8 +37,9 @@ class TestGetFirewallLog:
         mock_make_request.return_value = firewall_logs_response
         result = await _get_firewall_log(destination_ip="192.168.1.1")
         assert result["success"] is True
+        # Firewall log model only has 'text' field — client-side filtering on raw text
         filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
-        assert any(f.field == "dst_ip" and f.value == "192.168.1.1" for f in filters)
+        assert any(f.field == "text" and f.value == "192.168.1.1" and f.operator == "contains" for f in filters)
 
     async def test_no_sort_sent(self, mock_client, mock_make_request, firewall_logs_response):
         """Log endpoints don't support sort_by — verify none is sent."""
