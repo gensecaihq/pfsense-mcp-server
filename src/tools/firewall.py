@@ -192,7 +192,9 @@ async def create_firewall_rule_advanced(
                 await client.move_firewall_rule(
                     new_rule_id, position, apply_immediately=False
                 )
-            # Only apply if requested — honor the caller's apply_immediately flag
+            else:
+                logger.warning("Rule created but ID not returned — cannot move to position %d", position)
+            # Apply after create+move (create was deferred above when position is set)
             if apply_immediately:
                 await client.apply_firewall_changes()
 
