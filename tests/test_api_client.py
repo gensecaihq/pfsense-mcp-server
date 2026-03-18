@@ -458,7 +458,7 @@ class TestFirewallApply:
     async def test_apply(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"status": "applied"}}
         result = await mock_client.apply_firewall_changes()
-        mock_make_request.assert_called_once_with("POST", "/firewall/apply")
+        mock_make_request.assert_called_once_with("POST", "/firewall/apply", data={})
         assert result["data"]["status"] == "applied"
 
 
