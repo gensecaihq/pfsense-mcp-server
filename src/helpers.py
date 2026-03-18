@@ -1,9 +1,20 @@
-"""Standalone helper functions for common query patterns."""
+"""Standalone helper functions for common query patterns and safety guards."""
 
+import ipaddress
 import re
 from typing import List, Optional, Union
 
 from .models import PaginationOptions, QueryFilter, SortOptions
+
+
+# Safety constants
+MAX_LOG_LINES = 50
+
+# Allowlist of valid log types to prevent path traversal
+VALID_LOG_TYPES = frozenset({
+    "firewall", "system", "dhcp", "vpn",
+    "gateways", "resolver", "portalauth",
+})
 
 
 def create_ip_filter(ip_address: str, operator: str = "exact") -> QueryFilter:
@@ -95,3 +106,47 @@ def validate_port_value(value: str, field_name: str = "port") -> Optional[str]:
             )
 
     return None
+
+
+def safe_log_lines(lines: int) -> int:
+    """Cap log lines to prevent pfSense PHP memory exhaustion."""
+    return max(1, min(lines, MAX_LOG_LINES))
+
+
+def validate_log_type(log_type: str) -> str:
+    """Validate log type against allowlist to prevent path traversal."""
+    log_type = log_type.lower().strip()
+    if log_type not in VALID_LOG_TYPES:
+        raise ValueError(
+            f"Invalid log type '{log_type}'. "
+            f"Allowed: {', '.join(sorted(VALID_LOG_TYPES))}"
+        )
+    return log_type
+
+
+def validate_ip_address(ip: str) -> str:
+    """Validate an IP address or network. Returns normalized string."""
+    ip = ip.strip()
+    if ip.lower() == "any":
+        return "any"
+    try:
+        ipaddress.ip_network(ip, strict=False)
+    except ValueError as e:
+        raise ValueError(f"Invalid IP address or network '{ip}': {e}") from e
+    return ip
+
+
+def ensure_interface_list(interface: Union[str, list]) -> list:
+    """Ensure interface value is a list as required by pfSense API v2."""
+    if isinstance(interface, str):
+        return [interface]
+    return interface
+
+
+def normalize_protocol(protocol: Optional[str]) -> Optional[str]:
+    """Normalize protocol value: 'any' becomes None per pfSense API v2."""
+    if protocol is None:
+        return None
+    if protocol.lower() == "any":
+        return None
+    return protocol.lower()
