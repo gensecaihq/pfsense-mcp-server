@@ -372,30 +372,41 @@ class TestRemoveFromAliasClient:
 
 class TestServiceControlClient:
     async def test_start_endpoint(self, mock_client, mock_make_request):
-        mock_make_request.return_value = {"data": {"name": "dhcpd"}}
+        # First call returns service list (for ID lookup), second call does the action
+        mock_make_request.side_effect = [
+            {"data": [{"id": 3, "name": "dhcpd", "status": "running"}]},
+            {"data": {"name": "dhcpd"}},
+        ]
         await mock_client.start_service("dhcpd")
-        call_args = mock_make_request.call_args
+        # Second call should be the actual service control
+        call_args = mock_make_request.call_args_list[1]
         assert call_args[0][1] == "/status/service"
         data = call_args.kwargs.get("data") or call_args[1].get("data")
-        assert data["name"] == "dhcpd"
+        assert data["id"] == 3
         assert data["action"] == "start"
 
     async def test_stop_endpoint(self, mock_client, mock_make_request):
-        mock_make_request.return_value = {"data": {"name": "dhcpd"}}
+        mock_make_request.side_effect = [
+            {"data": [{"id": 5, "name": "dhcpd", "status": "running"}]},
+            {"data": {"name": "dhcpd"}},
+        ]
         await mock_client.stop_service("dhcpd")
-        call_args = mock_make_request.call_args
+        call_args = mock_make_request.call_args_list[1]
         assert call_args[0][1] == "/status/service"
         data = call_args.kwargs.get("data") or call_args[1].get("data")
-        assert data["name"] == "dhcpd"
+        assert data["id"] == 5
         assert data["action"] == "stop"
 
     async def test_restart_endpoint(self, mock_client, mock_make_request):
-        mock_make_request.return_value = {"data": {"name": "unbound"}}
+        mock_make_request.side_effect = [
+            {"data": [{"id": 7, "name": "unbound", "status": "running"}]},
+            {"data": {"name": "unbound"}},
+        ]
         await mock_client.restart_service("unbound")
-        call_args = mock_make_request.call_args
+        call_args = mock_make_request.call_args_list[1]
         assert call_args[0][1] == "/status/service"
         data = call_args.kwargs.get("data") or call_args[1].get("data")
-        assert data["name"] == "unbound"
+        assert data["id"] == 7
         assert data["action"] == "restart"
 
 
@@ -487,8 +498,10 @@ class TestDiagnosticCommand:
     async def test_run_command(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": "output here"}
         await mock_client.run_diagnostic_command("cat /tmp/rules.debug")
-        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
-        assert data["shell_cmd"] == "cat /tmp/rules.debug"
+        call_args = mock_make_request.call_args
+        assert call_args[0][1] == "/diagnostics/command_prompt"
+        data = call_args.kwargs.get("data") or call_args[1].get("data")
+        assert data["command"] == "cat /tmp/rules.debug"
 
 
 # ---------------------------------------------------------------------------

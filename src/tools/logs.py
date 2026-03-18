@@ -7,8 +7,10 @@ from typing import Dict, Optional
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
 
-# Allowlist of valid pfSense log types to prevent path traversal
-_VALID_LOG_TYPES = {"firewall", "system", "dhcp", "vpn", "gateways", "resolver", "portalauth"}
+# Allowlist of valid pfSense REST API v2 log endpoints.
+# These map to actual endpoints at /api/v2/status/logs/<type>
+# Note: "vpn" is "openvpn", "portalauth" is "auth" in the API
+_VALID_LOG_TYPES = {"firewall", "system", "dhcp", "openvpn", "auth"}
 
 
 def _parse_timestamp(value: Optional[str]) -> Optional[datetime]:
@@ -48,20 +50,15 @@ async def get_firewall_log(
     """
     client = get_api_client()
     try:
+        # The pfSense firewall log model only has a single 'text' field
+        # containing the raw log line. We can only filter on text__contains
+        # server-side, then do further filtering client-side.
         filters = []
 
-        if action_filter:
-            filters.append(QueryFilter("action", action_filter))
-        if interface:
-            filters.append(QueryFilter("interface", interface))
-        if source_ip:
-            filters.append(QueryFilter("src_ip", source_ip))
-        if destination_ip:
-            filters.append(QueryFilter("dst_ip", destination_ip))
-        if destination_port:
-            filters.append(QueryFilter("dst_port", destination_port))
-        if protocol:
-            filters.append(QueryFilter("protocol", protocol))
+        # Build a text-based server-side filter from the most specific param
+        text_search = source_ip or destination_ip or destination_port or action_filter
+        if text_search:
+            filters.append(QueryFilter("text", text_search, "contains"))
 
         # Log endpoints don't support sort_by — logs are returned in
         # reverse chronological order by pfSense already
@@ -70,6 +67,27 @@ async def get_firewall_log(
             lines=safe_lines,
             filters=filters if filters else None,
         )
+
+        # Client-side filtering on the raw text lines for remaining params
+        entries = logs.get("data", [])
+        if entries:
+            def _matches(entry):
+                text = entry.get("text", "")
+                if action_filter and action_filter.lower() not in text.lower():
+                    return False
+                if interface and interface.lower() not in text.lower():
+                    return False
+                if source_ip and source_ip not in text:
+                    return False
+                if destination_ip and destination_ip not in text:
+                    return False
+                if destination_port and destination_port not in text:
+                    return False
+                if protocol and protocol.lower() not in text.lower():
+                    return False
+                return True
+            entries = [e for e in entries if _matches(e)]
+            logs["data"] = entries
 
         return {
             "success": True,

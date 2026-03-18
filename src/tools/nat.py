@@ -121,7 +121,7 @@ async def create_nat_port_forward(
                 return {"success": False, "error": port_error}
 
         forward_data = {
-            "interface": [interface] if isinstance(interface, str) else interface,
+            "interface": interface,  # NAT PortForward uses single string, not array
             "protocol": protocol,
             "destination": destination,
             "destination_port": destination_port,
@@ -260,10 +260,7 @@ async def update_nat_port_forward(
         for param_name, value in params.items():
             if value is not None:
                 api_field = field_map[param_name]
-                if param_name == "interface":
-                    updates[api_field] = [value] if isinstance(value, str) else value
-                else:
-                    updates[api_field] = value
+                updates[api_field] = value
 
         if not updates:
             return {"success": False, "error": "No fields to update - provide at least one field"}

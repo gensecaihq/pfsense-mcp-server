@@ -121,13 +121,13 @@ class TestGetArpTable:
         mock_make_request.return_value = {"data": []}
         await _get_arp_table(ip_address="192.168.1")
         filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
-        assert any(f.field == "ip" and f.value == "192.168.1" and f.operator == "contains" for f in filters)
+        assert any(f.field == "ip_address" and f.value == "192.168.1" and f.operator == "contains" for f in filters)
 
     async def test_mac_filter(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": []}
         await _get_arp_table(mac_address="aa:bb")
         filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
-        assert any(f.field == "mac" and f.value == "aa:bb" for f in filters)
+        assert any(f.field == "mac_address" and f.value == "aa:bb" for f in filters)
 
     async def test_interface_filter(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": []}

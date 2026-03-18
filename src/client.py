@@ -107,14 +107,21 @@ class EnhancedPfSenseAPIClient:
         return headers
 
     async def _refresh_jwt(self):
-        """Get a new JWT token"""
+        """Get a new JWT token.
+
+        The /auth/jwt endpoint requires Basic Auth credentials in the header,
+        NOT username/password in the JSON body.
+        """
         if not self.username or not self.password:
             raise ValueError("Username and password required for JWT auth")
 
         self._ensure_client()
+        credentials = base64.b64encode(
+            f"{self.username}:{self.password}".encode()
+        ).decode()
         response = await self.client.post(
             f"{self.api_base}/auth/jwt",
-            json={"username": self.username, "password": self.password}
+            headers={"Authorization": f"Basic {credentials}"},
         )
         response.raise_for_status()
         data = response.json()
@@ -133,11 +140,16 @@ class EnhancedPfSenseAPIClient:
         filters: Optional[List[QueryFilter]] = None,
         sort: Optional[SortOptions] = None,
         pagination: Optional[PaginationOptions] = None,
-        control: Optional[ControlParameters] = None,
         extra_params: Optional[Dict[str, str]] = None,
         hateoas: Optional[bool] = None
     ) -> str:
-        """Build query parameters for requests"""
+        """Build query parameters for GET requests.
+
+        NOTE: Control parameters (apply, placement, append, remove) are NOT
+        included here. The pfSense API reads them from the JSON request body
+        on POST/PATCH/DELETE, not from the query string. They are merged into
+        the request body by _make_request().
+        """
         params = {}
 
         # Add filters
@@ -153,10 +165,6 @@ class EnhancedPfSenseAPIClient:
         # Add pagination
         if pagination:
             params.update(pagination.to_params())
-
-        # Add control parameters
-        if control:
-            params.update(control.to_params())
 
         # Add HATEOAS (per-request override, or fall back to session default)
         use_hateoas = hateoas if hateoas is not None else self.hateoas_enabled
@@ -181,15 +189,43 @@ class EnhancedPfSenseAPIClient:
         extra_params: Optional[Dict[str, str]] = None,
         hateoas: Optional[bool] = None
     ) -> Dict:
-        """Make API request with enhanced features"""
+        """Make API request with enhanced features.
+
+        Control parameters (apply, placement, append, remove) are merged into
+        the JSON request body — pfSense REST API v2 reads them from the body
+        on POST/PATCH/DELETE, not from query parameters.
+        """
         # Ensure client is created for current event loop
         self._ensure_client()
 
         url = f"{self.api_base}{endpoint}"
 
-        # Build query string
+        # Merge control parameters into request body (NOT query string)
+        # pfSense API reads apply/placement/append/remove from request_data
+        # which is the decoded JSON body for POST/PATCH/DELETE
+        if control:
+            control_dict = control.to_params()
+            # Convert string "true"/"false" to actual booleans for JSON body
+            body_params = {}
+            for k, v in control_dict.items():
+                if v == "true":
+                    body_params[k] = True
+                elif v == "false":
+                    body_params[k] = False
+                else:
+                    # placement is an int
+                    try:
+                        body_params[k] = int(v)
+                    except (ValueError, TypeError):
+                        body_params[k] = v
+            if data is not None:
+                data.update(body_params)
+            else:
+                data = body_params
+
+        # Build query string (filters, sort, pagination — NOT control params)
         query_string = self._build_query_params(
-            filters, sort, pagination, control, extra_params, hateoas=hateoas
+            filters, sort, pagination, extra_params, hateoas=hateoas
         )
         if query_string:
             url += f"?{query_string}"
@@ -609,25 +645,45 @@ class EnhancedPfSenseAPIClient:
         filters = [QueryFilter("status", "stopped")]
         return await self.get_services(filters=filters)
 
+    async def _lookup_service_id(self, service_name: str) -> int:
+        """Look up a service's array index by name.
+
+        The POST /status/service endpoint requires the service's integer 'id'
+        (array index), not the service name. The 'name' field is read-only.
+        """
+        result = await self.get_services(
+            filters=[QueryFilter("name", service_name)]
+        )
+        services = result.get("data", [])
+        for svc in services:
+            if svc.get("name") == service_name:
+                svc_id = svc.get("id")
+                if svc_id is not None:
+                    return int(svc_id)
+        raise ValueError(f"Service '{service_name}' not found")
+
     async def start_service(self, service_name: str) -> Dict:
         """Start a service by name"""
+        svc_id = await self._lookup_service_id(service_name)
         return await self._make_request(
             "POST", "/status/service",
-            data={"name": service_name, "action": "start"}
+            data={"id": svc_id, "action": "start"}
         )
 
     async def stop_service(self, service_name: str) -> Dict:
         """Stop a service by name"""
+        svc_id = await self._lookup_service_id(service_name)
         return await self._make_request(
             "POST", "/status/service",
-            data={"name": service_name, "action": "stop"}
+            data={"id": svc_id, "action": "stop"}
         )
 
     async def restart_service(self, service_name: str) -> Dict:
         """Restart a service by name"""
+        svc_id = await self._lookup_service_id(service_name)
         return await self._make_request(
             "POST", "/status/service",
-            data={"name": service_name, "action": "restart"}
+            data={"id": svc_id, "action": "restart"}
         )
 
     # Enhanced DHCP Methods
@@ -871,14 +927,14 @@ class EnhancedPfSenseAPIClient:
     # Diagnostic Commands
 
     async def run_diagnostic_command(self, command: str) -> Dict:
-        """Run a diagnostic shell command on pfSense
+        """Run a diagnostic shell command on pfSense.
 
         Args:
             command: Shell command to execute
         """
         return await self._make_request(
-            "POST", "/diagnostics/command/prompt",
-            data={"shell_cmd": command}
+            "POST", "/diagnostics/command_prompt",
+            data={"command": command}
         )
 
     # Object ID Management

@@ -62,27 +62,29 @@ class TestSearchServices:
 # ---------------------------------------------------------------------------
 
 class TestControlService:
+    # Service control now does a lookup (GET /status/services) then action (POST /status/service)
+    _SVC_LIST = {"data": [{"id": 3, "name": "dhcpd", "status": "running"}]}
+
     async def test_start(self, mock_client, mock_make_request, service_control_response):
-        mock_make_request.return_value = service_control_response
+        mock_make_request.side_effect = [self._SVC_LIST, service_control_response]
         result = await _control_service(service_name="dhcpd", action="start")
         assert result["success"] is True
         assert result["action"] == "start"
-        mock_make_request.assert_called_once()
 
     async def test_stop(self, mock_client, mock_make_request, service_control_response):
-        mock_make_request.return_value = service_control_response
+        mock_make_request.side_effect = [self._SVC_LIST, service_control_response]
         result = await _control_service(service_name="dhcpd", action="stop")
         assert result["success"] is True
         assert result["action"] == "stop"
 
     async def test_restart(self, mock_client, mock_make_request, service_control_response):
-        mock_make_request.return_value = service_control_response
+        mock_make_request.side_effect = [self._SVC_LIST, service_control_response]
         result = await _control_service(service_name="dhcpd", action="restart")
         assert result["success"] is True
         assert result["action"] == "restart"
 
     async def test_uppercase_action_normalization(self, mock_client, mock_make_request, service_control_response):
-        mock_make_request.return_value = service_control_response
+        mock_make_request.side_effect = [self._SVC_LIST, service_control_response]
         result = await _control_service(service_name="dhcpd", action="START")
         assert result["success"] is True
         assert result["action"] == "start"

@@ -10,10 +10,10 @@ from .models import PaginationOptions, QueryFilter, SortOptions
 # Safety constants
 MAX_LOG_LINES = 50
 
-# Allowlist of valid log types to prevent path traversal
+# Allowlist of valid pfSense REST API v2 log endpoints
+# Maps to /api/v2/status/logs/<type>
 VALID_LOG_TYPES = frozenset({
-    "firewall", "system", "dhcp", "vpn",
-    "gateways", "resolver", "portalauth",
+    "firewall", "system", "dhcp", "openvpn", "auth",
 })
 
 
