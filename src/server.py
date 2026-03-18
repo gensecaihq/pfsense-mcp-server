@@ -65,15 +65,30 @@ def get_api_client() -> EnhancedPfSenseAPIClient:
         else:
             auth_method = AuthMethod.API_KEY
 
+        pfsense_url = os.getenv("PFSENSE_URL", "").strip()
+        if not pfsense_url:
+            logger.warning("PFSENSE_URL is not set — copy .env.example to .env and configure it")
+            pfsense_url = "https://pfsense.local"
+
+        api_key = (os.getenv("PFSENSE_API_KEY") or "").strip() or None
+        if auth_method == AuthMethod.API_KEY and not api_key:
+            logger.warning("PFSENSE_API_KEY is not set — API calls will fail with 401")
+
+        if pf_version not in version_map:
+            logger.warning(
+                "PFSENSE_VERSION='%s' is not recognized — defaulting to CE_2_8_0. "
+                "Valid options: %s", pf_version, ", ".join(version_map.keys())
+            )
+
         api_client = EnhancedPfSenseAPIClient(
-            host=os.getenv("PFSENSE_URL", "https://pfsense.local"),
+            host=pfsense_url,
             auth_method=auth_method,
             username=os.getenv("PFSENSE_USERNAME"),
             password=os.getenv("PFSENSE_PASSWORD"),
-            api_key=os.getenv("PFSENSE_API_KEY"),
+            api_key=api_key,
             verify_ssl=os.getenv("VERIFY_SSL", "true").lower() == "true",
             version=version,
             enable_hateoas=os.getenv("ENABLE_HATEOAS", "false").lower() == "true"
         )
-        logger.info(f"Enhanced API client initialized for pfSense {version.value}")
+        logger.info(f"API client initialized for pfSense {version.value} at {pfsense_url}")
     return api_client

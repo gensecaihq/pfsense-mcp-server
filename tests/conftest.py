@@ -159,28 +159,13 @@ def services_response():
 
 @pytest.fixture()
 def firewall_logs_response():
+    """Matches the real pfSense REST API v2 FirewallLog model which only has a 'text' field."""
     return {
         "status": "ok",
         "code": 200,
         "data": [
-            {
-                "action": "block",
-                "interface": "wan",
-                "src_ip": "203.0.113.5",
-                "dst_ip": "192.168.1.1",
-                "dst_port": "22",
-                "protocol": "tcp",
-                "timestamp": "2025-01-15 10:00:00",
-            },
-            {
-                "action": "pass",
-                "interface": "lan",
-                "src_ip": "192.168.1.100",
-                "dst_ip": "8.8.8.8",
-                "dst_port": "53",
-                "protocol": "udp",
-                "timestamp": "2025-01-15 10:01:00",
-            },
+            {"text": "Jan 15 10:00:00 pfSense filterlog[12345]: 5,,,1000000103,wan,match,block,in,4,0x0,,128,12345,0,none,6,tcp,60,203.0.113.5,192.168.1.1,54321,22,0,S,"},
+            {"text": "Jan 15 10:01:00 pfSense filterlog[12345]: 5,,,1000000104,lan,match,pass,in,4,0x0,,64,12346,0,none,17,udp,41,192.168.1.100,8.8.8.8,51234,53,21,"},
         ],
     }
 

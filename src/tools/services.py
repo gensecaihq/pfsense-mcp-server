@@ -65,7 +65,9 @@ async def control_service(
     service_name: str,
     action: str
 ) -> Dict:
-    """Start, stop, or restart a system service
+    """Start, stop, or restart a service on the live pfSense appliance.
+
+    WARNING: Stopping critical services (dhcpd, unbound, sshd) will disrupt network operations.
 
     Args:
         service_name: Name of the service (e.g., "dhcpd", "unbound", "ntpd")
