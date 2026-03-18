@@ -5,6 +5,44 @@ All notable changes to the pfSense Enhanced MCP Server project will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-03-18
+
+### Production-Ready Release
+
+Major overhaul verified against pfSense REST API v2 PHP source code. Merges community PR #5 (2 weeks production testing by @JeremiahChurch) plus critical fixes found by auditing the actual API handler source.
+
+#### Architecture
+- Modular `src/tools/` with one file per domain (firewall, aliases, NAT, DHCP, services, logs, system, utility)
+- Separate `src/client.py` (HTTP layer), `src/models.py` (data types), `src/helpers.py` (validation/safety)
+- `src/server.py` as FastMCP singleton + API client factory
+- `src/main.py` with argparse, stdio/streamable-http transport, connection test on startup
+
+#### Critical Fixes (verified against PHP source)
+- Control parameters (`apply`, `placement`, `append`, `remove`) now sent in JSON body, not query params
+- JWT auth uses Basic Auth header on `/auth/jwt` endpoint, not JSON body credentials
+- Service control uses numeric `id` (array index), not `name` (read-only field)
+- Diagnostic command endpoint corrected to `/diagnostics/command_prompt`, field to `command`
+- ARP table filter fields corrected to `ip_address` / `mac_address`
+- NAT port forward `interface` sent as string (not array — `many=false` on model)
+- Firewall log filtering uses `text__contains` (API model only has `text` field)
+- Log type allowlist corrected: `openvpn` not `vpn`, `auth` not `portalauth`
+
+#### New Features
+- pfSense CE 2.8.1, CE 26.03, Plus 25.11 version support
+- 41 MCP tools (up from 20) with full CRUD for firewall rules, aliases, NAT, DHCP, services
+- 223 unit tests with CI via GitHub Actions
+- Safety guards: page size cap 200, log line cap 50, port validation, IP validation, log type allowlist
+- Bearer auth middleware for HTTP transport (fail-closed)
+- Public `client.get_logs()` method for all log types
+- `QueryFilter` operator validation via `__post_init__`
+
+#### Dependencies
+- Pinned `fastmcp==2.14.0` (was `>=0.4.0` with no upper bound)
+- Removed 10 unused packages (redis, prometheus, structlog, cryptography, etc.)
+- Added `python-dotenv` for .env loading
+
+---
+
 ## [4.0.0] - 2025-01-19
 
 ### 🚀 Major Release - Enhanced API Integration

@@ -1,118 +1,61 @@
 # pfSense Enhanced MCP Server
 
 [![MseeP.ai Security Assessment Badge](https://mseep.net/pr/gensecaihq-pfsense-mcp-server-badge.png)](https://mseep.ai/app/gensecaihq-pfsense-mcp-server)
-
-🚀 **A next-generation Model Context Protocol (MCP) server** that enables natural language interaction with pfSense firewalls through Claude Desktop and other GenAI applications. Now with **advanced API features** by pfrest.org including intelligent filtering, HATEOAS navigation, and enterprise-grade controls.
-
-
-
-## 🧪 **Community Testing Needed**
-
-> **⚠️ IMPORTANT:** This project needs community testing and validation!  
-> **👥 We need your help to test this with real pfSense devices and environments.**
->
-> - **🔍 Test it** with your pfSense setup  
-> - **🐛 Report issues** via GitHub Issues  
-> - **🔧 Fix bugs** and submit PRs  
-> - **📝 Improve documentation** based on real-world usage  
-> - **💡 Contribute features** and enhancements
->
-> **Your testing and contributions will help make this production-ready for everyone!**
-
-[![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)](https://github.com/gensecaihq/pfsense-mcp-server)
+[![Version](https://img.shields.io/badge/version-5.0.0-blue.svg)](https://github.com/gensecaihq/pfsense-mcp-server)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
-[![pfSense API](https://img.shields.io/badge/pfSense%20API-v2-orange.svg)](https://pfrest.org/)
-[![Community](https://img.shields.io/badge/Community-Welcome-brightgreen.svg)](#-community--contributions)
+[![pfSense API](https://img.shields.io/badge/pfSense%20REST%20API-v2.7.3-orange.svg)](https://pfrest.org/)
+[![Tests](https://img.shields.io/badge/tests-223%20passing-brightgreen.svg)](#testing)
 
-## ✨ Enhanced Features
+A Model Context Protocol (MCP) server for managing pfSense firewalls through Claude Desktop, Claude Code, and other MCP-compatible clients. Verified against the pfSense REST API v2 PHP source code for production accuracy.
 
-### 🎯 **Core Capabilities**
-- **🗣️ Natural Language Interface**: Control pfSense using plain English with Claude
-- **🔧 Advanced API Integration**: Full support for [jaredhendrickson13/pfsense-api](https://github.com/jaredhendrickson13/pfsense-api) v2
-- **🔍 Intelligent Filtering**: 8 filter types (exact, contains, regex, ranges) with multi-field support
-- **📊 Smart Pagination**: Efficient handling of large datasets with sorting
-- **🔗 HATEOAS Navigation**: Dynamic API exploration with hypermedia controls
-- **⚙️ Control Parameters**: Fine-grained operation control (apply, async, placement)
-- **🆔 Object ID Management**: Handles dynamic IDs with field-based lookups
+## Supported pfSense Versions
 
-### 🏢 **Enterprise Ready**
-- **🔒 Multi-Auth Support**: API Key, Basic Auth, JWT with security best practices
-- **📈 Production Monitoring**: Health checks, metrics, audit logging
-- **🐳 Container Ready**: Docker deployment with security hardening
-- **🎨 41 MCP Tools**: Full CRUD for core resources (firewall rules, aliases, NAT, DHCP, services)
-- **⚡ High Performance**: Async operations, caching, connection pooling
+| pfSense Version | REST API Package | Status |
+|---|---|---|
+| pfSense CE 2.8.1 | [v2.7.3](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases) | Verified |
+| pfSense Plus 25.11 | [v2.7.3](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases) | Verified |
+| pfSense CE 2.8.0 | [v2.6.0+](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases) | Supported |
+| pfSense Plus 24.11 | [v2.6.0+](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases) | Supported |
+| pfSense CE 26.03 | Not yet available | Pending REST API package build |
 
-### 🎮 **Supported pfSense Versions**
-| Version | Status | API Package | Features |
-|---------|--------|-------------|----------|
-| **pfSense CE 2.8.0** | ✅ Fully Supported | [Download](https://github.com/jaredhendrickson13/pfsense-api/releases/latest/download/pfSense-2.8.0-pkg-RESTAPI.pkg) | All enhanced features |
-| **pfSense Plus 24.11** | ✅ Fully Supported | [Download](https://github.com/jaredhendrickson13/pfsense-api/releases/latest/download/pfSense-24.11-pkg-RESTAPI.pkg) | All enhanced features |
+Requires the [pfSense REST API v2 package](https://github.com/pfrest/pfSense-pkg-RESTAPI) by jaredhendrickson13.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Install pfSense REST API Package
 
-**On your pfSense system** (via SSH or console):
+SSH into your pfSense box and install the package for your version:
 
 ```bash
-# For pfSense CE 2.8.0
-pkg-static add https://github.com/jaredhendrickson13/pfsense-api/releases/latest/download/pfSense-2.8.0-pkg-RESTAPI.pkg
+# pfSense CE 2.8.1
+pkg-static add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/latest/download/pfSense-2.8.1-pkg-RESTAPI.pkg
 
-# For pfSense Plus 24.11
-pkg-static -C /dev/null add https://github.com/jaredhendrickson13/pfsense-api/releases/latest/download/pfSense-24.11-pkg-RESTAPI.pkg
+# pfSense Plus 25.11
+pkg-static -C /dev/null add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/latest/download/pfSense-25.11-pkg-RESTAPI.pkg
 ```
 
-### 2. Configure pfSense API
+Then in the pfSense web UI: **System > REST API** to enable it, and **System > User Manager > [your user]** to generate an API key.
 
-1. Navigate to **System → REST API** in pfSense webConfigurator
-2. Enable the REST API
-3. Generate an API key: **System → User Manager → [Your User] → API Keys**
-4. Assign appropriate privileges to your API user
-
-### 3. Setup MCP Server
+### 2. Setup MCP Server
 
 ```bash
-# Clone the repository
 git clone https://github.com/gensecaihq/pfsense-mcp-server.git
 cd pfsense-mcp-server
-
-# Install dependencies
 pip install -r requirements.txt
 
-# Configure environment
 cp .env.example .env
-nano .env  # Add your pfSense details
+# Edit .env with your pfSense URL and API key
 ```
 
-**Minimal `.env` configuration:**
-```bash
-PFSENSE_URL=https://your-pfsense.local
-PFSENSE_API_KEY=your-api-key-here
-PFSENSE_VERSION=CE_2_8_0  # or PLUS_24_11
-AUTH_METHOD=api_key
-VERIFY_SSL=true
-ENABLE_HATEOAS=false  # Set true for navigation links
-```
+### 3. Configure Claude Desktop
 
-### 4. Test Your Setup
-
-```bash
-# Test enhanced features
-python tests/test_enhanced_features.py
-
-# Start the enhanced MCP server
-python -m src.main
-```
-
-### 5. Configure Claude Desktop
-
-Add to your Claude Desktop configuration:
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
   "mcpServers": {
-    "pfsense-enhanced": {
+    "pfsense": {
       "command": "python",
       "args": ["-m", "src.main"],
       "cwd": "/path/to/pfsense-mcp-server",
@@ -120,333 +63,276 @@ Add to your Claude Desktop configuration:
         "PFSENSE_URL": "https://your-pfsense.local",
         "PFSENSE_API_KEY": "your-api-key",
         "PFSENSE_VERSION": "CE_2_8_0",
-        "ENABLE_HATEOAS": "false"
+        "AUTH_METHOD": "api_key",
+        "VERIFY_SSL": "true"
       }
     }
   }
 }
 ```
 
+### 4. Start the Server
+
+```bash
+# stdio mode (default — for Claude Desktop / Claude Code)
+python -m src.main
+
+# HTTP mode (for remote access, requires MCP_API_KEY for bearer auth)
+python -m src.main -t streamable-http --port 3000
+```
+
+## MCP Tools (41 total)
+
+### Firewall Rules (9 tools)
+| Tool | Description |
+|---|---|
+| `search_firewall_rules` | Search rules with filtering by interface, source IP, port, type, description |
+| `find_blocked_rules` | Find all block/reject rules |
+| `create_firewall_rule_advanced` | Create rule with position control and validation |
+| `update_firewall_rule` | Update an existing rule by ID |
+| `delete_firewall_rule` | Delete a rule by ID |
+| `move_firewall_rule` | Reorder a rule to a new position |
+| `apply_firewall_changes` | Explicitly trigger pf filter reload |
+| `bulk_block_ips` | Block multiple IPs with a single apply |
+| `get_pf_rules` | Read the compiled pf ruleset (/tmp/rules.debug) |
+
+### Aliases (5 tools)
+| Tool | Description |
+|---|---|
+| `search_aliases` | Search aliases by name, type, or contained IP |
+| `create_alias` | Create a new alias (host, network, port, url) |
+| `update_alias` | Update an existing alias |
+| `delete_alias` | Delete an alias |
+| `manage_alias_addresses` | Add or remove addresses from an alias |
+
+### NAT Port Forwards (4 tools)
+| Tool | Description |
+|---|---|
+| `search_nat_port_forwards` | Search port forward rules |
+| `create_nat_port_forward` | Create a port forward with validation |
+| `update_nat_port_forward` | Update a port forward |
+| `delete_nat_port_forward` | Delete a port forward |
+
+### DHCP (7 tools)
+| Tool | Description |
+|---|---|
+| `search_dhcp_leases` | Search active DHCP leases |
+| `search_dhcp_static_mappings` | Search static DHCP reservations |
+| `create_dhcp_static_mapping` | Create a static mapping |
+| `update_dhcp_static_mapping` | Update a static mapping |
+| `delete_dhcp_static_mapping` | Delete a static mapping |
+| `get_dhcp_server_config` | Get DHCP server configuration |
+| `update_dhcp_server_config` | Update DHCP server settings |
+
+### Services (2 tools)
+| Tool | Description |
+|---|---|
+| `search_services` | List services with status filtering |
+| `control_service` | Start, stop, or restart a service by name |
+
+### Logs & Monitoring (3 tools)
+| Tool | Description |
+|---|---|
+| `get_firewall_log` | Get firewall log entries (max 50 lines) |
+| `analyze_blocked_traffic` | Group blocked traffic by source IP with threat scoring |
+| `search_logs_by_ip` | Search logs for a specific IP address |
+
+### System (4 tools)
+| Tool | Description |
+|---|---|
+| `system_status` | Get CPU, memory, disk, and version info |
+| `search_interfaces` | Search network interfaces |
+| `find_interfaces_by_status` | Find interfaces by status (up/down) |
+| `get_arp_table` | Get ARP table (IP-to-MAC mappings) |
+
+### Utility (7 tools)
+| Tool | Description |
+|---|---|
+| `follow_api_link` | Follow a HATEOAS link |
+| `enable_hateoas` / `disable_hateoas` | Toggle HATEOAS link inclusion |
+| `refresh_object_ids` | Re-query endpoint to get fresh IDs |
+| `find_object_by_field` | Look up object by field value |
+| `get_api_capabilities` | Get REST API settings |
+| `test_enhanced_connection` | Test connection and feature availability |
+
 ## API Endpoint Coverage
 
-### Firewall Rules
-
-| Endpoint | Operations | MCP Tool(s) | Tested |
-|----------|-----------|-------------|--------|
-| `/firewall/rules` | Read | `search_firewall_rules`, `find_blocked_rules` | Yes |
-| `/firewall/rule` | Create | `create_firewall_rule_advanced`, `bulk_block_ips` | Yes |
-| `/firewall/rule` | Update | `update_firewall_rule`, `move_firewall_rule` | Yes |
-| `/firewall/rule` | Delete | `delete_firewall_rule` | Yes |
-
-### Firewall Aliases
-
-| Endpoint | Operations | MCP Tool(s) | Tested |
-|----------|-----------|-------------|--------|
-| `/firewall/aliases` | Read | `search_aliases` | Yes |
-| `/firewall/alias` | Create | `create_alias` | Yes |
-| `/firewall/alias` | Update | `update_alias`, `manage_alias_addresses` | Yes |
-| `/firewall/alias` | Delete | `delete_alias` | Yes |
-
-### NAT Port Forwards
-
-| Endpoint | Operations | MCP Tool(s) | Tested |
-|----------|-----------|-------------|--------|
-| `/firewall/nat/port_forwards` | Read | `search_nat_port_forwards` | Yes |
-| `/firewall/nat/port_forward` | Create | `create_nat_port_forward` | Yes |
-| `/firewall/nat/port_forward` | Update | `update_nat_port_forward` | Yes |
-| `/firewall/nat/port_forward` | Delete | `delete_nat_port_forward` | Yes |
-
-### Interfaces
-
-| Endpoint | Operations | MCP Tool(s) | Tested |
-|----------|-----------|-------------|--------|
-| `/status/interfaces` | Read | `search_interfaces`, `find_interfaces_by_status` | Partial |
-
-### Services
-
-| Endpoint | Operations | MCP Tool(s) | Tested |
-|----------|-----------|-------------|--------|
-| `/status/services` | Read | `search_services` | Yes |
-| `/status/service` | Action (start/stop/restart) | `control_service` | Yes |
-
-### DHCP
-
-| Endpoint | Operations | MCP Tool(s) | Tested |
-|----------|-----------|-------------|--------|
-| `/status/dhcp_server/leases` | Read | `search_dhcp_leases` | Yes |
-| `/services/dhcp_server/static_mappings` | Read | `search_dhcp_static_mappings` | Yes |
-| `/services/dhcp_server/static_mapping` | Create | `create_dhcp_static_mapping` | Yes |
-| `/services/dhcp_server/static_mapping` | Update | `update_dhcp_static_mapping` | Yes |
-| `/services/dhcp_server/static_mapping` | Delete | `delete_dhcp_static_mapping` | Yes |
-
-### Logs & Monitoring
-
-| Endpoint | Operations | MCP Tool(s) | Tested |
-|----------|-----------|-------------|--------|
-| `/status/logs/firewall` | Read | `get_firewall_log`, `analyze_blocked_traffic`, `search_logs_by_ip` | Partial |
-| `/status/system` | Read | `system_status` | Yes |
-
-### Diagnostics
-
-| Endpoint | Operations | MCP Tool(s) | Tested |
-|----------|-----------|-------------|--------|
-| `/diagnostics/arp_table` | Read | `get_arp_table` | Partial |
-| `/diagnostics/command/prompt` | Execute | `get_pf_rules` | Partial |
-
-### System & API
-
-| Endpoint | Operations | MCP Tool(s) | Tested |
-|----------|-----------|-------------|--------|
-| `/system/restapi/settings` | Read | `get_api_capabilities` | Partial |
-| HATEOAS links | Navigation | `follow_api_link`, `enable_hateoas`, `disable_hateoas` | Partial |
-| Dynamic endpoints | Lookup | `refresh_object_ids`, `find_object_by_field` | Partial |
-| Connection test | Diagnostic | `test_enhanced_connection` | Partial |
+| Category | Endpoints | Operations |
+|---|---|---|
+| Firewall Rules | `/firewall/rules`, `/firewall/rule`, `/firewall/apply` | Full CRUD + apply |
+| Aliases | `/firewall/aliases`, `/firewall/alias` | Full CRUD + append/remove |
+| NAT | `/firewall/nat/port_forwards`, `/firewall/nat/port_forward` | Full CRUD |
+| DHCP Leases | `/status/dhcp_server/leases` | Read |
+| DHCP Static Mappings | `/services/dhcp_server/static_mappings`, `/services/dhcp_server/static_mapping` | Full CRUD |
+| DHCP Server Config | `/services/dhcp_servers`, `/services/dhcp_server` | Read + Update |
+| Services | `/status/services`, `/status/service` | Read + Control |
+| Firewall Logs | `/status/logs/firewall` | Read (text-based filtering) |
+| System Logs | `/status/logs/system`, `/status/logs/dhcp`, `/status/logs/openvpn`, `/status/logs/auth` | Read |
+| System Status | `/status/system` | Read |
+| Interfaces | `/status/interfaces` | Read |
+| ARP Table | `/diagnostics/arp_table` | Read |
+| Diagnostics | `/diagnostics/command_prompt` | Execute |
+| API Settings | `/system/restapi/settings` | Read |
 
 ### Not Yet Implemented
 
-Major pfSense API v2 endpoint categories not yet covered:
+- **Routing** — static routes, gateways, gateway groups
+- **VPN** — OpenVPN servers/clients, IPsec, WireGuard
+- **DNS** — resolver/forwarder config, host overrides
+- **Certificates** — CA, certificate, CSR management
+- **Users** — user/group CRUD, LDAP/RADIUS
+- **NAT Outbound / 1:1** — outbound NAT rules
+- **Advanced** — schedules, traffic shaper, virtual IPs
 
-- **Routing** -- static routes, gateways, gateway groups (`/routing/*`)
-- **VPN** -- OpenVPN servers/clients, IPSec phases, WireGuard tunnels/peers (`/vpn/*`)
-- **DNS** -- resolver/forwarder config, host overrides (`/services/dns_resolver/*`, `/services/dns_forwarder/*`)
-- **Certificates** -- CA, CRT, CSR management (`/certificates/*`)
-- **Users & Auth** -- user/group CRUD, LDAP/RADIUS config (`/users/*`, `/auth/*`)
-- **NAT Outbound / 1:1** -- outbound NAT rules, 1:1 NAT (`/firewall/nat/outbound`, `/firewall/nat/1to1`)
-- **Advanced Firewall** -- schedules, traffic shaper, virtual IPs, connection states
-- **Interface Config** -- VLANs, bridges, LAGs, individual interface settings
-- **Other Logs** -- system, DHCP, VPN, captive portal logs
-- **Diagnostics** -- routing table, DNS lookups
-
-## 💬 Enhanced Example Prompts
+## Architecture
 
 ```
-"Search for firewall rules on WAN interface blocking port 22"
-"Show me blocked traffic patterns from the last 24 hours"
-"Find all aliases containing IP 192.168.1.100"
-"Block these suspicious IPs: 198.51.100.1, 203.0.113.1"
-"Search DHCP leases for hostname containing 'server'"
-"Move firewall rule ID 5 to position 1"
-"Analyze blocked traffic and group by source IP"
-"Find interfaces that are currently down"
-"Search for firewall rules with 'malware' in description"
-"Show me the top 10 blocked source IPs"
+src/
+  main.py          Entry point (argparse, connection test, mcp.run())
+  server.py        FastMCP instance + API client singleton
+  client.py        HTTP client for pfSense REST API v2
+  models.py        Enums, dataclasses (QueryFilter, SortOptions, etc.)
+  helpers.py       Validation, pagination, safety guards
+  middleware.py    Bearer auth middleware for HTTP transport
+  tools/
+    firewall.py    9 tools
+    aliases.py     5 tools
+    nat.py         4 tools
+    dhcp.py        7 tools
+    services.py    2 tools
+    logs.py        3 tools
+    system.py      4 tools
+    utility.py     7 tools
 ```
 
-## 📚 Documentation
+## Environment Variables
 
-### 📖 **Setup Guides**
-- **[pfSense API Installation Guide](PFSENSE_API_INSTALLATION.md)** - Complete setup instructions
-- **[Enhanced Features Guide](docs/ENHANCED_FEATURES.md)** - Advanced capabilities overview
-- **[Configuration Reference](docs/CONFIGURATION.md)** - All environment variables
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `PFSENSE_URL` | Yes | `https://pfsense.local` | pfSense URL |
+| `PFSENSE_API_KEY` | Yes (for api_key auth) | — | REST API key |
+| `AUTH_METHOD` | No | `api_key` | `api_key`, `basic`, or `jwt` |
+| `PFSENSE_VERSION` | No | `CE_2_8_0` | `CE_2_8_0`, `CE_2_8_1`, `CE_26_03`, `PLUS_24_11`, `PLUS_25_11` |
+| `VERIFY_SSL` | No | `true` | Verify SSL certificates |
+| `ENABLE_HATEOAS` | No | `false` | Include HATEOAS links in responses |
+| `LOG_LEVEL` | No | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `MCP_TRANSPORT` | No | `stdio` | `stdio` or `streamable-http` |
+| `MCP_HOST` | No | `0.0.0.0` | Bind address for HTTP mode |
+| `MCP_PORT` | No | `3000` | Port for HTTP mode |
+| `MCP_API_KEY` | Required for HTTP mode | — | Bearer token for HTTP transport auth |
 
-### 🔧 **Technical Documentation**
-- **[API Integration Details](docs/API_INTEGRATION.md)** - How the enhanced API works
-- **[MCP Tools Reference](docs/MCP_TOOLS.md)** - Complete tool documentation
-- **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Common issues and solutions
-
-### 🚀 **Deployment**
-- **[Docker Deployment](docs/DOCKER_DEPLOYMENT.md)** - Container setup
-- **[Production Guide](docs/PRODUCTION.md)** - Enterprise deployment
-- **[Security Best Practices](docs/SECURITY.md)** - Hardening guidelines
-
-## 🧪 Testing
+## Docker
 
 ```bash
-# Run the full test suite
-pytest tests/ -v
+# Build
+docker build -t pfsense-mcp .
 
-# Run with coverage report
-pytest tests/ --cov=src --cov-report=term-missing
+# Run in stdio mode
+docker run --rm -e PFSENSE_URL=https://pfsense.local -e PFSENSE_API_KEY=your-key pfsense-mcp
 
-# Run only MCP tool tests
-pytest tests/test_main.py -v
-
-# Run only API client tests
-pytest tests/test_api_client.py -v
-
-# Test live connection to pfSense (requires .env configured)
-python tests/test_enhanced_features.py
+# Run in HTTP mode (docker-compose)
+docker compose up
 ```
 
-## 🏗️ Architecture
+The `docker-compose.yml` runs in `streamable-http` mode on port 3000 with bearer auth.
 
+## Testing
+
+```bash
+# Run all 223 tests
+python -m pytest tests/ -v
+
+# With coverage
+python -m pytest tests/ --cov=src --cov-report=term-missing
+
+# Only tool tests
+python -m pytest tests/tools/ -v
+
+# Only client tests
+python -m pytest tests/test_api_client.py -v
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Claude Desktop │────│ Enhanced MCP     │────│ pfSense API v2  │
-│   (Natural Lang) │    │ Server (Python)  │    │ (REST/GraphQL)  │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                │                        │
-                                ▼                        ▼
-                       ┌──────────────────┐    ┌─────────────────┐
-                       │ Advanced Features │    │ pfSense System  │
-                       │ • Filtering       │    │ • Firewall      │
-                       │ • Pagination      │    │ • Interfaces    │
-                       │ • HATEOAS         │    │ • Services      │
-                       │ • Object IDs      │    │ • DHCP/VPN      │
-                       └──────────────────┘    └─────────────────┘
-```
 
-## 🤝 Community & Contributions
+## Safety Guards
 
-### 🌟 **We Need Your Help!**
+- **Page size capped at 200** — prevents pfSense PHP memory exhaustion
+- **Log lines capped at 50** — same reason
+- **Port format validation** — rejects `"53 853"` which crashes the pf compiler
+- **IP validation** — validates addresses before sending to API
+- **Log type allowlist** — prevents path traversal via log endpoint
+- **Bearer auth required** for HTTP transport mode (fail-closed)
+- **Control parameters in JSON body** — verified against pfSense API PHP source
 
-This MCP server represents a significant advancement in pfSense automation, but **we need the community to help make it even better**! Whether you're a pfSense veteran, Python developer, or GenAI enthusiast, there are many ways to contribute.
+## Known Limitations
 
-### 🎯 **How You Can Help**
+- Firewall log API only exposes raw `text` field; per-field filtering is done client-side
+- HATEOAS toggle is a global API setting, not per-request (the tools toggle a local session flag)
+- pfSense object IDs are non-persistent array indices that change after deletions
+- Log retrieval is capped at 50 lines per request to prevent PHP memory exhaustion
 
-#### 🧪 **Beta Testing & Feedback**
-- **Test in your environment**: Try the enhanced MCP server with your pfSense setup
-- **Report compatibility**: Let us know what works (and what doesn't) with different pfSense versions
-- **Share use cases**: Tell us how you're using the MCP tools in real scenarios
-- **Performance feedback**: Help us optimize for different network sizes and configurations
+## Community & Contributions
 
-#### 🐛 **Bug Reports & Issues**
-- **Found a bug?** [Open an issue](https://github.com/gensecaihq/pfsense-mcp-server/issues) with detailed reproduction steps
-- **Missing feature?** Suggest new MCP tools or API integrations
-- **Documentation unclear?** Help us improve the guides and examples
+### We Need Your Help!
 
-#### 💻 **Code Contributions**
-- **New MCP tools**: Add tools for pfSense packages (HAProxy, Suricata, etc.)
-- **Enhanced filtering**: Improve search and discovery capabilities
-- **Performance optimizations**: Help make the server faster and more efficient
-- **Test coverage**: Add comprehensive tests for edge cases
+This MCP server has been verified against the pfSense REST API v2 PHP source code, but **real-world testing across diverse pfSense environments is essential**. Whether you're a pfSense veteran, Python developer, or GenAI enthusiast, there are many ways to contribute.
 
-#### 📚 **Documentation & Examples**
-- **Real-world examples**: Share Claude prompts that work well
-- **Integration guides**: How to use with other tools and workflows  
-- **Video tutorials**: Create setup and usage demonstrations
-- **Translation**: Help make documentation accessible in other languages
+### How You Can Help
 
-### 🚀 **Getting Started as a Contributor**
+**Testing & Feedback**
+- Test with your pfSense setup and report what works (and what doesn't)
+- Share use cases — tell us how you're using the MCP tools
+- Performance feedback across different network sizes
 
-1. **🍴 Fork the repository** and create a feature branch
-2. **🧪 Test your changes** with the comprehensive test suite
-3. **📝 Update documentation** for any new features
-4. **🔄 Submit a pull request** with a clear description
+**Bug Reports & Issues**
+- [Open an issue](https://github.com/gensecaihq/pfsense-mcp-server/issues) with detailed reproduction steps
+- Suggest new MCP tools or API integrations
+- Help improve documentation based on real-world usage
 
-### 💡 **Ideas for Contributions**
+**Code Contributions**
+- Add tools for missing endpoint categories (VPN, routing, DNS, certificates)
+- Add support for pfSense packages (Snort, Suricata, HAProxy)
+- Improve test coverage for edge cases
+- Performance optimizations
 
-#### 🎯 **High Priority**
-- Support for additional pfSense packages (Snort, ntopng, FreeRADIUS)
-- Enhanced security analysis tools
-- Backup and restore automation
+**Documentation**
+- Real-world example prompts that work well with Claude
+- Integration guides for other MCP clients
+- Video tutorials for setup and usage
+
+### Getting Started as a Contributor
+
+1. Fork the repository and create a feature branch
+2. Run the test suite: `python -m pytest tests/ -v`
+3. Update tests for any new features
+4. Submit a pull request with a clear description
+
+### Ideas for Contributions
+
+**High Priority**
+- VPN status and configuration tools (OpenVPN, IPsec, WireGuard)
+- Routing and gateway management
+- DNS resolver/forwarder configuration
+- Certificate management
+
+**Medium Priority**
+- Support for pfSense packages (Snort, ntopng, FreeRADIUS)
 - Multi-pfSense instance management
-
-#### 🔧 **Technical Improvements**
 - GraphQL API integration
-- WebSocket real-time updates
-- Advanced caching strategies
-- Performance profiling tools
+- Enhanced log parsing and analysis
 
-#### 🎨 **User Experience**
-- Natural language query improvements
-- Claude Desktop interface enhancements
-- Web-based configuration UI
-- Mobile-friendly tools
+### Stay Connected
 
-### 🏆 **Recognition**
-
-Contributors will be:
-- **Listed in our contributors section**
-- **Credited in release notes**
-- **Given priority support** for their own deployments
-- **Invited to the contributor Discord** for direct collaboration
-
-### 📢 **Stay Connected**
-
-- **GitHub Discussions**: Share ideas and ask questions
-- **Issues**: Report bugs and request features  
+- **GitHub Issues**: Report bugs and request features
 - **Pull Requests**: Contribute code and documentation
-- **Releases**: Follow for updates and new features
+- **Releases**: Follow for updates
 
-**Together, we can make pfSense automation accessible to everyone through natural language! 🌟**
+## License
 
----
+MIT License — see [LICENSE](LICENSE) for details.
 
-*"The best open source projects are built by communities, not individuals. Your contribution, no matter how small, makes a difference!"*
+## Acknowledgments
 
-## 🔒 Security Considerations
-
-- **🔐 Authentication**: Multi-method support with privilege checking
-- **🛡️ Input Validation**: All user inputs validated and sanitized
-- **🔍 Audit Logging**: Comprehensive activity tracking
-- **🚫 Rate Limiting**: Protection against abuse
-- **🔒 SSL/TLS**: Encrypted communication enforced
-- **👤 Privilege Management**: Role-based access control
-
-## 📈 Performance & Scalability
-
-- **⚡ Async Operations**: Non-blocking I/O for better performance
-- **💾 Intelligent Caching**: Reduce API calls with smart caching
-- **🔄 Connection Pooling**: Efficient resource utilization
-- **📊 Pagination**: Handle large datasets efficiently
-- **🎯 Targeted Queries**: Advanced filtering reduces data transfer
-- **📈 Metrics**: Built-in monitoring and performance tracking
-
-## 🆘 Support & Troubleshooting
-
-### Common Issues
-
-1. **Connection Failed**: Check pfSense API package installation
-2. **Authentication Error**: Verify API key and user privileges  
-3. **Permission Denied**: Ensure user has required pfSense privileges
-4. **Filter Not Working**: Check filter syntax and field names
-5. **Slow Performance**: Enable caching and optimize queries
-
-### Getting Help
-
-- **📖 Documentation**: Check our comprehensive guides
-- **🐛 Issues**: Search existing issues or create a new one
-- **💬 Discussions**: Ask questions in GitHub Discussions
-- **📧 Support**: Community support through GitHub
-
-## 📝 Changelog
-
-### v4.0.0 - Enhanced API Integration
-- ✨ Full pfSense REST API v2 support
-- 🔍 Advanced filtering with 8 operators
-- 📊 Smart pagination and sorting
-- 🔗 HATEOAS navigation support
-- ⚙️ Control parameters implementation
-- 🆔 Dynamic object ID management
-- 🛠️ 41 MCP tools with full CRUD for core resources
-- 📚 Comprehensive documentation
-
-### v3.0.0 - FastMCP Integration
-- 🚀 Migrated to FastMCP framework
-- 🔧 Improved tool organization
-- 📈 Better performance and reliability
-
-### v2.0.0 - Production Ready
-- 🐳 Docker deployment support
-- 🔒 Security hardening
-- 📊 Monitoring and metrics
-
-### v1.0.0 - Initial Release
-- 🎯 Basic MCP functionality
-- 🔌 XML-RPC integration
-- 🛠️ Core pfSense tools
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-## 🙏 Acknowledgments
-
-- **[jaredhendrickson13](https://github.com/jaredhendrickson13)** for the excellent pfSense REST API package
-- **[Anthropic](https://anthropic.com)** for the Model Context Protocol and Claude
-- **[Netgate](https://netgate.com)** for pfSense
-- **[FastMCP](https://github.com/jlowin/fastmcp)** for the MCP framework
-- **Community contributors** for testing, feedback, and improvements
-
----
-
-<div align="center">
-
-**⭐ Star this repo if it helps you manage pfSense with AI! ⭐**
-
-Made with ❤️ by the community, for the community
-
-</div>
+- [jaredhendrickson13](https://github.com/jaredhendrickson13) / [pfrest](https://github.com/pfrest) for the pfSense REST API v2 package
+- [JeremiahChurch](https://github.com/JeremiahChurch) for the production-tested modular rewrite (PR #5, 217 tests)
+- [shawnpetersen](https://github.com/shawnpetersen) for discovering the correct API v2 endpoint paths (PR #3)
+- [Netgate](https://netgate.com) for pfSense
+- [FastMCP](https://gofastmcp.com) for the MCP framework
