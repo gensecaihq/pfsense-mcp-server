@@ -1,30 +1,15 @@
 """Log analysis tools for pfSense MCP server."""
 
-import json
-from datetime import datetime, timedelta, timezone
+import re
+from datetime import datetime, timezone
 from typing import Dict, Optional
 
+from ..helpers import VALID_LOG_TYPES
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
 
-# Allowlist of valid pfSense REST API v2 log endpoints.
-# These map to actual endpoints at /api/v2/status/logs/<type>
-# Note: "vpn" is "openvpn", "portalauth" is "auth" in the API
-_VALID_LOG_TYPES = {"firewall", "system", "dhcp", "openvpn", "auth"}
-
-
-def _parse_timestamp(value: Optional[str]) -> Optional[datetime]:
-    """Parse a timestamp string to a timezone-aware datetime (assumes UTC if naive)."""
-    if not value:
-        return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        # Assume UTC if no timezone info present
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-    except (ValueError, TypeError):
-        return None
+# Regex to extract IPv4 addresses from raw pfSense filterlog text
+_IP_RE = re.compile(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b")
 
 
 @mcp.tool()
@@ -112,16 +97,18 @@ async def get_firewall_log(
 
 @mcp.tool()
 async def analyze_blocked_traffic(
-    hours_back: int = 24,
     limit: int = 20,
     group_by_source: bool = True
 ) -> Dict:
-    """Analyze blocked traffic patterns from firewall logs
+    """Analyze blocked traffic patterns from firewall logs.
+
+    Retrieves recent blocked log entries and groups them by source IP,
+    showing hit counts, destination IPs, and a simple threat score.
+    Firewall logs are raw text — IPs are extracted via pattern matching.
 
     Args:
-        hours_back: How many hours back to analyze
-        limit: Maximum number of log entries to analyze
-        group_by_source: Whether to group results by source IP
+        limit: Number of recent blocked entries to analyze (max 50)
+        group_by_source: Group results by source IP with threat scoring
     """
     client = get_api_client()
     try:
@@ -133,10 +120,7 @@ async def analyze_blocked_traffic(
 
         if group_by_source:
             # The firewall log model only has a 'text' field with raw syslog lines.
-            # Parse IPs from the raw text using a simple regex pattern.
-            # pfSense filterlog format: ...src_ip,dst_ip,...dst_port,...
-            import re
-            _IP_RE = re.compile(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b")
+            # Parse IPs from the raw text using regex (pfSense filterlog format).
 
             source_stats: dict = {}
             for entry in log_data:
@@ -159,10 +143,10 @@ async def analyze_blocked_traffic(
                 if not source_stats[src_ip]["sample_line"]:
                     source_stats[src_ip]["sample_line"] = text[:200]
 
-            # Convert sets to lists and add threat score
+            # Convert sets to lists and add threat score (0-10 heuristic: count/5, capped)
             for stats in source_stats.values():
                 stats["destinations"] = sorted(stats["destinations"])
-                stats["threat_score"] = min(10, stats["count"] / 5)
+                stats["threat_score"] = round(min(10, stats["count"] / 5), 1)
 
             sorted_sources = sorted(
                 source_stats.items(),
@@ -183,7 +167,7 @@ async def analyze_blocked_traffic(
 
         return {
             "success": True,
-            "analysis_period_hours": hours_back,
+            "entries_analyzed_limit": safe_limit,
             "total_entries_analyzed": len(log_data),
             "analysis": analysis,
             "links": client.extract_links(logs),
@@ -215,10 +199,10 @@ async def search_logs_by_ip(
             logs = await client.get_logs_by_ip(ip_address, safe_lines)
         else:
             # Validate log_type against allowlist to prevent path traversal
-            if log_type not in _VALID_LOG_TYPES:
+            if log_type not in VALID_LOG_TYPES:
                 return {
                     "success": False,
-                    "error": f"Invalid log_type '{log_type}'. Must be one of: {', '.join(sorted(_VALID_LOG_TYPES))}",
+                    "error": f"Invalid log_type '{log_type}'. Must be one of: {', '.join(sorted(VALID_LOG_TYPES))}",
                 }
             # Non-firewall log models may have a 'message' field
             filters = [QueryFilter("text", ip_address, "contains")]

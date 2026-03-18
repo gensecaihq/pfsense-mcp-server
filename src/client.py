@@ -926,8 +926,11 @@ class EnhancedPfSenseAPIClient:
 
     # Diagnostic Commands
 
-    async def run_diagnostic_command(self, command: str) -> Dict:
-        """Run a diagnostic shell command on pfSense.
+    async def _run_diagnostic_command(self, command: str) -> Dict:
+        """Run a diagnostic shell command on pfSense (internal use only).
+
+        This method is intentionally private to prevent arbitrary command
+        execution from being exposed as a public API.
 
         Args:
             command: Shell command to execute

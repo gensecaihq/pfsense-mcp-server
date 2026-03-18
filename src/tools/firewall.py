@@ -1,6 +1,5 @@
 """Firewall tools for pfSense MCP server."""
 
-import ipaddress
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Union
 
@@ -8,6 +7,7 @@ from ..helpers import (
     create_default_sort,
     create_interface_filter,
     create_pagination,
+    validate_ip_address,
     create_port_filter,
     validate_port_value,
 )
@@ -134,7 +134,9 @@ async def create_firewall_rule_advanced(
     apply_immediately: bool = True,
     log_matches: bool = True
 ) -> Dict:
-    """Create a firewall rule with advanced placement and control options
+    """Create a firewall rule on the live pfSense appliance.
+
+    WARNING: This modifies the running firewall configuration.
 
     Args:
         interface: Interface for the rule (wan, lan, etc.)
@@ -355,7 +357,7 @@ async def delete_firewall_rule(
     rule_id: int,
     apply_immediately: bool = True
 ) -> Dict:
-    """Delete a firewall rule by ID
+    """Delete a firewall rule from the live pfSense appliance. WARNING: This is irreversible.
 
     Args:
         rule_id: Rule ID (array index from search_firewall_rules, e.g., 0, 1, 2...)
@@ -385,7 +387,7 @@ async def bulk_block_ips(
     interface: str = "wan",
     description_prefix: str = "Bulk block via MCP"
 ) -> Dict:
-    """Block multiple IP addresses at once
+    """Block multiple IP addresses on the live pfSense firewall. WARNING: Creates block rules.
 
     Args:
         ip_addresses: List of IP addresses to block
@@ -399,7 +401,7 @@ async def bulk_block_ips(
     for ip in ip_addresses:
         # Validate IP/network before making API call
         try:
-            ipaddress.ip_network(ip, strict=False)
+            validate_ip_address(ip)
         except ValueError:
             logger.error(f"Invalid IP address/network: {ip}")
             errors.append({"ip": ip, "error": f"Invalid IP address or network: {ip}"})
@@ -482,7 +484,7 @@ async def get_pf_rules() -> Dict:
     """
     client = get_api_client()
     try:
-        result = await client.run_diagnostic_command("cat /tmp/rules.debug")
+        result = await client._run_diagnostic_command("cat /tmp/rules.debug")
 
         return {
             "success": True,

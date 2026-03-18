@@ -7,6 +7,28 @@ from typing import Dict
 from ..models import PaginationOptions, QueryFilter, SortOptions
 from ..server import get_api_client, logger, mcp
 
+# Allowed endpoint prefixes for user-supplied paths (prevents path traversal)
+_SAFE_ENDPOINT_PREFIXES = (
+    "/firewall/", "/status/", "/services/", "/diagnostics/",
+    "/system/", "/vpn/", "/routing/", "/interface/",
+    "/user", "/certificates/",
+)
+
+
+def _validate_endpoint(endpoint: str) -> str:
+    """Validate a user-supplied API endpoint path."""
+    endpoint = endpoint.strip()
+    if not endpoint.startswith("/"):
+        endpoint = f"/{endpoint}"
+    if ".." in endpoint:
+        raise ValueError(f"Invalid endpoint path: contains '..'")
+    if not any(endpoint.startswith(prefix) for prefix in _SAFE_ENDPOINT_PREFIXES):
+        raise ValueError(
+            f"Endpoint '{endpoint}' is not in the allowed prefix list. "
+            f"Allowed prefixes: {', '.join(_SAFE_ENDPOINT_PREFIXES)}"
+        )
+    return endpoint
+
 
 @mcp.tool()
 async def follow_api_link(link_url: str) -> Dict:
@@ -59,13 +81,17 @@ async def disable_hateoas() -> Dict:
 
 @mcp.tool()
 async def refresh_object_ids(endpoint: str) -> Dict:
-    """Refresh object IDs by re-querying an endpoint (handles ID changes after deletions)
+    """Refresh object IDs by re-querying an endpoint (handles ID changes after deletions).
+
+    pfSense object IDs are non-persistent array indices that change after any
+    deletion. Call this before performing update/delete operations to get fresh IDs.
 
     Args:
-        endpoint: Relative API path without the /api/v2 prefix (e.g. "/firewall/rule", "/firewall/aliases")
+        endpoint: Relative API path (e.g. "/firewall/rules", "/firewall/aliases")
     """
     client = get_api_client()
     try:
+        endpoint = _validate_endpoint(endpoint)
         result = await client.refresh_object_ids(endpoint)
 
         return {
@@ -88,15 +114,19 @@ async def find_object_by_field(
     field: str,
     value: str
 ) -> Dict:
-    """Find an object by a specific field value (safer than using IDs)
+    """Find an object by a specific field value (safer than using IDs).
+
+    Use this instead of IDs when you need a stable reference to an object,
+    since pfSense object IDs change after deletions.
 
     Args:
-        endpoint: Relative API path without the /api/v2 prefix (e.g. "/services/dhcp_server", "/firewall/rules", "/firewall/aliases")
-        field: Field name to search by
+        endpoint: Relative API path (e.g. "/firewall/rules", "/firewall/aliases")
+        field: Field name to search by (e.g. "descr", "name")
         value: Value to search for
     """
     client = get_api_client()
     try:
+        endpoint = _validate_endpoint(endpoint)
         obj = await client.find_object_by_field(endpoint, field, value)
 
         if obj:

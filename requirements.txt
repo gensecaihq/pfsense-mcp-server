@@ -4,7 +4,5 @@ fastmcp==2.14.0
 # Environment variable loading
 python-dotenv>=1.0.0
 
-# pfSense API dependencies
+# Async HTTP client (also a transitive dep of fastmcp, pinned for clarity)
 httpx
-pydantic
-cachetools

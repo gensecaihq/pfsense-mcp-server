@@ -497,7 +497,7 @@ class TestArpTable:
 class TestDiagnosticCommand:
     async def test_run_command(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": "output here"}
-        await mock_client.run_diagnostic_command("cat /tmp/rules.debug")
+        await mock_client._run_diagnostic_command("cat /tmp/rules.debug")
         call_args = mock_make_request.call_args
         assert call_args[0][1] == "/diagnostics/command_prompt"
         data = call_args.kwargs.get("data") or call_args[1].get("data")
