@@ -38,7 +38,7 @@
 - **🔒 Multi-Auth Support**: API Key, Basic Auth, JWT with security best practices
 - **📈 Production Monitoring**: Health checks, metrics, audit logging
 - **🐳 Container Ready**: Docker deployment with security hardening
-- **🎨 25+ MCP Tools**: Comprehensive pfSense management capabilities
+- **🎨 41 MCP Tools**: Full CRUD for core resources (firewall rules, aliases, NAT, DHCP, services)
 - **⚡ High Performance**: Async operations, caching, connection pooling
 
 ### 🎮 **Supported pfSense Versions**
@@ -112,7 +112,8 @@ Add to your Claude Desktop configuration:
   "mcpServers": {
     "pfsense-enhanced": {
       "command": "python",
-      "args": ["/path/to/pfsense-mcp-server/main_enhanced_mcp.py"],
+      "args": ["-m", "src.main"],
+      "cwd": "/path/to/pfsense-mcp-server",
       "env": {
         "PFSENSE_URL": "https://your-pfsense.local",
         "PFSENSE_API_KEY": "your-api-key",
@@ -124,32 +125,95 @@ Add to your Claude Desktop configuration:
 }
 ```
 
-## 🛠️ Enhanced MCP Tools
+## API Endpoint Coverage
 
-### 🔍 **Search & Discovery**
-- `search_interfaces()` - Find interfaces with advanced filtering
-- `search_firewall_rules()` - Multi-field rule search with pagination
-- `search_aliases()` - Intelligent alias discovery
-- `search_dhcp_leases()` - DHCP lease management with state filtering
-- `find_blocked_rules()` - Locate blocking rules across interfaces
+### Firewall Rules
 
-### 🛡️ **Advanced Firewall Management**
-- `create_firewall_rule_advanced()` - Create rules with position control
-- `move_firewall_rule()` - Reorder rules dynamically
-- `bulk_block_ips()` - Block multiple IPs efficiently
-- `manage_alias_addresses()` - Add/remove alias entries
-- `analyze_blocked_traffic()` - Pattern analysis and threat scoring
+| Endpoint | Operations | MCP Tool(s) | Tested |
+|----------|-----------|-------------|--------|
+| `/firewall/rules` | Read | `search_firewall_rules`, `find_blocked_rules` | Yes |
+| `/firewall/rule` | Create | `create_firewall_rule_advanced`, `bulk_block_ips` | Yes |
+| `/firewall/rule` | Update | `update_firewall_rule`, `move_firewall_rule` | Yes |
+| `/firewall/rule` | Delete | `delete_firewall_rule` | Yes |
 
-### 📊 **Enhanced Monitoring**
-- `search_logs_by_ip()` - IP-specific log analysis
-- `get_api_capabilities()` - Discover API features
-- `follow_api_link()` - Navigate HATEOAS links dynamically
-- `refresh_object_ids()` - Handle dynamic ID changes
-- `find_object_by_field()` - Field-based object lookup
+### Firewall Aliases
 
-### ⚙️ **Object & ID Management**
-- `enable_hateoas()` / `disable_hateoas()` - Control navigation links
-- `test_enhanced_connection()` - Comprehensive connectivity testing
+| Endpoint | Operations | MCP Tool(s) | Tested |
+|----------|-----------|-------------|--------|
+| `/firewall/aliases` | Read | `search_aliases` | Yes |
+| `/firewall/alias` | Create | `create_alias` | Yes |
+| `/firewall/alias` | Update | `update_alias`, `manage_alias_addresses` | Yes |
+| `/firewall/alias` | Delete | `delete_alias` | Yes |
+
+### NAT Port Forwards
+
+| Endpoint | Operations | MCP Tool(s) | Tested |
+|----------|-----------|-------------|--------|
+| `/firewall/nat/port_forwards` | Read | `search_nat_port_forwards` | Yes |
+| `/firewall/nat/port_forward` | Create | `create_nat_port_forward` | Yes |
+| `/firewall/nat/port_forward` | Update | `update_nat_port_forward` | Yes |
+| `/firewall/nat/port_forward` | Delete | `delete_nat_port_forward` | Yes |
+
+### Interfaces
+
+| Endpoint | Operations | MCP Tool(s) | Tested |
+|----------|-----------|-------------|--------|
+| `/status/interfaces` | Read | `search_interfaces`, `find_interfaces_by_status` | Partial |
+
+### Services
+
+| Endpoint | Operations | MCP Tool(s) | Tested |
+|----------|-----------|-------------|--------|
+| `/status/services` | Read | `search_services` | Yes |
+| `/status/service` | Action (start/stop/restart) | `control_service` | Yes |
+
+### DHCP
+
+| Endpoint | Operations | MCP Tool(s) | Tested |
+|----------|-----------|-------------|--------|
+| `/status/dhcp_server/leases` | Read | `search_dhcp_leases` | Yes |
+| `/services/dhcp_server/static_mappings` | Read | `search_dhcp_static_mappings` | Yes |
+| `/services/dhcp_server/static_mapping` | Create | `create_dhcp_static_mapping` | Yes |
+| `/services/dhcp_server/static_mapping` | Update | `update_dhcp_static_mapping` | Yes |
+| `/services/dhcp_server/static_mapping` | Delete | `delete_dhcp_static_mapping` | Yes |
+
+### Logs & Monitoring
+
+| Endpoint | Operations | MCP Tool(s) | Tested |
+|----------|-----------|-------------|--------|
+| `/status/logs/firewall` | Read | `get_firewall_log`, `analyze_blocked_traffic`, `search_logs_by_ip` | Partial |
+| `/status/system` | Read | `system_status` | Yes |
+
+### Diagnostics
+
+| Endpoint | Operations | MCP Tool(s) | Tested |
+|----------|-----------|-------------|--------|
+| `/diagnostics/arp_table` | Read | `get_arp_table` | Partial |
+| `/diagnostics/command/prompt` | Execute | `get_pf_rules` | Partial |
+
+### System & API
+
+| Endpoint | Operations | MCP Tool(s) | Tested |
+|----------|-----------|-------------|--------|
+| `/system/restapi/settings` | Read | `get_api_capabilities` | Partial |
+| HATEOAS links | Navigation | `follow_api_link`, `enable_hateoas`, `disable_hateoas` | Partial |
+| Dynamic endpoints | Lookup | `refresh_object_ids`, `find_object_by_field` | Partial |
+| Connection test | Diagnostic | `test_enhanced_connection` | Partial |
+
+### Not Yet Implemented
+
+Major pfSense API v2 endpoint categories not yet covered:
+
+- **Routing** -- static routes, gateways, gateway groups (`/routing/*`)
+- **VPN** -- OpenVPN servers/clients, IPSec phases, WireGuard tunnels/peers (`/vpn/*`)
+- **DNS** -- resolver/forwarder config, host overrides (`/services/dns_resolver/*`, `/services/dns_forwarder/*`)
+- **Certificates** -- CA, CRT, CSR management (`/certificates/*`)
+- **Users & Auth** -- user/group CRUD, LDAP/RADIUS config (`/users/*`, `/auth/*`)
+- **NAT Outbound / 1:1** -- outbound NAT rules, 1:1 NAT (`/firewall/nat/outbound`, `/firewall/nat/1to1`)
+- **Advanced Firewall** -- schedules, traffic shaper, virtual IPs, connection states
+- **Interface Config** -- VLANs, bridges, LAGs, individual interface settings
+- **Other Logs** -- system, DHCP, VPN, captive portal logs
+- **Diagnostics** -- routing table, DNS lookups
 
 ## 💬 Enhanced Example Prompts
 
@@ -186,21 +250,20 @@ Add to your Claude Desktop configuration:
 ## 🧪 Testing
 
 ```bash
-# Test basic API connection
-python test_pfsense_api_v2.py
-
-# Test all enhanced features
-python test_enhanced_features.py
-
-# Run comprehensive test suite
+# Run the full test suite
 pytest tests/ -v
 
-# Test specific MCP tools
-python -c "
-import asyncio
-from main_enhanced_mcp import search_firewall_rules
-print(asyncio.run(search_firewall_rules(interface='wan', page_size=5)))
-"
+# Run with coverage report
+pytest tests/ --cov=src --cov-report=term-missing
+
+# Run only MCP tool tests
+pytest tests/test_main.py -v
+
+# Run only API client tests
+pytest tests/test_api_client.py -v
+
+# Test live connection to pfSense (requires .env configured)
+python tests/test_enhanced_features.py
 ```
 
 ## 🏗️ Architecture
@@ -300,18 +363,6 @@ Contributors will be:
 
 *"The best open source projects are built by communities, not individuals. Your contribution, no matter how small, makes a difference!"*
 
-## 📊 Feature Comparison
-
-| Feature | Basic MCP | Enhanced MCP | Benefits |
-|---------|-----------|--------------|----------|
-| **API Integration** | XML-RPC only | REST API v2 + fallbacks | Modern, faster, more reliable |
-| **Filtering** | Basic queries | 8 filter types + regex | Find exactly what you need |
-| **Pagination** | None | Smart pagination | Handle large datasets |
-| **Object Management** | Static IDs | Dynamic ID handling | Robust against changes |
-| **Navigation** | Manual endpoints | HATEOAS links | Discover API capabilities |
-| **Controls** | Basic operations | Fine-grained parameters | Precise operation control |
-| **Performance** | Basic caching | Advanced optimization | Faster response times |
-
 ## 🔒 Security Considerations
 
 - **🔐 Authentication**: Multi-method support with privilege checking
@@ -356,7 +407,7 @@ Contributors will be:
 - 🔗 HATEOAS navigation support
 - ⚙️ Control parameters implementation
 - 🆔 Dynamic object ID management
-- 🛠️ 25+ enhanced MCP tools
+- 🛠️ 41 MCP tools with full CRUD for core resources
 - 📚 Comprehensive documentation
 
 ### v3.0.0 - FastMCP Integration

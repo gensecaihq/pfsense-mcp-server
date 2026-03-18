@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pfsense-mcp-server"
+version = "4.0.0"
+description = "MCP server for pfSense firewall management"
+requires-python = ">=3.11"
+
+dependencies = [
+    "fastmcp==2.14.0",
+    "python-dotenv>=1.0.0",
+    "httpx",
+    "pydantic",
+    "cachetools",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
