@@ -98,7 +98,7 @@ async def manage_alias_addresses(
             result = await client.remove_from_alias(alias_id, addresses)
             message = f"Removed {len(addresses)} addresses from alias {alias_id}"
         else:
-            return {"success": False, "error": "Action must be 'add' or 'remove'"}
+            return {"success": False, "error": f"Invalid action '{action}'. Must be 'add' or 'remove'."}
 
         return {
             "success": True,

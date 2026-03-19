@@ -40,7 +40,7 @@ async def search_dhcp_leases(
     """Search DHCP leases with advanced filtering
 
     Args:
-        search_term: General search term for hostname or IP
+        search_term: General search (hostname, IP, MAC) — client-side filter applied after pagination
         interface: Filter by interface
         mac_address: Filter by specific MAC address
         hostname: Filter by hostname (supports partial matching)
