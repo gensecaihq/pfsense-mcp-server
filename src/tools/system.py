@@ -69,7 +69,7 @@ async def search_interfaces(
             "success": True,
             "page": page,
             "page_size": page_size,
-            "total_results": len(interfaces.get("data") or []),
+            "count": len(interfaces.get("data") or []),
             "interfaces": interfaces.get("data") or [],
             "links": client.extract_links(interfaces),
             "timestamp": datetime.now(timezone.utc).isoformat()

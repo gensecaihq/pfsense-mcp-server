@@ -230,6 +230,10 @@ async def update_nat_port_forward(
                 if port_error:
                     return {"success": False, "error": port_error}
 
+        # Validate nat_reflection
+        if nat_reflection is not None and nat_reflection not in ("enable", "disable", "purenat"):
+            return {"success": False, "error": f"Invalid nat_reflection '{nat_reflection}'. Must be: enable, disable, purenat"}
+
         field_map = {
             "interface": "interface",
             "protocol": "protocol",

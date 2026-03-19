@@ -21,21 +21,23 @@ async def search_firewall_rules(
     source_ip: Optional[str] = None,
     destination_port: Optional[Union[int, str]] = None,
     rule_type: Optional[str] = None,
+    disabled: Optional[bool] = None,
     search_description: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     sort_by: str = "tracker"
 ) -> Dict:
-    """Search firewall rules with advanced filtering and pagination
+    """Search firewall rules with advanced filtering and pagination.
 
     Args:
         interface: Filter by interface (wan, lan, etc.)
         source_ip: Filter by source IP (supports partial matching)
         destination_port: Filter by destination port
         rule_type: Filter by rule type (pass, block, reject)
+        disabled: Filter by enabled/disabled state (true = disabled rules only)
         search_description: Search in rule descriptions
         page: Page number for pagination
-        page_size: Number of results per page
+        page_size: Number of results per page (max 200)
         sort_by: Field to sort by (tracker, interface, type, descr, etc.)
     """
     client = get_api_client()
@@ -53,6 +55,9 @@ async def search_firewall_rules(
 
         if rule_type:
             filters.append(QueryFilter("type", rule_type))
+
+        if disabled is not None:
+            filters.append(QueryFilter("disabled", disabled))
 
         if search_description:
             filters.append(QueryFilter("descr", search_description, "contains"))
@@ -75,7 +80,8 @@ async def search_firewall_rules(
                 "source_ip": source_ip,
                 "destination_port": destination_port,
                 "rule_type": rule_type,
-                "search_description": search_description
+                "disabled": disabled,
+                "search_description": search_description,
             },
             "count": len(rules.get("data") or []),
             "rules": rules.get("data") or [],
@@ -129,10 +135,13 @@ async def create_firewall_rule_advanced(
     source: str,
     destination: str,
     description: Optional[str] = None,
+    source_port: Optional[str] = None,
     destination_port: Optional[str] = None,
+    gateway: Optional[str] = None,
     position: Optional[int] = None,
+    disabled: bool = False,
     apply_immediately: bool = True,
-    log_matches: bool = True
+    log_matches: bool = True,
 ) -> Dict:
     """Create a firewall rule on the live pfSense appliance.
 
@@ -145,18 +154,30 @@ async def create_firewall_rule_advanced(
         source: Source address (any, IP, network, alias name)
         destination: Destination address (any, IP, network, alias name)
         description: Optional rule description
-        destination_port: Single port (443), range (1024-65535), or alias name (MyPorts). Do NOT pass multiple space/comma-separated ports — create a port alias first instead.
-        position: Optional position to insert rule (0 = top)
-        apply_immediately: Whether to apply changes immediately
-        log_matches: Whether to log rule matches
+        source_port: Source port — single (443), range (1024-65535), or alias name
+        destination_port: Destination port — single (443), range (1024-65535), or alias name
+        gateway: Optional gateway for policy routing (e.g., "WAN_DHCP")
+        position: Position to insert rule (0 = top). Rule is created first, then moved.
+        disabled: Create the rule in disabled state (useful for staging)
+        apply_immediately: Whether to apply changes to the running firewall
+        log_matches: Whether to log packets matching this rule
     """
     client = get_api_client()
 
-    # Validate port format before sending to API
-    if destination_port:
-        port_error = validate_port_value(destination_port, "destination_port")
-        if port_error:
-            return {"success": False, "error": port_error}
+    # Validate rule_type
+    if rule_type not in ("pass", "block", "reject"):
+        return {"success": False, "error": f"Invalid rule_type '{rule_type}'. Must be: pass, block, reject"}
+
+    # Validate protocol
+    if protocol.lower() not in ("tcp", "udp", "icmp", "any"):
+        return {"success": False, "error": f"Invalid protocol '{protocol}'. Must be: tcp, udp, icmp, any"}
+
+    # Validate port formats before sending to API
+    for port_param, port_val in [("source_port", source_port), ("destination_port", destination_port)]:
+        if port_val:
+            port_error = validate_port_value(port_val, port_param)
+            if port_error:
+                return {"success": False, "error": port_error}
 
     rule_data = {
         "interface": [interface] if isinstance(interface, str) else interface,
@@ -164,10 +185,14 @@ async def create_firewall_rule_advanced(
         "ipprotocol": "inet",
         "source": source,
         "destination": destination,
-        "descr": description or f"Created via Enhanced MCP at {datetime.now(timezone.utc).isoformat()}",
+        "descr": description or f"Created via MCP at {datetime.now(timezone.utc).isoformat()}",
         "log": log_matches,
         "statetype": "keep state",  # Required for pf filter compiler
+        "disabled": disabled,
     }
+
+    if gateway:
+        rule_data["gateway"] = gateway
 
     # Handle protocol field - try null for "any", otherwise use the specified protocol
     if protocol and protocol.lower() == "any":
@@ -175,6 +200,8 @@ async def create_firewall_rule_advanced(
     elif protocol:
         rule_data["protocol"] = protocol
 
+    if source_port:
+        rule_data["source_port"] = source_port
     if destination_port:
         rule_data["destination_port"] = destination_port
 
