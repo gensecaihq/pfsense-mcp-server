@@ -67,8 +67,10 @@ def get_api_client() -> EnhancedPfSenseAPIClient:
 
         pfsense_url = os.getenv("PFSENSE_URL", "").strip()
         if not pfsense_url:
-            logger.warning("PFSENSE_URL is not set — copy .env.example to .env and configure it")
-            pfsense_url = "https://pfsense.local"
+            raise ValueError(
+                "PFSENSE_URL is not set. Copy .env.example to .env and configure it, "
+                "or set the PFSENSE_URL environment variable."
+            )
 
         api_key = (os.getenv("PFSENSE_API_KEY") or "").strip() or None
         if auth_method == AuthMethod.API_KEY and not api_key:

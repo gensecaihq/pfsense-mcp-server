@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
-from ..helpers import VALID_LOG_TYPES
+from ..helpers import VALID_LOG_TYPES, validate_ip_address
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
 
@@ -191,6 +191,12 @@ async def search_logs_by_ip(
         log_type: Type of logs to search (firewall, system, etc.)
         lines: Number of log lines to retrieve (default 50, max 50)
     """
+    # Validate IP address format
+    try:
+        validate_ip_address(ip_address)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+
     client = get_api_client()
     try:
         safe_lines = max(1, min(lines, 50))

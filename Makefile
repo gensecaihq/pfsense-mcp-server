@@ -1,10 +1,10 @@
 # pfSense MCP Server Makefile
 SHELL := /bin/bash
-.PHONY: help build run stop clean test logs shell lint format security-scan
+.PHONY: help build run stop clean test lint format logs shell
 
 # Variables
-VERSION ?= 2.0.0
-DOCKER_REGISTRY ?= 
+VERSION ?= 5.0.0
+DOCKER_REGISTRY ?=
 IMAGE_NAME ?= pfsense-mcp
 FULL_IMAGE_NAME = $(if $(DOCKER_REGISTRY),$(DOCKER_REGISTRY)/$(IMAGE_NAME),$(IMAGE_NAME))
 
@@ -27,108 +27,66 @@ check-env: ## Check required environment variables
 	fi
 	@echo "$(GREEN)Environment file found$(NC)"
 
-build: check-env ## Build Docker images
+build: ## Build Docker image
 	@echo "$(YELLOW)Building pfSense MCP Server v$(VERSION)...$(NC)"
-	@docker-compose build \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg BUILD_DATE=$(shell date -u +'%Y-%m-%dT%H:%M:%SZ') \
-		--build-arg VCS_REF=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+	docker compose build --build-arg VERSION=$(VERSION)
 	@echo "$(GREEN)Build complete$(NC)"
 
-run: check-env ## Run the application stack
+run: check-env ## Run with Docker Compose (HTTP mode)
 	@echo "$(YELLOW)Starting pfSense MCP Server...$(NC)"
-	@docker-compose up -d
-	@echo "$(GREEN)Stack started. Waiting for services...$(NC)"
-	@sleep 5
-	@make health-check
+	docker compose up -d
+	@echo "$(GREEN)Server started on port $${MCP_PORT:-3000}$(NC)"
 
-run-dev: check-env ## Run in development mode
-	@echo "$(YELLOW)Starting in development mode...$(NC)"
-	@PRODUCTION=false docker-compose up
+run-local: check-env ## Run locally in stdio mode
+	@echo "$(YELLOW)Starting in stdio mode...$(NC)"
+	python3 -m src.main
 
-stop: ## Stop the application stack
+run-http: check-env ## Run locally in HTTP mode
+	@echo "$(YELLOW)Starting in HTTP mode...$(NC)"
+	python3 -m src.main -t streamable-http
+
+stop: ## Stop Docker Compose stack
 	@echo "$(YELLOW)Stopping services...$(NC)"
-	@docker-compose down
+	docker compose down
 	@echo "$(GREEN)Services stopped$(NC)"
 
-restart: stop run ## Restart the application stack
+restart: stop run ## Restart Docker Compose stack
 
-logs: ## View application logs
-	@docker-compose logs -f pfsense-mcp
+logs: ## View container logs
+	docker compose logs -f pfsense-mcp
 
-logs-all: ## View all service logs
-	@docker-compose logs -f
-
-shell: ## Open shell in MCP container
-	@docker-compose exec pfsense-mcp /bin/bash
-
-shell-root: ## Open root shell in MCP container
-	@docker-compose exec -u root pfsense-mcp /bin/bash
-
-health-check: ## Check health of all services
-	@echo "$(YELLOW)Checking service health...$(NC)"
-	@docker-compose ps
-	@echo ""
-	@curl -s http://localhost:8000/health | jq . || echo "$(RED)MCP Server health check failed$(NC)"
-	@echo ""
-	@docker-compose exec redis redis-cli --pass changeme ping || echo "$(RED)Redis health check failed$(NC)"
-	@echo ""
-	@docker-compose exec postgres pg_isready -U mcp || echo "$(RED)PostgreSQL health check failed$(NC)"
+shell: ## Open shell in container
+	docker compose exec pfsense-mcp /bin/bash
 
 test: ## Run tests
 	@echo "$(YELLOW)Running tests...$(NC)"
-	@docker-compose exec pfsense-mcp pytest tests/ -v --cov=. --cov-report=term-missing
+	python3 -m pytest tests/ -v
 
-test-integration: ## Run integration tests
-	@echo "$(YELLOW)Running integration tests...$(NC)"
-	@docker-compose exec pfsense-mcp pytest tests/integration/ -v
+test-cov: ## Run tests with coverage
+	@echo "$(YELLOW)Running tests with coverage...$(NC)"
+	python3 -m pytest tests/ --cov=src --cov-report=term-missing
 
 lint: ## Run linting
-	@echo "$(YELLOW)Running linters...$(NC)"
-	@docker-compose exec pfsense-mcp ruff check .
-	@docker-compose exec pfsense-mcp mypy .
+	@echo "$(YELLOW)Running linter...$(NC)"
+	ruff check .
 
 format: ## Format code
 	@echo "$(YELLOW)Formatting code...$(NC)"
-	@docker-compose exec pfsense-mcp black .
-	@docker-compose exec pfsense-mcp ruff check --fix .
+	ruff check --fix .
 
-security-scan: ## Run security scan
-	@echo "$(YELLOW)Running security scan...$(NC)"
-	@docker run --rm -v $(PWD):/src \
-		aquasec/trivy fs --severity HIGH,CRITICAL /src
-
-db-migrate: ## Run database migrations
-	@echo "$(YELLOW)Running database migrations...$(NC)"
-	@docker-compose exec pfsense-mcp alembic upgrade head
-
-db-rollback: ## Rollback database migration
-	@echo "$(YELLOW)Rolling back database migration...$(NC)"
-	@docker-compose exec pfsense-mcp alembic downgrade -1
-
-backup: ## Backup configuration and data
-	@echo "$(YELLOW)Creating backup...$(NC)"
-	@mkdir -p backups
-	@tar -czf backups/backup-$(shell date +%Y%m%d-%H%M%S).tar.gz \
-		config/ data/ .env
-	@echo "$(GREEN)Backup created in backups/$(NC)"
-
-restore: ## Restore from backup (BACKUP=filename)
-	@if [ -z "$(BACKUP)" ]; then \
-		echo "$(RED)Error: BACKUP variable required$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(YELLOW)Restoring from $(BACKUP)...$(NC)"
-	@tar -xzf backups/$(BACKUP)
-	@echo "$(GREEN)Restore complete$(NC)"
+health-check: ## Check server health (HTTP mode only)
+	@echo "$(YELLOW)Checking service health...$(NC)"
+	@docker compose ps
+	@echo ""
+	@curl -sf http://localhost:$${MCP_PORT:-3000}/mcp && echo "$(GREEN)MCP endpoint healthy$(NC)" || echo "$(RED)MCP endpoint not responding$(NC)"
 
 clean: ## Clean up containers and volumes
-	@echo "$(RED)Warning: This will delete all data!$(NC)"
+	@echo "$(RED)Warning: This will delete containers and logs!$(NC)"
 	@read -p "Are you sure? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker-compose down -v; \
-		rm -rf data/ logs/; \
+		docker compose down -v; \
+		rm -rf logs/; \
 		echo "$(GREEN)Cleanup complete$(NC)"; \
 	fi
 
@@ -138,41 +96,13 @@ push: ## Push image to registry
 		exit 1; \
 	fi
 	@echo "$(YELLOW)Pushing $(FULL_IMAGE_NAME):$(VERSION)...$(NC)"
-	@docker tag $(IMAGE_NAME):$(VERSION) $(FULL_IMAGE_NAME):$(VERSION)
-	@docker tag $(IMAGE_NAME):$(VERSION) $(FULL_IMAGE_NAME):latest
-	@docker push $(FULL_IMAGE_NAME):$(VERSION)
-	@docker push $(FULL_IMAGE_NAME):latest
+	docker tag $(IMAGE_NAME):$(VERSION) $(FULL_IMAGE_NAME):$(VERSION)
+	docker tag $(IMAGE_NAME):$(VERSION) $(FULL_IMAGE_NAME):latest
+	docker push $(FULL_IMAGE_NAME):$(VERSION)
+	docker push $(FULL_IMAGE_NAME):latest
 	@echo "$(GREEN)Push complete$(NC)"
 
-deploy: build push ## Build and deploy to registry
-	@echo "$(GREEN)Deployment complete$(NC)"
-
-metrics: ## View Prometheus metrics
-	@open http://localhost:9091 || xdg-open http://localhost:9091
-
-grafana: ## Open Grafana dashboard
-	@open http://localhost:3000 || xdg-open http://localhost:3000
-
-cli-mode: check-env ## Run in CLI mode for Claude Desktop
-	@echo "$(YELLOW)Starting in CLI mode...$(NC)"
-	@docker run -it --rm \
-		--env-file .env \
-		-e MCP_MODE=stdio \
-		$(IMAGE_NAME):$(VERSION)
-
-generate-certs: ## Generate self-signed certificates
-	@echo "$(YELLOW)Generating self-signed certificates...$(NC)"
-	@mkdir -p config/ssl
-	@openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-		-keyout config/ssl/key.pem \
-		-out config/ssl/cert.pem \
-		-subj "/C=US/ST=State/L=City/O=Organization/CN=pfsense-mcp.local"
-	@echo "$(GREEN)Certificates generated in config/ssl/$(NC)"
-
-install-hooks: ## Install git hooks
-	@echo "$(YELLOW)Installing git hooks...$(NC)"
-	@pre-commit install
-	@echo "$(GREEN)Git hooks installed$(NC)"
+deploy: build push ## Build and push to registry
 
 version: ## Show version
 	@echo "pfSense MCP Server v$(VERSION)"

@@ -7,7 +7,9 @@ from ..helpers import (
     create_default_sort,
     create_interface_filter,
     create_pagination,
+    validate_ip_address,
     validate_port_value,
+    validate_protocol,
 )
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
@@ -110,6 +112,18 @@ async def create_nat_port_forward(
         create_associated_rule: Whether to create an associated firewall pass rule
         apply_immediately: Whether to apply changes immediately
     """
+    # Validate protocol
+    protocol_error = validate_protocol(protocol)
+    if protocol_error:
+        return {"success": False, "error": protocol_error}
+
+    # Validate target IP (unless it looks like an alias name)
+    if target and target[0].isdigit():
+        try:
+            validate_ip_address(target)
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
     client = get_api_client()
     try:
         # Validate port formats before sending to API

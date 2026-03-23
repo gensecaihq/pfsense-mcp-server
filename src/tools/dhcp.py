@@ -3,7 +3,12 @@
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
-from ..helpers import create_default_sort, create_pagination
+from ..helpers import (
+    create_default_sort,
+    create_pagination,
+    validate_ip_address,
+    validate_mac_address,
+)
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
 
@@ -210,6 +215,17 @@ async def create_dhcp_static_mapping(
         dns_server: Optional DNS server override
         apply_immediately: Whether to apply changes immediately
     """
+    # Validate MAC address format
+    mac_error = validate_mac_address(mac_address)
+    if mac_error:
+        return {"success": False, "error": mac_error}
+
+    # Validate IP address
+    try:
+        validate_ip_address(ip_address)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+
     client = get_api_client()
     try:
         mapping_data = {

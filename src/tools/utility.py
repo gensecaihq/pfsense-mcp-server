@@ -11,7 +11,7 @@ from ..server import get_api_client, logger, mcp
 _SAFE_ENDPOINT_PREFIXES = (
     "/firewall/", "/status/", "/services/", "/diagnostics/",
     "/system/", "/vpn/", "/routing/", "/interface/",
-    "/user", "/certificates/",
+    "/user/", "/certificates/",
 )
 
 
@@ -39,6 +39,16 @@ async def follow_api_link(link_url: str) -> Dict:
     """
     client = get_api_client()
     try:
+        # Resolve the link to a relative endpoint path and validate it
+        url = link_url.strip()
+        if url.startswith(client.host):
+            endpoint = url.replace(client.host, "").replace("/api/v2", "")
+        elif url.startswith("/api/v2"):
+            endpoint = url.replace("/api/v2", "")
+        else:
+            endpoint = url
+        _validate_endpoint(endpoint)
+
         result = await client.follow_link(link_url)
 
         return {
@@ -57,26 +67,34 @@ async def follow_api_link(link_url: str) -> Dict:
 async def enable_hateoas() -> Dict:
     """Enable HATEOAS links in API responses for this session"""
     client = get_api_client()
-    result = await client.enable_hateoas()
-    return {
-        "success": True,
-        "message": "HATEOAS enabled - API responses will now include navigation links",
-        "result": result,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    try:
+        result = await client.enable_hateoas()
+        return {
+            "success": True,
+            "message": "HATEOAS enabled - API responses will now include navigation links",
+            "result": result,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to enable HATEOAS: {e}")
+        return {"success": False, "error": str(e)}
 
 
 @mcp.tool()
 async def disable_hateoas() -> Dict:
     """Disable HATEOAS links in API responses for this session"""
     client = get_api_client()
-    result = await client.disable_hateoas()
-    return {
-        "success": True,
-        "message": "HATEOAS disabled - API responses will be more compact",
-        "result": result,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    try:
+        result = await client.disable_hateoas()
+        return {
+            "success": True,
+            "message": "HATEOAS disabled - API responses will be more compact",
+            "result": result,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to disable HATEOAS: {e}")
+        return {"success": False, "error": str(e)}
 
 
 @mcp.tool()

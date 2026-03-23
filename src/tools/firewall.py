@@ -4,11 +4,12 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Union
 
 from ..helpers import (
+    MAX_BULK_IPS,
     create_default_sort,
     create_interface_filter,
     create_pagination,
-    validate_ip_address,
     create_port_filter,
+    validate_ip_address,
     validate_port_value,
 )
 from ..models import ControlParameters, QueryFilter
@@ -169,8 +170,8 @@ async def create_firewall_rule_advanced(
         return {"success": False, "error": f"Invalid rule_type '{rule_type}'. Must be: pass, block, reject"}
 
     # Validate protocol
-    if protocol.lower() not in ("tcp", "udp", "icmp", "any"):
-        return {"success": False, "error": f"Invalid protocol '{protocol}'. Must be: tcp, udp, icmp, any"}
+    if protocol.lower() not in ("tcp", "udp", "tcp/udp", "icmp", "any"):
+        return {"success": False, "error": f"Invalid protocol '{protocol}'. Must be: tcp, udp, tcp/udp, icmp, any"}
 
     # Validate port formats before sending to API
     for port_param, port_val in [("source_port", source_port), ("destination_port", destination_port)]:
@@ -421,6 +422,13 @@ async def bulk_block_ips(
         interface: Interface to apply blocks on
         description_prefix: Prefix for rule descriptions
     """
+    # Cap bulk operations to prevent overwhelming pfSense
+    if len(ip_addresses) > MAX_BULK_IPS:
+        return {
+            "success": False,
+            "error": f"Too many IPs ({len(ip_addresses)}). Maximum is {MAX_BULK_IPS} per call.",
+        }
+
     client = get_api_client()
     results = []
     errors = []

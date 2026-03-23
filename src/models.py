@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 
 class PfSenseVersion(str, Enum):
@@ -12,10 +12,6 @@ class PfSenseVersion(str, Enum):
     PLUS_24_11 = "24.11"
     PLUS_25_11 = "25.11"
 
-
-# Sort order constants (for use outside SortOptions)
-SORT_ASC = "SORT_ASC"
-SORT_DESC = "SORT_DESC"
 
 
 class AuthMethod(str, Enum):
@@ -43,12 +39,12 @@ class QueryFilter:
                 f"Must be one of: {', '.join(sorted(self.VALID_OPERATORS))}"
             )
 
-    def to_param(self) -> str:
-        """Convert filter to URL parameter"""
+    def to_param(self) -> Tuple[str, str]:
+        """Convert filter to a (key, value) tuple for URL parameters."""
         if self.operator == "exact":
-            return f"{self.field}={self.value}"
+            return (self.field, str(self.value))
         else:
-            return f"{self.field}__{self.operator}={self.value}"
+            return (f"{self.field}__{self.operator}", str(self.value))
 
 
 @dataclass
@@ -56,7 +52,6 @@ class SortOptions:
     """Represents sorting options for API requests"""
     sort_by: Optional[str] = None
     sort_order: str = "SORT_ASC"  # SORT_ASC, SORT_DESC (per pfSense API v2 docs)
-    reverse: bool = False
 
     def to_params(self) -> Dict[str, str]:
         """Convert to URL parameters"""
@@ -64,8 +59,6 @@ class SortOptions:
         if self.sort_by:
             params["sort_by"] = self.sort_by
             params["sort_order"] = self.sort_order
-        if self.reverse:
-            params["reverse"] = "true"
         return params
 
 

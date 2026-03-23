@@ -150,3 +150,43 @@ def normalize_protocol(protocol: Optional[str]) -> Optional[str]:
     if protocol.lower() == "any":
         return None
     return protocol.lower()
+
+
+# Alias name: 1-31 chars, starts with letter or underscore, alphanumeric/underscores only
+_ALIAS_NAME_RE = re.compile(r"^[A-Za-z_]\w{0,30}$")
+
+VALID_ALIAS_TYPES = frozenset({"host", "network", "port", "url"})
+
+VALID_PROTOCOLS = frozenset({"tcp", "udp", "icmp", "tcp/udp", "any"})
+
+_MAC_RE = re.compile(r"^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$")
+
+MAX_BULK_IPS = 100
+
+
+def validate_alias_name(name: str) -> Optional[str]:
+    """Return an error message if the alias name is invalid, else None."""
+    if not _ALIAS_NAME_RE.match(name):
+        return (
+            f"Invalid alias name '{name}'. Must be 1-31 characters, "
+            "start with a letter or underscore, and contain only "
+            "alphanumeric characters and underscores."
+        )
+    return None
+
+
+def validate_mac_address(mac: str) -> Optional[str]:
+    """Return an error message if the MAC address is invalid, else None."""
+    if not _MAC_RE.match(mac.strip()):
+        return f"Invalid MAC address '{mac}'. Expected format: XX:XX:XX:XX:XX:XX"
+    return None
+
+
+def validate_protocol(protocol: str) -> Optional[str]:
+    """Return an error message if the protocol is invalid, else None."""
+    if protocol.lower() not in VALID_PROTOCOLS:
+        return (
+            f"Invalid protocol '{protocol}'. "
+            f"Must be one of: {', '.join(sorted(VALID_PROTOCOLS))}"
+        )
+    return None

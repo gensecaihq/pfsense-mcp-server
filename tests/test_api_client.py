@@ -33,24 +33,19 @@ from src.models import (
 
 class TestQueryFilter:
     def test_exact(self):
-        assert QueryFilter("name", "foo").to_param() == "name=foo"
+        assert QueryFilter("name", "foo").to_param() == ("name", "foo")
 
     def test_contains(self):
-        assert QueryFilter("name", "foo", "contains").to_param() == "name__contains=foo"
+        assert QueryFilter("name", "foo", "contains").to_param() == ("name__contains", "foo")
 
     def test_gte(self):
-        assert QueryFilter("age", "18", "gte").to_param() == "age__gte=18"
+        assert QueryFilter("age", "18", "gte").to_param() == ("age__gte", "18")
 
 
 class TestSortOptions:
     def test_to_params(self):
         s = SortOptions(sort_by="name", sort_order="SORT_ASC")
         assert s.to_params() == {"sort_by": "name", "sort_order": "SORT_ASC"}
-
-    def test_reverse(self):
-        s = SortOptions(sort_by="name", reverse=True)
-        params = s.to_params()
-        assert params["reverse"] == "true"
 
     def test_empty(self):
         s = SortOptions()

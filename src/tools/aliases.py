@@ -3,7 +3,12 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from ..helpers import create_default_sort, create_pagination
+from ..helpers import (
+    VALID_ALIAS_TYPES,
+    create_default_sort,
+    create_pagination,
+    validate_alias_name,
+)
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
 
@@ -134,6 +139,18 @@ async def create_alias(
         details: Optional per-entry descriptions (same length as addresses)
         apply_immediately: Whether to apply changes immediately
     """
+    # Validate alias name
+    name_error = validate_alias_name(name)
+    if name_error:
+        return {"success": False, "error": name_error}
+
+    # Validate alias type
+    if alias_type not in VALID_ALIAS_TYPES:
+        return {
+            "success": False,
+            "error": f"Invalid alias_type '{alias_type}'. Must be one of: {', '.join(sorted(VALID_ALIAS_TYPES))}",
+        }
+
     client = get_api_client()
     try:
         alias_data = {

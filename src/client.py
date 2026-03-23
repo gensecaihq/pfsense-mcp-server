@@ -155,7 +155,7 @@ class EnhancedPfSenseAPIClient:
         # Add filters
         if filters:
             for filter_obj in filters:
-                key, value = filter_obj.to_param().split("=", 1)
+                key, value = filter_obj.to_param()
                 params[key] = value
 
         # Add sorting
@@ -604,6 +604,9 @@ class EnhancedPfSenseAPIClient:
             lines=min(lines, 50)
         )
 
+    # Allowlist of valid log types to prevent path traversal via log endpoint
+    _VALID_LOG_TYPES = frozenset({"firewall", "system", "dhcp", "openvpn", "auth"})
+
     async def get_logs(
         self,
         log_type: str,
@@ -614,6 +617,12 @@ class EnhancedPfSenseAPIClient:
 
         Valid log_type values: firewall, system, dhcp, openvpn, auth
         """
+        log_type = log_type.lower().strip()
+        if log_type not in self._VALID_LOG_TYPES:
+            raise ValueError(
+                f"Invalid log type '{log_type}'. "
+                f"Allowed: {', '.join(sorted(self._VALID_LOG_TYPES))}"
+            )
         safe_lines = max(1, min(lines, 50))
         pagination = PaginationOptions(limit=safe_lines)
         endpoint = f"/status/logs/{log_type}"
@@ -926,15 +935,28 @@ class EnhancedPfSenseAPIClient:
 
     # Diagnostic Commands
 
+    # Allowlist of safe diagnostic commands — NEVER add user-supplied commands
+    _ALLOWED_DIAGNOSTIC_COMMANDS = frozenset({
+        "cat /tmp/rules.debug",
+    })
+
     async def _run_diagnostic_command(self, command: str) -> Dict:
         """Run a diagnostic shell command on pfSense (internal use only).
 
-        This method is intentionally private to prevent arbitrary command
-        execution from being exposed as a public API.
+        This method is intentionally private AND restricted to an allowlist
+        to prevent arbitrary command execution on the pfSense appliance.
 
         Args:
-            command: Shell command to execute
+            command: Shell command to execute (must be in _ALLOWED_DIAGNOSTIC_COMMANDS)
+
+        Raises:
+            ValueError: If the command is not in the allowlist
         """
+        if command not in self._ALLOWED_DIAGNOSTIC_COMMANDS:
+            raise ValueError(
+                f"Command not permitted. Allowed commands: "
+                f"{', '.join(sorted(self._ALLOWED_DIAGNOSTIC_COMMANDS))}"
+            )
         return await self._make_request(
             "POST", "/diagnostics/command_prompt",
             data={"command": command}

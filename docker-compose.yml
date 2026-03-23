@@ -25,7 +25,7 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:3000/mcp')"]
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:3000/mcp"]
       interval: 30s
       timeout: 10s
       start_period: 40s
