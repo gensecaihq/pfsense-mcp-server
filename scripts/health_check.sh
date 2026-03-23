@@ -11,25 +11,38 @@ fi
 
 # Check Python
 echo -n "Python version: "
-python --version
+python3 --version 2>/dev/null || python --version
 
 # Check connection
 echo -n "Testing pfSense connection: "
-python scripts/test_connection.py > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-    echo "✅ Connected"
+if python3 -c "
+import asyncio, os, sys
+sys.path.insert(0, '.')
+from src.server import get_api_client, reset_api_client
+async def test():
+    client = get_api_client()
+    try:
+        return await client.test_connection()
+    finally:
+        await client.close()
+        reset_api_client()
+result = asyncio.run(test())
+sys.exit(0 if result else 1)
+" 2>/dev/null; then
+    echo "Connected"
 else
-    echo "❌ Failed"
+    echo "Failed"
 fi
 
-# Check HTTP endpoint (if in HTTP mode)
-if [ "$MCP_MODE" = "http" ]; then
-    echo -n "HTTP endpoint: "
-    curl -s http://localhost:8000/health > /dev/null
-    if [ $? -eq 0 ]; then
-        echo "✅ Healthy"
+# Check HTTP endpoint (if in HTTP transport mode)
+TRANSPORT="${MCP_TRANSPORT:-stdio}"
+if [ "$TRANSPORT" = "streamable-http" ]; then
+    PORT="${MCP_PORT:-3000}"
+    echo -n "HTTP endpoint (port $PORT): "
+    if curl -sf "http://localhost:$PORT/mcp" > /dev/null 2>&1; then
+        echo "Healthy"
     else
-        echo "❌ Not responding"
+        echo "Not responding"
     fi
 fi
 

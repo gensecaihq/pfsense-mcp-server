@@ -1,6 +1,6 @@
 FROM python:3.11-slim AS builder
 
-ARG VERSION=4.0.0
+ARG VERSION=5.0.0
 
 LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="pfSense MCP Server" \

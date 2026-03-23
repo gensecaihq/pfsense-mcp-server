@@ -22,7 +22,7 @@ fi
 # Create manifest
 cat > "$BACKUP_DIR/manifest_$DATE.txt" << MANIFEST
 Backup Date: $DATE
-Version: $(grep VERSION main.py | head -1 | cut -d'"' -f2)
+Version: $(grep VERSION src/server.py | head -1 | cut -d'"' -f2)
 Files:
 - .env.$DATE
 - logs_$DATE.tar.gz

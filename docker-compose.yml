@@ -11,7 +11,9 @@ services:
       PFSENSE_URL: ${PFSENSE_URL}
       PFSENSE_VERSION: ${PFSENSE_VERSION:-CE_2_8_0}
       AUTH_METHOD: ${AUTH_METHOD:-api_key}
-      PFSENSE_API_KEY: ${PFSENSE_API_KEY}
+      PFSENSE_API_KEY: ${PFSENSE_API_KEY:-}
+      PFSENSE_USERNAME: ${PFSENSE_USERNAME:-}
+      PFSENSE_PASSWORD: ${PFSENSE_PASSWORD:-}
       VERIFY_SSL: ${VERIFY_SSL:-true}
       # MCP bearer token auth (required for HTTP mode)
       MCP_API_KEY: ${MCP_API_KEY}

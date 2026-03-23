@@ -35,7 +35,22 @@ pkg-static add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/latest/dow
 pkg-static -C /dev/null add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/latest/download/pfSense-25.11-pkg-RESTAPI.pkg
 ```
 
-Then in the pfSense web UI: **System > REST API** to enable it, and **System > User Manager > [your user]** to generate an API key.
+Then in the pfSense web UI, navigate to **System > REST API** to enable and configure the API.
+
+#### Authentication Setup
+
+The REST API supports three authentication methods (multiple can be enabled simultaneously). Configure which methods are active on the **System > REST API** settings page.
+
+**Option A: Basic Auth (simplest — uses your existing pfSense credentials)**
+No additional setup needed. Uses your pfSense local database username and password. Note: LDAP/RADIUS backends are not supported — only local database users.
+
+**Option B: API Key**
+Go to **System > REST API > Keys** to generate an API key. The key is tied to the user who creates it and inherits that user's privileges. Keys can also be generated via `POST /api/v2/auth/key`.
+
+**Option C: JWT**
+Uses your pfSense local database credentials to obtain a short-lived token (default: 1 hour) via `POST /api/v2/auth/jwt`. The MCP server handles token retrieval and refresh automatically.
+
+See the [pfSense REST API Installation Guide](PFSENSE_API_INSTALLATION.md) for detailed instructions.
 
 ### 2. Setup MCP Server
 
@@ -45,12 +60,36 @@ cd pfsense-mcp-server
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env with your pfSense URL and API key
+# Edit .env with your pfSense connection details (see below)
 ```
 
 ### 3. Configure Claude Desktop
 
 Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+**Using Basic Auth (recommended for quick setup):**
+
+```json
+{
+  "mcpServers": {
+    "pfsense": {
+      "command": "python",
+      "args": ["-m", "src.main"],
+      "cwd": "/path/to/pfsense-mcp-server",
+      "env": {
+        "PFSENSE_URL": "https://your-pfsense.local",
+        "PFSENSE_USERNAME": "admin",
+        "PFSENSE_PASSWORD": "your-password",
+        "AUTH_METHOD": "basic",
+        "PFSENSE_VERSION": "PLUS_24_11",
+        "VERIFY_SSL": "false"
+      }
+    }
+  }
+}
+```
+
+**Using API Key:**
 
 ```json
 {
@@ -62,8 +101,8 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
       "env": {
         "PFSENSE_URL": "https://your-pfsense.local",
         "PFSENSE_API_KEY": "your-api-key",
-        "PFSENSE_VERSION": "CE_2_8_0",
         "AUTH_METHOD": "api_key",
+        "PFSENSE_VERSION": "CE_2_8_0",
         "VERIFY_SSL": "true"
       }
     }
@@ -210,8 +249,10 @@ src/
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `PFSENSE_URL` | Yes | `https://pfsense.local` | pfSense URL |
-| `PFSENSE_API_KEY` | Yes (for api_key auth) | — | REST API key |
 | `AUTH_METHOD` | No | `api_key` | `api_key`, `basic`, or `jwt` |
+| `PFSENSE_API_KEY` | Yes (for `api_key` auth) | — | REST API key (generate at System > REST API > Keys) |
+| `PFSENSE_USERNAME` | Yes (for `basic`/`jwt` auth) | — | pfSense local database username |
+| `PFSENSE_PASSWORD` | Yes (for `basic`/`jwt` auth) | — | pfSense local database password |
 | `PFSENSE_VERSION` | No | `CE_2_8_0` | `CE_2_8_0`, `CE_2_8_1`, `CE_26_03`, `PLUS_24_11`, `PLUS_25_11` |
 | `VERIFY_SSL` | No | `true` | Verify SSL certificates |
 | `ENABLE_HATEOAS` | No | `false` | Include HATEOAS links in responses |

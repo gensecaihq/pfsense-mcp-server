@@ -28,14 +28,15 @@ cat > "$CONFIG_PATH" << CONFIG
   "mcpServers": {
     "pfsense": {
       "command": "python",
-      "args": ["$PROJECT_DIR/main.py"],
+      "args": ["-m", "src.main"],
+      "cwd": "$PROJECT_DIR",
       "env": {
-        "MCP_MODE": "stdio",
         "PFSENSE_URL": "https://your-pfsense.local",
-        "PFSENSE_CONNECTION_METHOD": "rest",
-        "PFSENSE_API_KEY": "your-api-key",
-        "PFSENSE_API_SECRET": "your-api-secret",
-        "DEFAULT_ACCESS_LEVEL": "READ_ONLY"
+        "AUTH_METHOD": "basic",
+        "PFSENSE_USERNAME": "admin",
+        "PFSENSE_PASSWORD": "your-password",
+        "PFSENSE_VERSION": "PLUS_24_11",
+        "VERIFY_SSL": "false"
       }
     }
   }
@@ -45,6 +46,7 @@ CONFIG
 echo "Configuration written to: $CONFIG_PATH"
 echo ""
 echo "Next steps:"
-echo "1. Edit $CONFIG_PATH with your pfSense details"
-echo "2. Restart Claude Desktop"
-echo "3. Test with: 'Show me the pfSense system status'"
+echo "1. Edit $CONFIG_PATH with your pfSense URL and credentials"
+echo "2. Install dependencies: cd $PROJECT_DIR && pip install -r requirements.txt"
+echo "3. Restart Claude Desktop"
+echo "4. Test with: 'Show me the pfSense system status'"

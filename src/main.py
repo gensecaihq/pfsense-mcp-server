@@ -65,7 +65,7 @@ def main():
                 return True
             else:
                 logger.error("Failed to connect to pfSense API")
-                logger.error("Please check your PFSENSE_URL, PFSENSE_API_KEY, and network connectivity")
+                logger.error("Please check your PFSENSE_URL, authentication credentials, and network connectivity")
                 return False
         except Exception as e:
             logger.error(f"Connection error: {e}")

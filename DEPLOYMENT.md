@@ -7,60 +7,58 @@
 - [Configuration](#configuration)
 - [Deployment Methods](#deployment-methods)
 - [Security](#security)
-- [Monitoring](#monitoring)
 - [Troubleshooting](#troubleshooting)
-- [Production Checklist](#production-checklist)
 
 ## Overview
 
-The pfSense MCP Server is a production-grade implementation using FastMCP framework, fully containerized with Docker for OS-agnostic deployment. It supports both pfSense CE and Plus versions with multiple connection methods.
+The pfSense MCP Server is built on the FastMCP framework, fully containerized with Docker. It connects to pfSense via the [REST API v2 package](https://github.com/pfrest/pfSense-pkg-RESTAPI) and supports both pfSense CE and Plus versions.
 
 ### Key Features
-- **FastMCP Framework**: High-performance, pythonic MCP implementation
+- **FastMCP Framework**: High-performance MCP implementation
 - **Multi-version Support**: Compatible with pfSense CE 2.8.0+ and Plus 24.11+
-- **Multiple Connection Methods**: REST API, XML-RPC, and SSH
-- **Production-Ready**: Circuit breakers, health checks, monitoring, and logging
-- **Fully Dockerized**: Complete containerization with all dependencies
-- **Security-First**: Role-based access control, audit logging, and encryption
+- **REST API v2**: Connects via the pfSense REST API v2 package (by jaredhendrickson13)
+- **Three Auth Methods**: Basic Auth, API Key, and JWT
+- **Dual Transport**: stdio mode (Claude Desktop/Code) and streamable-http mode (remote access)
+- **Fully Dockerized**: Multi-stage build with non-root user
 
 ## Prerequisites
 
 ### System Requirements
-- Docker Engine 20.10+ and Docker Compose 2.0+
-- 2 CPU cores minimum (4 recommended)
-- 2GB RAM minimum (4GB recommended)
-- 10GB disk space
+- Docker Engine 20.10+ and Docker Compose 2.0+ (for Docker deployment)
+- Python 3.11+ (for local deployment)
 - Network connectivity to pfSense instance
 
 ### pfSense Requirements
 - pfSense CE 2.8.0+ or Plus 24.11+
-- API access enabled (for REST/XML-RPC)
-- SSH access enabled (for SSH method)
-- Valid credentials or API keys
+- [pfSense REST API v2 package](https://github.com/pfrest/pfSense-pkg-RESTAPI) installed and enabled
+- API access configured at **System > REST API** in pfSense web UI
+- Valid credentials (local database user) or API key
+
+See [PFSENSE_API_INSTALLATION.md](PFSENSE_API_INSTALLATION.md) for detailed REST API package setup.
 
 ## Quick Start
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/pfsense-mcp-server.git
+git clone https://github.com/gensecaihq/pfsense-mcp-server.git
 cd pfsense-mcp-server
 ```
 
 2. **Configure environment**
 ```bash
 cp .env.example .env
-# Edit .env with your pfSense credentials and settings
+# Edit .env with your pfSense URL and credentials
 ```
 
-3. **Build and run**
+3. **Run locally (stdio mode)**
 ```bash
-make build
-make run
+pip install -r requirements.txt
+python -m src.main
 ```
 
-4. **Verify deployment**
+4. **Or run with Docker (HTTP mode)**
 ```bash
-make health-check
+docker compose up
 ```
 
 ## Configuration
@@ -70,391 +68,181 @@ make health-check
 #### Required Variables
 ```bash
 # pfSense Connection
-PFSENSE_URL=https://your-pfsense.example.com
-PFSENSE_VERSION=ce                    # or "plus"
-PFSENSE_CONNECTION_METHOD=rest        # rest, xmlrpc, or ssh
+PFSENSE_URL=https://your-pfsense.local
+PFSENSE_VERSION=PLUS_24_11    # CE_2_8_0, CE_2_8_1, PLUS_24_11, PLUS_25_11
 
-# Authentication (choose based on connection method)
-# For REST API:
-PFSENSE_API_KEY=your-api-key
-PFSENSE_API_SECRET=your-api-secret
+# Authentication — choose one method:
+AUTH_METHOD=basic              # basic, api_key, or jwt
 
-# For XML-RPC:
+# For basic or jwt auth:
 PFSENSE_USERNAME=admin
 PFSENSE_PASSWORD=your-password
 
-# For SSH:
-PFSENSE_SSH_HOST=your-pfsense.example.com
-PFSENSE_SSH_USERNAME=admin
+# For api_key auth:
+# PFSENSE_API_KEY=your-key    # Generate at System > REST API > Keys
 ```
 
 #### Optional Variables
 ```bash
-# Security
-MCP_ACCESS_LEVEL=READ_ONLY           # Access control level
-IP_WHITELIST=192.168.1.0/24,10.0.0.0/8
+VERIFY_SSL=false               # Set true if using a trusted SSL certificate
+ENABLE_HATEOAS=false           # Include HATEOAS links in API responses
+LOG_LEVEL=INFO                 # DEBUG, INFO, WARNING, ERROR
 
-# Performance
-CACHE_TTL=300                        # Cache TTL in seconds
-MCP_WORKERS=4                        # Number of worker processes
-
-# Monitoring
-OTEL_ENABLED=true                    # Enable OpenTelemetry
-PROMETHEUS_PORT=9091                 # Prometheus metrics port
+# HTTP transport mode
+MCP_TRANSPORT=stdio            # stdio or streamable-http
+MCP_HOST=0.0.0.0               # Bind address for HTTP mode
+MCP_PORT=3000                  # Port for HTTP mode
+MCP_API_KEY=your-bearer-token  # Required for HTTP mode (bearer auth)
 ```
 
-### Access Levels
+### Authentication Methods
 
-The server supports hierarchical access levels:
+The pfSense REST API v2 supports three methods (multiple can be enabled simultaneously in pfSense at **System > REST API**):
 
-1. **READ_ONLY**: View system status, interfaces, rules
-2. **COMPLIANCE_READ**: Run compliance checks, generate reports
-3. **SECURITY_WRITE**: Modify firewall rules, block IPs
-4. **ADMIN_WRITE**: Full configuration access
-5. **EMERGENCY_WRITE**: Emergency lockdown capabilities
+**Basic Auth** — simplest, uses existing pfSense credentials:
+```bash
+AUTH_METHOD=basic
+PFSENSE_USERNAME=admin
+PFSENSE_PASSWORD=your-password
+```
+
+**API Key** — generate at System > REST API > Keys:
+```bash
+AUTH_METHOD=api_key
+PFSENSE_API_KEY=your-key
+```
+
+**JWT** — auto-obtains short-lived tokens (default 1 hour):
+```bash
+AUTH_METHOD=jwt
+PFSENSE_USERNAME=admin
+PFSENSE_PASSWORD=your-password
+```
+
+> **Note:** Only local database users are supported for all auth methods (not LDAP/RADIUS).
 
 ## Deployment Methods
 
-### 1. Docker Compose (Recommended)
+### 1. Local (stdio mode — for Claude Desktop / Claude Code)
 
 ```bash
-# Production deployment with all services
-docker-compose up -d
-
-# Minimal deployment (MCP server only)
-docker-compose up -d pfsense-mcp redis
+pip install -r requirements.txt
+python -m src.main
 ```
 
-### 2. Docker Run
+### 2. Docker Compose (HTTP mode — recommended for remote access)
 
 ```bash
-# Build image
-docker build -t pfsense-mcp:latest .
+# Configure .env then:
+docker compose up -d
+```
 
-# Run container
+The `docker-compose.yml` runs in `streamable-http` mode on port 3000 with bearer auth (`MCP_API_KEY` required).
+
+### 3. Docker Run
+
+```bash
+# Build
+docker build -t pfsense-mcp .
+
+# Run in stdio mode
+docker run --rm \
+  -e PFSENSE_URL=https://your-pfsense.local \
+  -e AUTH_METHOD=basic \
+  -e PFSENSE_USERNAME=admin \
+  -e PFSENSE_PASSWORD=your-password \
+  -e VERIFY_SSL=false \
+  pfsense-mcp
+
+# Run in HTTP mode
 docker run -d \
   --name pfsense-mcp \
-  --env-file .env \
-  -p 8000:8000 \
-  -v $(pwd)/config:/config:ro \
-  -v $(pwd)/logs:/logs \
-  -v $(pwd)/data:/data \
-  pfsense-mcp:latest
-```
-
-### 3. Kubernetes
-
-```yaml
-# k8s/deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: pfsense-mcp
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: pfsense-mcp
-  template:
-    metadata:
-      labels:
-        app: pfsense-mcp
-    spec:
-      containers:
-      - name: pfsense-mcp
-        image: pfsense-mcp:latest
-        ports:
-        - containerPort: 8000
-        envFrom:
-        - secretRef:
-            name: pfsense-mcp-secrets
-        - configMapRef:
-            name: pfsense-mcp-config
+  -p 3000:3000 \
+  -e PFSENSE_URL=https://your-pfsense.local \
+  -e AUTH_METHOD=api_key \
+  -e PFSENSE_API_KEY=your-key \
+  -e MCP_API_KEY=your-bearer-token \
+  -e VERIFY_SSL=false \
+  pfsense-mcp -t streamable-http
 ```
 
 ### 4. Claude Desktop Integration
 
-For Claude Desktop stdio mode:
+Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
-```bash
-# Run in stdio mode
-docker run -it --rm \
-  --env-file .env \
-  -e MCP_MODE=stdio \
-  pfsense-mcp:latest
-```
-
-Or use the helper command:
-```bash
-make cli-mode
+```json
+{
+  "mcpServers": {
+    "pfsense": {
+      "command": "python",
+      "args": ["-m", "src.main"],
+      "cwd": "/path/to/pfsense-mcp-server",
+      "env": {
+        "PFSENSE_URL": "https://your-pfsense.local",
+        "PFSENSE_USERNAME": "admin",
+        "PFSENSE_PASSWORD": "your-password",
+        "AUTH_METHOD": "basic",
+        "PFSENSE_VERSION": "PLUS_24_11",
+        "VERIFY_SSL": "false"
+      }
+    }
+  }
+}
 ```
 
 ## Security
 
-### SSL/TLS Configuration
+### Bearer Auth for HTTP Transport
 
-1. **Generate certificates** (for development):
-```bash
-make generate-certs
-```
+HTTP transport mode requires `MCP_API_KEY` for bearer token authentication. The server will refuse to start in HTTP mode without it (fail-closed).
 
-2. **Use production certificates**:
-```bash
-# Place certificates in config/ssl/
-cp /path/to/cert.pem config/ssl/
-cp /path/to/key.pem config/ssl/
-```
+### SSL/TLS
 
-3. **Enable TLS in Nginx**:
-```bash
-ENABLE_TLS=true docker-compose up -d nginx
-```
+pfSense typically uses a self-signed certificate. Set `VERIFY_SSL=false` for testing, or install a trusted certificate on your pfSense instance for production.
 
-### Network Security
+### Access Controls
 
-1. **Firewall rules**:
-```bash
-# Allow only specific IPs
-IP_WHITELIST=192.168.1.100,10.0.0.0/24
-```
-
-2. **Rate limiting** (configured in Nginx):
-- API endpoints: 10 requests/second
-- Health checks: 1 request/second
-
-3. **Network isolation**:
-```yaml
-# Docker network configuration
-networks:
-  mcp-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.25.0.0/16
-```
-
-## Monitoring
-
-### Metrics Collection
-
-1. **Prometheus metrics**:
-```bash
-# View metrics
-curl http://localhost:9090/metrics
-
-# Or use the web UI
-make metrics
-```
-
-2. **Grafana dashboards**:
-```bash
-# Access Grafana
-make grafana
-# Default credentials: admin/changeme
-```
-
-### Health Checks
-
-```bash
-# Check all services
-make health-check
-
-# Check specific service
-curl http://localhost:8000/health
-```
+The pfSense REST API v2 provides built-in access controls at **System > REST API > Access Lists**:
+- Source IP/network restrictions
+- User-based restrictions
+- Time-based schedules
 
 ### Logging
 
-Logs are structured JSON and stored in multiple locations:
-
 ```bash
-# Application logs
-docker-compose logs -f pfsense-mcp
+# View logs
+docker compose logs -f pfsense-mcp
 
-# All logs
-tail -f logs/*.log
-
-# Audit logs (if database enabled)
-docker-compose exec postgres psql -U mcp -d mcp_audit \
-  -c "SELECT * FROM audit.logs ORDER BY timestamp DESC LIMIT 10;"
+# Enable debug logging
+LOG_LEVEL=DEBUG python -m src.main
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Connection refused**:
-```bash
-# Check pfSense URL and credentials
-curl -k https://your-pfsense.example.com
+1. **Connection refused**
+   - Verify `PFSENSE_URL` is correct and reachable
+   - Check that the REST API package is installed at **System > REST API**
+   - Ensure the API is listening on the correct interface
 
-# Verify network connectivity
-docker-compose exec pfsense-mcp ping your-pfsense.example.com
-```
+2. **401 Unauthorized**
+   - For `api_key` auth: verify key is valid (System > REST API > Keys)
+   - For `basic`/`jwt` auth: verify username/password for a local database user
+   - Check that your auth method is enabled at System > REST API settings
 
-2. **Authentication failed**:
-```bash
-# Test credentials
-docker-compose exec pfsense-mcp python -c "
-from main_fastmcp import connection_manager
-import asyncio
-asyncio.run(connection_manager.test_connection())
-"
-```
+3. **SSL errors**
+   - Set `VERIFY_SSL=false` if pfSense uses a self-signed certificate
 
-3. **Circuit breaker open**:
-```bash
-# Check circuit breaker status
-curl http://localhost:8000/health | jq .circuit_breaker
-
-# Reset by restarting
-docker-compose restart pfsense-mcp
-```
+4. **HTTP mode won't start**
+   - `MCP_API_KEY` must be set for streamable-http transport
 
 ### Debug Mode
 
-Enable debug logging:
 ```bash
-LOG_LEVEL=DEBUG docker-compose up pfsense-mcp
+LOG_LEVEL=DEBUG python -m src.main
 ```
-
-## Production Checklist
-
-### Before Deployment
-
-- [ ] Configure production credentials in `.env`
-- [ ] Set appropriate access levels
-- [ ] Configure IP whitelist if needed
-- [ ] Generate or obtain SSL certificates
-- [ ] Set up backup strategy
-- [ ] Configure monitoring alerts
-- [ ] Review security settings
-- [ ] Test failover scenarios
-
-### Deployment Steps
-
-1. **Prepare environment**:
-```bash
-# Set production mode
-export PRODUCTION=true
-
-# Use production compose file
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-```
-
-2. **Verify services**:
-```bash
-# Check all services are healthy
-make health-check
-
-# Run security scan
-make security-scan
-```
-
-3. **Configure monitoring**:
-```bash
-# Set up Prometheus alerts
-cp config/prometheus/alerts.yml.example config/prometheus/alerts.yml
-
-# Configure Grafana notifications
-# Access Grafana and set up notification channels
-```
-
-4. **Set up backups**:
-```bash
-# Manual backup
-make backup
-
-# Automated backups (add to crontab)
-0 2 * * * cd /path/to/pfsense-mcp-server && make backup
-```
-
-### Post-Deployment
-
-1. **Monitor logs**:
-```bash
-# Watch for errors
-docker-compose logs -f pfsense-mcp | grep ERROR
-```
-
-2. **Check metrics**:
-- CPU usage < 80%
-- Memory usage < 80%
-- Response time < 1s
-- Error rate < 1%
-
-3. **Regular maintenance**:
-```bash
-# Weekly health check
-make health-check
-
-# Monthly security updates
-docker-compose pull
-make build
-make deploy
-```
-
-## Advanced Configuration
-
-### High Availability
-
-For HA deployment, use multiple instances behind a load balancer:
-
-```nginx
-upstream mcp_backends {
-    least_conn;
-    server mcp1.internal:8000 max_fails=3 fail_timeout=30s;
-    server mcp2.internal:8000 max_fails=3 fail_timeout=30s;
-    server mcp3.internal:8000 max_fails=3 fail_timeout=30s;
-}
-```
-
-### Custom Tools
-
-Add custom tools in `main_fastmcp.py`:
-
-```python
-@mcp.tool()
-async def custom_tool(param1: str, param2: int = 10) -> Dict[str, Any]:
-    """Your custom tool description"""
-    # Implementation
-    return {"result": "success"}
-```
-
-### Integration with CI/CD
-
-GitHub Actions example:
-
-```yaml
-name: Deploy
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Build and push
-        run: |
-          docker build -t ${{ secrets.REGISTRY }}/pfsense-mcp:${{ github.sha }} .
-          docker push ${{ secrets.REGISTRY }}/pfsense-mcp:${{ github.sha }}
-      - name: Deploy
-        run: |
-          ssh deploy@server "cd /app && docker-compose pull && docker-compose up -d"
-```
-
-## Support
-
-For issues and questions:
-1. Check the [troubleshooting](#troubleshooting) section
-2. Review logs for error messages
-3. Open an issue on GitHub with:
-   - Environment details
-   - Error messages
-   - Steps to reproduce
 
 ## License
 
-This project is licensed under the MIT License. See LICENSE file for details.
+MIT License — see [LICENSE](LICENSE) for details.
