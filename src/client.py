@@ -968,6 +968,94 @@ class EnhancedPfSenseAPIClient:
             data={"command": command}
         )
 
+    # Generic CRUD Methods
+    # Used by new tool modules to avoid adding domain-specific methods
+    # for every endpoint. Existing domain methods (get_firewall_rules, etc.)
+    # remain as-is for backward compatibility.
+
+    async def crud_list(
+        self,
+        endpoint: str,
+        filters: Optional[List[QueryFilter]] = None,
+        sort: Optional[SortOptions] = None,
+        pagination: Optional[PaginationOptions] = None,
+        extra_params: Optional[Dict[str, str]] = None,
+    ) -> Dict:
+        """Generic list/search for any plural endpoint."""
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
+        return await self._make_request(
+            "GET", endpoint,
+            filters=filters, sort=sort, pagination=pagination,
+            extra_params=extra_params,
+        )
+
+    async def crud_create(
+        self,
+        endpoint: str,
+        data: Dict,
+        control: Optional[ControlParameters] = None,
+    ) -> Dict:
+        """Generic create for any singular endpoint."""
+        if control is None:
+            control = ControlParameters(apply=True)
+        return await self._make_request(
+            "POST", endpoint, data=data, control=control,
+        )
+
+    async def crud_update(
+        self,
+        endpoint: str,
+        obj_id: Union[int, str],
+        updates: Dict,
+        control: Optional[ControlParameters] = None,
+    ) -> Dict:
+        """Generic update for any singular endpoint."""
+        if control is None:
+            control = ControlParameters(apply=True)
+        return await self._make_request(
+            "PATCH", endpoint,
+            data={**updates, "id": obj_id}, control=control,
+        )
+
+    async def crud_delete(
+        self,
+        endpoint: str,
+        obj_id: Union[int, str],
+        control: Optional[ControlParameters] = None,
+        extra_data: Optional[Dict] = None,
+    ) -> Dict:
+        """Generic delete for any singular endpoint."""
+        if control is None:
+            control = ControlParameters(apply=True)
+        data = {"id": obj_id}
+        if extra_data:
+            data.update(extra_data)
+        return await self._make_request(
+            "DELETE", endpoint, data=data, control=control,
+        )
+
+    async def crud_apply(self, endpoint: str) -> Dict:
+        """Generic apply for any apply endpoint (POST with empty body)."""
+        return await self._make_request("POST", endpoint, data={})
+
+    async def crud_get_settings(self, endpoint: str) -> Dict:
+        """Generic GET for singleton settings endpoints."""
+        return await self._make_request("GET", endpoint)
+
+    async def crud_update_settings(
+        self,
+        endpoint: str,
+        updates: Dict,
+        control: Optional[ControlParameters] = None,
+    ) -> Dict:
+        """Generic PATCH for singleton settings endpoints."""
+        if control is None:
+            control = ControlParameters(apply=True)
+        return await self._make_request(
+            "PATCH", endpoint, data=updates, control=control,
+        )
+
     # Object ID Management
 
     async def refresh_object_ids(self, endpoint: str) -> Dict:
@@ -1085,6 +1173,96 @@ class EnhancedPfSenseAPIClient:
         )
         self.hateoas_enabled = enabled
         return result
+
+    # ------------------------------------------------------------------ #
+    # User Management
+    # ------------------------------------------------------------------ #
+
+    async def get_users(
+        self,
+        filters: Optional[List[QueryFilter]] = None,
+        sort: Optional[SortOptions] = None,
+        pagination: Optional[PaginationOptions] = None,
+    ) -> Dict:
+        """Get users with optional filtering"""
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
+        return await self._make_request(
+            "GET", "/users",
+            filters=filters, sort=sort, pagination=pagination,
+        )
+
+    async def create_user(self, user_data: Dict) -> Dict:
+        """Create a new user"""
+        return await self._make_request("POST", "/user", data=user_data)
+
+    async def update_user(self, user_data: Dict) -> Dict:
+        """Update an existing user"""
+        return await self._make_request("PATCH", "/user", data=user_data)
+
+    async def delete_user(self, user_id: int) -> Dict:
+        """Delete a user by ID"""
+        return await self._make_request("DELETE", "/user", data={"id": user_id})
+
+    # ------------------------------------------------------------------ #
+    # Group Management
+    # ------------------------------------------------------------------ #
+
+    async def get_groups(
+        self,
+        filters: Optional[List[QueryFilter]] = None,
+        sort: Optional[SortOptions] = None,
+        pagination: Optional[PaginationOptions] = None,
+    ) -> Dict:
+        """Get user groups with optional filtering"""
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
+        return await self._make_request(
+            "GET", "/user/groups",
+            filters=filters, sort=sort, pagination=pagination,
+        )
+
+    async def create_group(self, group_data: Dict) -> Dict:
+        """Create a new user group"""
+        return await self._make_request("POST", "/user/group", data=group_data)
+
+    async def update_group(self, group_data: Dict) -> Dict:
+        """Update an existing user group"""
+        return await self._make_request("PATCH", "/user/group", data=group_data)
+
+    async def delete_group(self, group_id: int) -> Dict:
+        """Delete a user group by ID"""
+        return await self._make_request("DELETE", "/user/group", data={"id": group_id})
+
+    # ------------------------------------------------------------------ #
+    # Auth Server Management
+    # ------------------------------------------------------------------ #
+
+    async def get_auth_servers(
+        self,
+        filters: Optional[List[QueryFilter]] = None,
+        sort: Optional[SortOptions] = None,
+        pagination: Optional[PaginationOptions] = None,
+    ) -> Dict:
+        """Get authentication servers with optional filtering"""
+        if pagination is None:
+            pagination = PaginationOptions(limit=200)
+        return await self._make_request(
+            "GET", "/user/auth_servers",
+            filters=filters, sort=sort, pagination=pagination,
+        )
+
+    async def create_auth_server(self, server_data: Dict) -> Dict:
+        """Create a new authentication server"""
+        return await self._make_request("POST", "/user/auth_server", data=server_data)
+
+    async def update_auth_server(self, server_data: Dict) -> Dict:
+        """Update an existing authentication server"""
+        return await self._make_request("PATCH", "/user/auth_server", data=server_data)
+
+    async def delete_auth_server(self, auth_server_id: int) -> Dict:
+        """Delete an authentication server by ID"""
+        return await self._make_request("DELETE", "/user/auth_server", data={"id": auth_server_id})
 
     async def close(self):
         """Close HTTP client and reset state"""

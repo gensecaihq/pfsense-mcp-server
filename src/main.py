@@ -14,13 +14,20 @@ from .server import VERSION, get_api_client, logger, mcp, reset_api_client
 # Import tool modules — each registers tools via @mcp.tool() on import
 from .tools import (  # noqa: F401
     aliases,
+    certificates,
     dhcp,
+    dns_resolver,
     firewall,
     logs,
     nat,
+    routing,
     services,
     system,
+    users,
     utility,
+    vpn_ipsec,
+    vpn_openvpn,
+    vpn_wireguard,
 )
 
 

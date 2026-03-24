@@ -196,6 +196,45 @@ def normalize_protocol(protocol: Optional[str]) -> Optional[str]:
     return protocol.lower()
 
 
+# ---------------------------------------------------------------------------
+# Additional validators for VPN, routing, DNS, certificates
+# ---------------------------------------------------------------------------
+
+_HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$")
+_FQDN_RE = re.compile(r"^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$")
+_EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
+
+
+def validate_subnet(cidr: str) -> Optional[str]:
+    """Validate a CIDR subnet (e.g., 10.0.0.0/24). Returns error or None."""
+    try:
+        ipaddress.ip_network(cidr, strict=False)
+        return None
+    except ValueError:
+        return f"Invalid subnet '{cidr}'. Expected CIDR notation (e.g., 10.0.0.0/24)."
+
+
+def validate_hostname(hostname: str) -> Optional[str]:
+    """Validate a hostname (single label, no dots). Returns error or None."""
+    if not _HOSTNAME_RE.match(hostname):
+        return f"Invalid hostname '{hostname}'. Must be alphanumeric with optional hyphens, 1-63 chars."
+    return None
+
+
+def validate_fqdn(fqdn: str) -> Optional[str]:
+    """Validate a fully qualified domain name. Returns error or None."""
+    if not _FQDN_RE.match(fqdn):
+        return f"Invalid FQDN '{fqdn}'. Expected format: host.example.com"
+    return None
+
+
+def validate_email(email: str) -> Optional[str]:
+    """Validate an email address. Returns error or None."""
+    if not _EMAIL_RE.match(email):
+        return f"Invalid email address '{email}'."
+    return None
+
+
 # Alias name: 1-31 chars, starts with letter or underscore, alphanumeric/underscores only
 _ALIAS_NAME_RE = re.compile(r"^[A-Za-z_]\w{0,30}$")
 
