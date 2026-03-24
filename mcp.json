@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "pfsense-enhanced": {
-      "command": "python",
+      "command": "python3",
       "args": ["-m", "src.main"],
       "cwd": "/path/to/pfsense-mcp-server",
       "env": {

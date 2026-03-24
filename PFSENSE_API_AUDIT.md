@@ -38,20 +38,36 @@
 |---|---|---|
 | `/system/restapi/settings` | `get_api_capabilities`, `enable_hateoas`, `disable_hateoas` | Yes |
 
-### Not Yet Implemented
+### Also Implemented (Full or Partial CRUD)
 
-| Category | Endpoints | Priority |
+| Category | Endpoints | MCP Tools |
 |---|---|---|
-| Routing | `/routing/gateway`, `/routing/static_route` | High |
-| VPN | `/vpn/openvpn/server`, `/vpn/ipsec/phase1`, `/vpn/wireguard` | High |
-| DNS | `/services/dns_resolver/*`, `/services/dns_forwarder/*` | Medium |
-| Certificates | `/system/certificate/*`, `/system/ca/*` | Medium |
-| Users | `/user`, `/user/group`, `/user/auth_server` | Medium |
-| NAT Outbound | `/firewall/nat/outbound/*` | Low |
-| NAT 1:1 | `/firewall/nat/one_to_one/*` | Low |
-| Traffic Shaper | `/firewall/traffic_shaper/*` | Low |
-| Virtual IPs | `/firewall/virtual_ip/*` | Low |
-| Interfaces Config | `/interface/*`, `/interface/vlan/*` | Low |
+| Routing | `/routing/gateway`, `/routing/static_route`, `/routing/apply` | 16 tools |
+| VPN - OpenVPN | `/vpn/openvpn/server`, `/vpn/openvpn/client`, `/vpn/openvpn/cso` | 12 tools |
+| VPN - IPsec | `/vpn/ipsec/phase1`, `/vpn/ipsec/phase2`, `/vpn/ipsec/apply` | 14 tools |
+| VPN - WireGuard | `/vpn/wireguard/tunnel`, `/vpn/wireguard/peer`, `/vpn/wireguard/apply` | 13 tools |
+| VPN - Advanced | Phase2 encryption, tunnel addresses, OpenVPN status | 12 tools |
+| DNS Resolver | `/services/dns_resolver/*` | 16 tools |
+| DNS Forwarder | `/services/dns_forwarder/*` | 8 tools |
+| Certificates | `/system/certificate`, `/system/certificate_authority`, `/system/crl` | 15 tools |
+| Users | `/user`, `/user/group`, `/user/auth_server` | 12 tools |
+| NAT Outbound | `/firewall/nat/outbound/*` | 7 tools |
+| NAT 1:1 | `/firewall/nat/one_to_one/*` | 5 tools |
+| Traffic Shaper | `/firewall/traffic_shaper/*` | 12 tools |
+| Virtual IPs | `/firewall/virtual_ip/*` | 5 tools |
+| Interfaces | `/interface`, `/interface/vlan`, `/interface/bridge`, `/interface/group` | 14 tools |
+| Firewall Schedules | `/firewall/schedule`, `/firewall/schedule/time_range` | 8 tools |
+| Firewall States | `/firewall/state`, `/firewall/states/size` | 4 tools |
+| System Settings | `/system/dns`, `/system/hostname`, `/system/tunable` | 12 tools |
+| System Advanced | Timezone, console, webgui, email, log settings, DHCP relay | 14 tools |
+| Diagnostics | `/diagnostics/ping`, `/diagnostics/reboot`, config history | 10 tools |
+| Misc Services | NTP, cron, service watchdog, SSH, Wake-on-LAN | 12 tools |
+| DHCP Advanced | Address pools, custom options, apply, backend | 10 tools |
+| HAProxy | `/services/haproxy/*` | 15 tools |
+| ACME | `/services/acme/*` | 10 tools |
+| BIND DNS | `/services/bind/*` | 10 tools |
+| FreeRADIUS | `/services/freeradius/*` | 8 tools |
+| Troubleshooting | RCA diagnostics, health report, audit trail | 10 tools |
 
 ## Critical API Behaviors Verified
 
@@ -144,13 +160,13 @@ pfSense uses non-persistent array indices as object IDs. After any deletion, all
 | Certificates/PKI | 1 | 15 |
 | Users & Auth | 1 | 12 |
 | Interfaces (config, VLANs, bridges, groups) | 1 | 14 |
-| System & Diagnostics | 3 | 34 |
+| System & Diagnostics | 4 | 44 |
 | Services (core, misc) | 2 | 14 |
 | Logs | 1 | 3 |
 | Packages (HAProxy, ACME, BIND, FreeRADIUS) | 4 | 43 |
-| Utility & Guardrails | 1 | 9 |
+| Utility | 1 | 9 |
 | Guardrails system | 1 | — |
 | Helpers & validation | 1 | — |
-| **Total** | **33 tool files** | **315 tools** |
+| **Total** | **34 tool files** | **327 tools** |
 
 **Tests: 308 passing**

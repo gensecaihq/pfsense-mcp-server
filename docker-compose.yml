@@ -24,10 +24,17 @@ services:
       # Allowed origins (comma-separated) for CORS/DNS rebinding protection
       MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
       API_TIMEOUT: ${API_TIMEOUT:-30}
-      # Guardrail audit log (persistent via volume)
+      # Optional settings
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENABLE_HATEOAS: ${ENABLE_HATEOAS:-false}
+      # Guardrails
       MCP_AUDIT_LOG: /logs/mcp-audit.jsonl
-      # Optional: read-only mode (only search/get tools)
-      # MCP_READ_ONLY: "true"
+      MCP_RATE_LIMIT_DELETE: ${MCP_RATE_LIMIT_DELETE:-10}
+      MCP_RATE_LIMIT_CREATE: ${MCP_RATE_LIMIT_CREATE:-20}
+      MCP_RATE_LIMIT_CRITICAL: ${MCP_RATE_LIMIT_CRITICAL:-2}
+      MCP_ROLLBACK_BUFFER: ${MCP_ROLLBACK_BUFFER:-50}
+      MCP_ALLOWED_TOOLS: ${MCP_ALLOWED_TOOLS:-}
+      MCP_READ_ONLY: ${MCP_READ_ONLY:-false}
     command: ["-t", "streamable-http"]
     volumes:
       - ./logs:/logs:rw

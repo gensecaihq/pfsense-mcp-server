@@ -6,7 +6,7 @@
 [![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 [![pfSense API](https://img.shields.io/badge/pfSense%20REST%20API-v2.7.3-orange.svg)](https://pfrest.org/)
 [![Tests](https://img.shields.io/badge/tests-308%20passing-brightgreen.svg)](#testing)
-[![Tools](https://img.shields.io/badge/MCP%20tools-315-blue.svg)](#mcp-tools-315-total)
+[![Tools](https://img.shields.io/badge/MCP%20tools-327-blue.svg)](#mcp-tools-327-total)
 
 A Model Context Protocol (MCP) server for managing pfSense firewalls through Claude Desktop, Claude Code, and other MCP-compatible clients. Verified against the pfSense REST API v2 PHP source code for production accuracy. Full defense-in-depth guardrail system for destructive operations.
 
@@ -123,7 +123,7 @@ python -m src.main -t streamable-http --port 3000
 
 On startup, the server tests the connection to pfSense and reports specific error details on failure (authentication errors, SSL issues, unreachable host, missing API package).
 
-## MCP Tools (315 total)
+## MCP Tools (327 total)
 
 ### Firewall (34 tools)
 
@@ -179,14 +179,15 @@ Users CRUD, groups CRUD, auth servers CRUD
 ### Interfaces (14 tools)
 Interface config CRUD, VLANs CRUD, bridges, groups, available interfaces, apply
 
-### System & Diagnostics (34 tools)
+### System & Diagnostics (44 tools)
 
 | Category | Tools |
 |---|---|
 | **System Status** (4) | `system_status`, `search_interfaces`, `find_interfaces_by_status`, `get_arp_table` |
 | **System Settings** (12) | DNS, hostname, tunables CRUD, packages, CARP status, version |
 | **Advanced Settings** (14) | Timezone, console, WebGUI, email notifications, log settings, DHCP relay, firewall advanced, state size |
-| **Diagnostics** (8) | Ping, reboot, halt, config history, pf tables |
+| **Diagnostics** (10) | Ping, reboot, halt, config history, pf tables, config backup/restore, config compare |
+| **Troubleshooting & RCA** (10) | `diagnose_connectivity`, `diagnose_blocked_traffic`, `diagnose_interface_issues`, `diagnose_vpn_status`, `diagnose_dhcp_issues`, `diagnose_dns_resolution`, `diagnose_service_health`, `diagnose_high_availability`, `get_system_health_report`, `search_audit_trail` |
 
 ### Services (14 tools)
 
@@ -352,7 +353,7 @@ src/
     system.py          4 tools  — status, interfaces, ARP table
     system_settings.py 12 tools — DNS, hostname, tunables, packages, CARP
     system_advanced.py 14 tools — timezone, console, webgui, email, log settings
-    diagnostics.py     8 tools  — ping, reboot, halt, config history, pf tables
+    diagnostics.py     10 tools — ping, reboot, halt, config history, pf tables, restore, compare
     routing.py         16 tools — gateways, groups, static routes, default GW, apply
     dns_resolver.py    16 tools — host/domain overrides, access lists, settings, apply
     dns_forwarder.py   8 tools  — host overrides, aliases, apply
@@ -372,6 +373,7 @@ src/
     pkg_acme.py        10 tools — certificates, account keys, issue/renew
     pkg_bind.py        10 tools — zones, records, access lists, settings
     pkg_freeradius.py  8 tools  — users, clients CRUD
+    troubleshoot.py    10 tools — RCA diagnostics, health report, audit trail
     misc_services.py   12 tools — NTP, cron, watchdog, SSH, WoL
 ```
 
@@ -486,16 +488,15 @@ This MCP server has been verified against the pfSense REST API v2 PHP source cod
 ### Ideas for Contributions
 
 **High Priority**
-- VPN status and configuration tools (OpenVPN, IPsec, WireGuard)
-- Routing and gateway management
-- DNS resolver/forwarder configuration
-- Certificate management
+- Integration tests against real pfSense appliances
+- Ollama (local LLM) bridge for offline usage
+- Multi-pfSense instance management
 
 **Medium Priority**
-- Support for pfSense packages (Snort, ntopng, FreeRADIUS)
-- Multi-pfSense instance management
+- Support for additional pfSense packages (Snort, Suricata, ntopng)
 - GraphQL API integration
-- Enhanced log parsing and analysis
+- Web-based dashboard for tool monitoring
+- Enhanced log analytics and threat detection
 
 ### Stay Connected
 
