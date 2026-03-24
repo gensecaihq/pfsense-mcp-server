@@ -7,6 +7,7 @@ from ..helpers import create_pagination, create_default_sort, sanitize_descripti
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
+from ..guardrails import rate_limited
 
 
 # ---------------------------------------------------------------------------
@@ -33,6 +34,7 @@ async def get_system_timezone() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_system_timezone(
     timezone_name: str,
     apply_immediately: bool = True,
@@ -89,6 +91,7 @@ async def get_system_console() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_system_console(
     primaryconsole: Optional[str] = None,
     secondaryconsole: Optional[str] = None,
@@ -162,6 +165,7 @@ async def get_webgui_settings() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_webgui_settings(
     protocol: Optional[str] = None,
     port: Optional[int] = None,
@@ -255,6 +259,7 @@ async def get_email_notification_settings() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_email_notification_settings(
     disabled: Optional[bool] = None,
     ipaddress: Optional[str] = None,
@@ -358,6 +363,7 @@ async def get_log_settings() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_log_settings(
     format: Optional[str] = None,
     reverse: Optional[bool] = None,
@@ -463,6 +469,7 @@ async def get_dhcp_relay_settings() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_dhcp_relay_settings(
     enable: Optional[bool] = None,
     interface: Optional[List[str]] = None,
@@ -518,6 +525,7 @@ async def update_dhcp_relay_settings(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_firewall_advanced_settings(
     optimization: Optional[str] = None,
     maximumstates: Optional[int] = None,
@@ -597,6 +605,7 @@ async def update_firewall_advanced_settings(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_firewall_state_size(
     maximumstates: Optional[int] = None,
     defaultstatesize: Optional[bool] = None,

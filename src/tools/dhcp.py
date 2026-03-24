@@ -15,7 +15,7 @@ from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 async def _lookup_mapping_parent_id(client, mapping_id: int) -> str:
     """Look up a DHCP static mapping's parent_id (interface) by its ID.
 
@@ -194,6 +194,7 @@ async def search_dhcp_static_mappings(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_dhcp_static_mapping(
     interface: str,
     mac_address: str,
@@ -266,6 +267,7 @@ async def create_dhcp_static_mapping(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_dhcp_static_mapping(
     mapping_id: int,
     mac_address: Optional[str] = None,
@@ -413,6 +415,7 @@ async def get_dhcp_server_config(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_dhcp_server_config(
     interface: str,
     range_from: Optional[str] = None,

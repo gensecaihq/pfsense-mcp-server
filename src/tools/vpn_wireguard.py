@@ -9,7 +9,7 @@ from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
 
 # API endpoint constants
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 _TUNNELS = "/vpn/wireguard/tunnels"
 _TUNNEL = "/vpn/wireguard/tunnel"
 _PEERS = "/vpn/wireguard/peers"
@@ -79,6 +79,7 @@ async def search_wireguard_tunnels(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_wireguard_tunnel(
     name: str,
     listenport: int,
@@ -130,6 +131,7 @@ async def create_wireguard_tunnel(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_wireguard_tunnel(
     tunnel_id: int,
     name: Optional[str] = None,
@@ -293,6 +295,7 @@ async def search_wireguard_peers(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_wireguard_peer(
     tun: int,
     publickey: str,
@@ -350,6 +353,7 @@ async def create_wireguard_peer(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_wireguard_peer(
     peer_id: int,
     tun: Optional[int] = None,
@@ -619,6 +623,7 @@ async def get_wireguard_settings() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_wireguard_settings(
     enable: Optional[bool] = None,
     keep_conf: Optional[bool] = None,

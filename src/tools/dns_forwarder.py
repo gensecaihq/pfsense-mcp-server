@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_dns_forwarder_settings() -> Dict:
     """Get the DNS Forwarder (dnsmasq) service settings"""
@@ -92,6 +92,7 @@ async def search_dns_forwarder_host_overrides(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_dns_forwarder_host_override(
     host: str,
     domain: str,
@@ -138,6 +139,7 @@ async def create_dns_forwarder_host_override(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_dns_forwarder_host_override(
     override_id: int,
     host: Optional[str] = None,

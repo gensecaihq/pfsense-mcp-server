@@ -618,6 +618,66 @@ import inspect
 from .models import PaginationOptions
 
 
+def rate_limited(fn):
+    """Lightweight decorator for MEDIUM-risk tools (create/update).
+
+    Applies rate limiting, input sanitization, allowlist check, and audit logging
+    WITHOUT requiring confirm or dry_run parameters. Use this for create/update
+    tools that should be throttled but don't need explicit confirmation.
+
+    Usage:
+        @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False))
+        @rate_limited
+        async def create_something(name: str, ...):
+            ...
+    """
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        tool_name = fn.__name__
+        risk = classify_risk(tool_name)
+
+        if risk != RiskLevel.READ:
+            # Build parameter dict for inspection
+            params = {}
+            sig = inspect.signature(fn)
+            for name, param in sig.parameters.items():
+                if name in kwargs:
+                    params[name] = kwargs[name]
+                elif args and list(sig.parameters.keys()).index(name) < len(args):
+                    params[name] = args[list(sig.parameters.keys()).index(name)]
+
+            # Allowlist check
+            if not is_tool_allowed(tool_name):
+                return {
+                    "success": False,
+                    "error": f"Tool '{tool_name}' is not in the allowed tools list (MCP_ALLOWED_TOOLS).",
+                }
+
+            # Input sanitization
+            injection_err = sanitize_parameters(params)
+            if injection_err:
+                return {"success": False, "error": injection_err}
+
+            # Rate limiting
+            rate_err = check_rate_limit(tool_name)
+            if rate_err:
+                return {"success": False, "error": rate_err}
+
+            # Audit log
+            audit_log(tool_name, risk, params, result="proceeding", user_confirmed=False)
+
+        result = await fn(*args, **kwargs)
+
+        # Post-execution audit
+        if risk != RiskLevel.READ:
+            success = result.get("success", False) if isinstance(result, dict) else True
+            audit_log(tool_name, risk, params, result="success" if success else "failed", user_confirmed=False)
+
+        return result
+
+    return wrapper
+
+
 def guarded(fn):
     """Decorator that applies the full guardrail system to a tool function.
 

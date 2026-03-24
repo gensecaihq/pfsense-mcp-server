@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_virtual_ips(
     search_term: Optional[str] = None,
@@ -87,6 +87,7 @@ async def search_virtual_ips(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_virtual_ip(
     mode: str,
     interface: str,
@@ -159,6 +160,7 @@ async def create_virtual_ip(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_virtual_ip(
     vip_id: int,
     mode: Optional[str] = None,

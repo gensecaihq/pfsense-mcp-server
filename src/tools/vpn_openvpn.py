@@ -19,7 +19,7 @@ from mcp.types import ToolAnnotations
 # 1. search_openvpn_servers
 # ---------------------------------------------------------------------------
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_openvpn_servers(
     search_term: Optional[str] = None,
@@ -89,6 +89,7 @@ async def search_openvpn_servers(
 # ---------------------------------------------------------------------------
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_openvpn_server(
     mode: str,
     protocol: str,
@@ -226,6 +227,7 @@ async def create_openvpn_server(
 # ---------------------------------------------------------------------------
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_openvpn_server(
     server_id: int,
     mode: Optional[str] = None,
@@ -471,6 +473,7 @@ async def search_openvpn_clients(
 # ---------------------------------------------------------------------------
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_openvpn_client(
     server_addr: str,
     server_port: int,
@@ -593,6 +596,7 @@ async def create_openvpn_client(
 # ---------------------------------------------------------------------------
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_openvpn_client(
     client_id: int,
     server_addr: Optional[str] = None,

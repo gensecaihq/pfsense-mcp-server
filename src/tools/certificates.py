@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_certificates(
     search_term: Optional[str] = None,
@@ -60,6 +60,7 @@ async def search_certificates(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_certificate(
     method: str,
     descr: str,
@@ -145,6 +146,7 @@ async def create_certificate(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_certificate(
     certificate_id: int,
     descr: Optional[str] = None,
@@ -397,6 +399,7 @@ async def search_certificate_authorities(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_certificate_authority(
     method: str,
     descr: str,
@@ -476,6 +479,7 @@ async def create_certificate_authority(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_certificate_authority(
     ca_id: int,
     descr: Optional[str] = None,
@@ -608,6 +612,7 @@ async def search_crls(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_crl(
     caref: str,
     descr: str,
@@ -651,6 +656,7 @@ async def create_crl(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_crl(
     crl_id: int,
     descr: Optional[str] = None,

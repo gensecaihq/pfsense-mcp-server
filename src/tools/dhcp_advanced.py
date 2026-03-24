@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_dhcp_address_pools(
     parent_id: Optional[str] = None,
@@ -64,6 +64,7 @@ async def search_dhcp_address_pools(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_dhcp_address_pool(
     parent_id: str,
     range_from: str,
@@ -110,6 +111,7 @@ async def create_dhcp_address_pool(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_dhcp_address_pool(
     pool_id: int,
     range_from: Optional[str] = None,
@@ -252,6 +254,7 @@ async def search_dhcp_custom_options(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_dhcp_custom_option(
     parent_id: str,
     number: int,
@@ -296,6 +299,7 @@ async def create_dhcp_custom_option(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_dhcp_custom_option(
     option_id: int,
     number: Optional[int] = None,
@@ -417,6 +421,7 @@ async def apply_dhcp_changes() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_dhcp_backend(
     dhcpbackend: str,
     apply_immediately: bool = True,

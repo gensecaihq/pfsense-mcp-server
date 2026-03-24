@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_haproxy_backends(
     search_term: Optional[str] = None,
@@ -69,6 +69,7 @@ async def search_haproxy_backends(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_haproxy_backend(
     name: str,
     mode: str = "http",
@@ -121,6 +122,7 @@ async def create_haproxy_backend(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_haproxy_backend(
     backend_id: int,
     name: Optional[str] = None,
@@ -439,6 +441,7 @@ async def search_haproxy_frontends(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_haproxy_frontend(
     name: str,
     descr: Optional[str] = None,
@@ -491,6 +494,7 @@ async def create_haproxy_frontend(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_haproxy_frontend(
     frontend_id: int,
     name: Optional[str] = None,
@@ -746,6 +750,7 @@ async def get_haproxy_settings() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_haproxy_settings(
     enable: Optional[bool] = None,
     maxconn: Optional[int] = None,

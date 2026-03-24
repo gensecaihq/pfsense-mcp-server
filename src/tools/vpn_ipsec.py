@@ -19,7 +19,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_ipsec_phase1s(
     remote_gateway: Optional[str] = None,
@@ -82,6 +82,7 @@ async def search_ipsec_phase1s(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_ipsec_phase1(
     iketype: str,
     protocol: str,
@@ -174,6 +175,7 @@ async def create_ipsec_phase1(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_ipsec_phase1(
     phase1_id: int,
     iketype: Optional[str] = None,
@@ -377,6 +379,7 @@ async def search_ipsec_phase2s(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_ipsec_phase2(
     ikeid: int,
     mode: str,
@@ -457,6 +460,7 @@ async def create_ipsec_phase2(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_ipsec_phase2(
     phase2_id: int,
     ikeid: Optional[int] = None,
@@ -640,6 +644,7 @@ async def search_ipsec_phase1_encryptions(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_ipsec_phase1_encryption(
     parent_id: int,
     encryption_algorithm_name: str,

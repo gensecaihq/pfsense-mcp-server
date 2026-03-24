@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_bind_zones(
     search_term: Optional[str] = None,
@@ -82,6 +82,7 @@ async def search_bind_zones(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_bind_zone(
     name: str,
     type: str = "master",
@@ -126,6 +127,7 @@ async def create_bind_zone(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_bind_zone(
     zone_id: int,
     name: Optional[str] = None,
@@ -407,6 +409,7 @@ async def get_bind_settings() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_bind_settings(
     enable: Optional[bool] = None,
     listen_on: Optional[str] = None,

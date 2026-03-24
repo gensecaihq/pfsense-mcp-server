@@ -17,7 +17,7 @@ from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_nat_port_forwards(
     interface: Optional[str] = None,
@@ -85,6 +85,7 @@ async def search_nat_port_forwards(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_nat_port_forward(
     interface: str,
     protocol: str,
@@ -214,6 +215,7 @@ async def delete_nat_port_forward(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_nat_port_forward(
     port_forward_id: int,
     interface: Optional[str] = None,

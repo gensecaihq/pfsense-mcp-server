@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_nat_onetoone_mappings(
     search_term: Optional[str] = None,
@@ -80,6 +80,7 @@ async def search_nat_onetoone_mappings(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_nat_onetoone_mapping(
     interface: str,
     external: str,
@@ -135,6 +136,7 @@ async def create_nat_onetoone_mapping(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_nat_onetoone_mapping(
     mapping_id: int,
     interface: Optional[str] = None,

@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_ntp_settings() -> Dict:
     """Get the NTP service settings"""
@@ -34,6 +34,7 @@ async def get_ntp_settings() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_ntp_settings(
     enable: Optional[bool] = None,
     interface: Optional[List[str]] = None,
@@ -278,6 +279,7 @@ async def search_cron_jobs(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_cron_job(
     minute: str,
     hour: str,
@@ -518,6 +520,7 @@ async def get_ssh_settings() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_ssh_settings(
     enable: Optional[bool] = None,
     port: Optional[int] = None,

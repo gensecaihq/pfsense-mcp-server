@@ -15,7 +15,7 @@ from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_aliases(
     search_term: Optional[str] = None,
@@ -124,6 +124,7 @@ async def manage_alias_addresses(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_alias(
     name: str,
     alias_type: str,
@@ -190,6 +191,7 @@ async def create_alias(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_alias(
     alias_id: int,
     name: Optional[str] = None,

@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_firewall_schedules(
     search_term: Optional[str] = None,
@@ -68,6 +68,7 @@ async def search_firewall_schedules(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_firewall_schedule(
     name: str,
     descr: Optional[str] = None,
@@ -110,6 +111,7 @@ async def create_firewall_schedule(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_firewall_schedule(
     schedule_id: int,
     name: Optional[str] = None,
@@ -259,6 +261,7 @@ async def search_schedule_time_ranges(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_schedule_time_range(
     parent_id: int,
     month: Optional[str] = None,
@@ -313,6 +316,7 @@ async def create_schedule_time_range(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_schedule_time_range(
     time_range_id: int,
     parent_id: Optional[int] = None,

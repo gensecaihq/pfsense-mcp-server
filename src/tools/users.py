@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ------------------------------------------------------------------ #
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_users(
     search_term: Optional[str] = None,
@@ -64,6 +64,7 @@ async def search_users(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_user(
     name: str,
     password: str,
@@ -129,6 +130,7 @@ async def create_user(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_user(
     user_id: int,
     name: Optional[str] = None,
@@ -293,6 +295,7 @@ async def search_groups(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_group(
     name: str,
     scope: str = "local",
@@ -346,6 +349,7 @@ async def create_group(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_group(
     group_id: int,
     name: Optional[str] = None,
@@ -501,6 +505,7 @@ async def search_auth_servers(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_auth_server(
     name: str,
     type: str,
@@ -629,6 +634,7 @@ async def create_auth_server(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_auth_server(
     auth_server_id: int,
     name: Optional[str] = None,

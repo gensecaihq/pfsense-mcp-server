@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_system_dns() -> Dict:
     """Get the current system DNS server configuration"""
@@ -34,6 +34,7 @@ async def get_system_dns() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_system_dns(
     dnsserver: Optional[List[str]] = None,
     dnslocalhost: Optional[bool] = None,
@@ -99,6 +100,7 @@ async def get_system_hostname() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_system_hostname(
     hostname: Optional[str] = None,
     domain: Optional[str] = None,
@@ -198,6 +200,7 @@ async def search_system_tunables(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_system_tunable(
     tunable: str,
     value: str,
@@ -239,6 +242,7 @@ async def create_system_tunable(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_system_tunable(
     tunable_id: int,
     tunable: Optional[str] = None,
@@ -375,6 +379,7 @@ async def get_carp_status() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_carp_maintenance(
     enable: Optional[bool] = None,
     maintenance_mode: Optional[bool] = None,

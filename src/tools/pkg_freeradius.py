@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_freeradius_users(
     search_term: Optional[str] = None,
@@ -69,6 +69,7 @@ async def search_freeradius_users(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_freeradius_user(
     username: str,
     password: str,
@@ -114,6 +115,7 @@ async def create_freeradius_user(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_freeradius_user(
     user_id: int,
     username: Optional[str] = None,
@@ -264,6 +266,7 @@ async def search_freeradius_clients(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_freeradius_client(
     ip: str,
     secret: str,
@@ -309,6 +312,7 @@ async def create_freeradius_client(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_freeradius_client(
     client_id: int,
     ip: Optional[str] = None,

@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Union
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 from ..helpers import (
     MAX_BULK_IPS,
     create_default_sort,
@@ -133,6 +133,7 @@ async def find_blocked_rules(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_firewall_rule_advanced(
     interface: str,
     rule_type: str,
@@ -310,6 +311,7 @@ async def move_firewall_rule(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_firewall_rule(
     rule_id: int,
     rule_type: Optional[str] = None,

@@ -14,7 +14,7 @@ from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
 
 # API endpoint constants (pfSense REST API v2 paths, without /api/v2 prefix)
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 _SETTINGS = "/services/dns_resolver/settings"
 _HOST_OVERRIDES = "/services/dns_resolver/host_overrides"
 _HOST_OVERRIDE = "/services/dns_resolver/host_override"
@@ -52,6 +52,7 @@ async def get_dns_resolver_settings() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_dns_resolver_settings(
     enable: Optional[bool] = None,
     dnssec: Optional[bool] = None,
@@ -191,6 +192,7 @@ async def search_dns_host_overrides(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_dns_host_override(
     host: str,
     domain: str,
@@ -240,6 +242,7 @@ async def create_dns_host_override(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_dns_host_override(
     override_id: int,
     host: Optional[str] = None,
@@ -455,6 +458,7 @@ async def search_dns_domain_overrides(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_dns_domain_override(
     domain: str,
     ip: str,
@@ -506,6 +510,7 @@ async def create_dns_domain_override(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_dns_domain_override(
     override_id: int,
     domain: Optional[str] = None,
@@ -653,6 +658,7 @@ async def search_dns_access_lists(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_dns_access_list(
     aclname: str,
     aclaction: str,
@@ -733,6 +739,7 @@ async def apply_dns_resolver_changes() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_dns_access_list(
     access_list_id: int,
     aclname: Optional[str] = None,

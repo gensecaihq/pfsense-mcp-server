@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_interface_configs(
     search_term: Optional[str] = None,
@@ -68,6 +68,7 @@ async def search_interface_configs(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_interface(
     interface_port: str,
     enable: bool = True,
@@ -133,6 +134,7 @@ async def create_interface(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_interface(
     interface_id: int,
     enable: Optional[bool] = None,
@@ -320,6 +322,7 @@ async def search_vlans(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_vlan(
     parent_interface: str,
     tag: int,
@@ -371,6 +374,7 @@ async def create_vlan(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_vlan(
     vlan_id: int,
     parent_interface: Optional[str] = None,
@@ -523,6 +527,7 @@ async def search_interface_bridges(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_interface_bridge(
     members: List[str],
     descr: Optional[str] = None,
@@ -621,6 +626,7 @@ async def search_interface_groups(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_interface_group(
     ifname: str,
     members: List[str],

@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_nat_outbound_mappings(
     search_term: Optional[str] = None,
@@ -80,6 +80,7 @@ async def search_nat_outbound_mappings(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_nat_outbound_mapping(
     interface: str,
     source: str,
@@ -156,6 +157,7 @@ async def create_nat_outbound_mapping(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_nat_outbound_mapping(
     mapping_id: int,
     interface: Optional[str] = None,
@@ -312,6 +314,7 @@ async def get_nat_outbound_mode() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_nat_outbound_mode(
     mode: str,
     apply_immediately: bool = True,

@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_acme_certificates(
     search_term: Optional[str] = None,
@@ -69,6 +69,7 @@ async def search_acme_certificates(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_acme_certificate(
     name: str,
     descr: Optional[str] = None,
@@ -113,6 +114,7 @@ async def create_acme_certificate(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_acme_certificate(
     certificate_id: int,
     name: Optional[str] = None,
@@ -328,6 +330,7 @@ async def search_acme_account_keys(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_acme_account_key(
     name: str,
     email: str,

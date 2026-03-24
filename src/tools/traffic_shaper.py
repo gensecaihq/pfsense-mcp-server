@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_traffic_shapers(
     search_term: Optional[str] = None,
@@ -79,6 +79,7 @@ async def search_traffic_shapers(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_traffic_shaper(
     interface: str,
     scheduler: str,
@@ -129,6 +130,7 @@ async def create_traffic_shaper(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_traffic_shaper(
     shaper_id: int,
     interface: Optional[str] = None,
@@ -284,6 +286,7 @@ async def search_shaper_queues(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_shaper_queue(
     parent_id: int,
     name: str,
@@ -344,6 +347,7 @@ async def create_shaper_queue(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_shaper_queue(
     queue_id: int,
     name: Optional[str] = None,
@@ -502,6 +506,7 @@ async def search_traffic_limiters(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_traffic_limiter(
     name: str,
     bandwidth: int,
@@ -557,6 +562,7 @@ async def create_traffic_limiter(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_traffic_limiter(
     limiter_id: int,
     name: Optional[str] = None,

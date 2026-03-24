@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
-from ..guardrails import guarded
+from ..guardrails import guarded, rate_limited
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_gateways(
     search_term: Optional[str] = None,
@@ -87,6 +87,7 @@ async def search_gateways(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_gateway(
     interface: str,
     name: str,
@@ -151,6 +152,7 @@ async def create_gateway(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_gateway(
     gateway_id: int,
     interface: Optional[str] = None,
@@ -297,6 +299,7 @@ async def get_default_gateway() -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_default_gateway(
     defaultgw4: Optional[str] = None,
     defaultgw6: Optional[str] = None,
@@ -395,6 +398,7 @@ async def search_gateway_groups(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_gateway_group(
     name: str,
     trigger: str,
@@ -439,6 +443,7 @@ async def create_gateway_group(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_gateway_group(
     group_id: int,
     name: Optional[str] = None,
@@ -596,6 +601,7 @@ async def search_static_routes(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def create_static_route(
     network: str,
     gateway: str,
@@ -640,6 +646,7 @@ async def create_static_route(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def update_static_route(
     route_id: int,
     network: Optional[str] = None,
