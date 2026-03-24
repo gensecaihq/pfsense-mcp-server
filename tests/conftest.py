@@ -12,11 +12,8 @@ os.environ["PFSENSE_API_KEY"] = "test-key"
 os.environ["AUTH_METHOD"] = "api_key"
 os.environ["VERIFY_SSL"] = "false"
 
-from src.pfsense_api_enhanced import (  # noqa: E402
-    AuthMethod,
-    EnhancedPfSenseAPIClient,
-    PfSenseVersion,
-)
+from src.client import EnhancedPfSenseAPIClient  # noqa: E402
+from src.models import AuthMethod, PfSenseVersion  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

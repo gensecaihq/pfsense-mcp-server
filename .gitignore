@@ -10,6 +10,9 @@ pfsense-openapi-v2.json
 # Internal planning docs
 ollama-todo.md
 
+# Editor/tool settings
+.claude/
+
 # Python
 __pycache__/
 *.py[cod]
