@@ -26,16 +26,17 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 # Production stage
 FROM python:3.11-slim
 
-# Install runtime dependencies
+# Install runtime dependencies (minimal — no shell tools beyond curl for healthcheck)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     libssl3 \
     libffi8 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/* /var/tmp/*
 
-# Create non-root user
-RUN groupadd -r mcp && useradd -r -g mcp -u 1000 -m -s /bin/bash mcp
+# Create non-root user with no login shell
+RUN groupadd -r mcp && useradd -r -g mcp -u 1000 -m -s /usr/sbin/nologin mcp
 
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
@@ -51,9 +52,12 @@ ENV PYTHONUNBUFFERED=1 \
 RUN mkdir -p ${MCP_HOME} ${MCP_LOGS} && \
     chown -R mcp:mcp ${MCP_HOME} ${MCP_LOGS}
 
-# Copy application files
+# Copy application files (read-only — app never writes to its own directory)
 WORKDIR ${MCP_HOME}
 COPY --chown=mcp:mcp src/ ./src/
+
+# Make application directory read-only (only /logs is writable)
+RUN chmod -R a-w ${MCP_HOME}/src/
 
 # Switch to non-root user
 USER mcp
@@ -64,9 +68,8 @@ VOLUME ["${MCP_LOGS}"]
 
 # HEALTHCHECK only applies when running in HTTP transport mode.
 # In stdio mode (the default), there is no HTTP endpoint to probe.
-# Override with: docker run ... -t streamable-http
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD if [ "${MCP_TRANSPORT:-stdio}" = "stdio" ]; then exit 0; else curl -sf http://localhost:${MCP_PORT:-3000}/mcp || exit 1; fi
 
-ENTRYPOINT ["python", "-m", "src.main"]
+ENTRYPOINT ["python3", "-m", "src.main"]
 CMD ["-t", "stdio"]

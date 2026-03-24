@@ -37,7 +37,9 @@ class BearerAuthMiddleware:
 
     def __init__(self, app, api_key: str, allowed_origins: set = None):
         self.app = app
-        self.api_key = api_key
+        # Support multiple API keys (comma-separated MCP_API_KEY for per-user tokens)
+        # Format: "token1,token2,token3" or just "single_token"
+        self.api_keys = frozenset(k.strip() for k in api_key.split(",") if k.strip())
         self.allowed_origins = allowed_origins or _LOCAL_ORIGINS
 
     def _is_origin_allowed(self, origin: str) -> bool:
@@ -84,9 +86,16 @@ class BearerAuthMiddleware:
                 await response(scope, receive, send)
             return
 
-        # 2. Bearer token auth
+        # 2. Bearer token auth (supports multiple keys for per-user tokens)
         auth_header = headers.get(b"authorization", b"").decode()
-        if not auth_header.startswith("Bearer ") or not hmac.compare_digest(auth_header[7:], self.api_key):
+        token_valid = False
+        if auth_header.startswith("Bearer "):
+            presented_token = auth_header[7:]
+            for valid_key in self.api_keys:
+                if hmac.compare_digest(presented_token, valid_key):
+                    token_valid = True
+                    break
+        if not token_valid:
             if scope["type"] == "websocket":
                 await send({"type": "websocket.close", "code": 4401})
             else:

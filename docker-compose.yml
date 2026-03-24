@@ -17,18 +17,30 @@ services:
       VERIFY_SSL: ${VERIFY_SSL:-true}
       # MCP bearer token auth (required for HTTP mode)
       MCP_API_KEY: ${MCP_API_KEY}
-      # Transport mode (must match command arg for healthcheck)
+      # Transport mode
       MCP_TRANSPORT: streamable-http
       # Bind to all interfaces inside container (default is 127.0.0.1 per MCP spec)
       MCP_HOST: "0.0.0.0"
       # Allowed origins (comma-separated) for CORS/DNS rebinding protection
       MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
       API_TIMEOUT: ${API_TIMEOUT:-30}
+      # Guardrail audit log (persistent via volume)
+      MCP_AUDIT_LOG: /logs/mcp-audit.jsonl
+      # Optional: read-only mode (only search/get tools)
+      # MCP_READ_ONLY: "true"
     command: ["-t", "streamable-http"]
     volumes:
       - ./logs:/logs:rw
+    # Security hardening per MCP spec best practices
     security_opt:
       - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64M
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:3000/mcp"]
       interval: 30s
