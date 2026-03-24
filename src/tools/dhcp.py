@@ -12,6 +12,7 @@ from ..helpers import (
 )
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
+from mcp.types import ToolAnnotations
 
 
 async def _lookup_mapping_parent_id(client, mapping_id: int) -> str:
@@ -32,7 +33,7 @@ async def _lookup_mapping_parent_id(client, mapping_id: int) -> str:
     raise ValueError(f"DHCP static mapping with ID {mapping_id} not found")
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_dhcp_leases(
     search_term: Optional[str] = None,
     interface: Optional[str] = None,
@@ -115,7 +116,7 @@ async def search_dhcp_leases(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_dhcp_static_mappings(
     interface: str = "lan",
     mac_address: Optional[str] = None,
@@ -191,7 +192,7 @@ async def search_dhcp_static_mappings(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 async def create_dhcp_static_mapping(
     interface: str,
     mac_address: str,
@@ -263,7 +264,7 @@ async def create_dhcp_static_mapping(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 async def update_dhcp_static_mapping(
     mapping_id: int,
     mac_address: Optional[str] = None,
@@ -332,7 +333,7 @@ async def update_dhcp_static_mapping(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
 async def delete_dhcp_static_mapping(
     mapping_id: int,
     interface: str,
@@ -373,7 +374,7 @@ async def delete_dhcp_static_mapping(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_dhcp_server_config(
     interface: Optional[str] = None,
     page: int = 1,
@@ -414,7 +415,7 @@ async def get_dhcp_server_config(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 async def update_dhcp_server_config(
     interface: str,
     range_from: Optional[str] = None,

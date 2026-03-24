@@ -6,9 +6,10 @@ from typing import Dict, List, Optional
 from ..helpers import create_default_sort, create_pagination
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
+from mcp.types import ToolAnnotations
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def system_status() -> Dict:
     """Get current system status including CPU, memory, disk usage, and version info"""
     client = get_api_client()
@@ -29,7 +30,7 @@ async def system_status() -> Dict:
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_interfaces(
     search_term: Optional[str] = None,
     status_filter: Optional[str] = None,
@@ -79,7 +80,7 @@ async def search_interfaces(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def find_interfaces_by_status(status: str) -> Dict:
     """Find interfaces by their current status
 
@@ -103,7 +104,7 @@ async def find_interfaces_by_status(status: str) -> Dict:
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_arp_table(
     ip_address: Optional[str] = None,
     mac_address: Optional[str] = None,

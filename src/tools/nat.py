@@ -14,9 +14,10 @@ from ..helpers import (
 )
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
+from mcp.types import ToolAnnotations
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_nat_port_forwards(
     interface: Optional[str] = None,
     protocol: Optional[str] = None,
@@ -82,7 +83,7 @@ async def search_nat_port_forwards(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 async def create_nat_port_forward(
     interface: str,
     protocol: str,
@@ -176,7 +177,7 @@ async def create_nat_port_forward(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
 async def delete_nat_port_forward(
     port_forward_id: int,
     apply_immediately: bool = True,
@@ -215,7 +216,7 @@ async def delete_nat_port_forward(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 async def update_nat_port_forward(
     port_forward_id: int,
     interface: Optional[str] = None,

@@ -16,9 +16,10 @@ from ..helpers import (
 )
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
+from mcp.types import ToolAnnotations
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_firewall_rules(
     interface: Optional[str] = None,
     source_ip: Optional[str] = None,
@@ -96,7 +97,7 @@ async def search_firewall_rules(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def find_blocked_rules(
     interface: Optional[str] = None,
 ) -> Dict:
@@ -130,7 +131,7 @@ async def find_blocked_rules(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 async def create_firewall_rule_advanced(
     interface: str,
     rule_type: str,
@@ -268,7 +269,7 @@ async def create_firewall_rule_advanced(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 async def move_firewall_rule(
     rule_id: int,
     new_position: int,
@@ -307,7 +308,7 @@ async def move_firewall_rule(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 async def update_firewall_rule(
     rule_id: int,
     rule_type: Optional[str] = None,
@@ -414,7 +415,7 @@ async def update_firewall_rule(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
 async def delete_firewall_rule(
     rule_id: int,
     apply_immediately: bool = True,
@@ -460,7 +461,7 @@ async def delete_firewall_rule(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
 async def bulk_block_ips(
     ip_addresses: List[str],
     interface: str = "wan",
@@ -557,7 +558,7 @@ async def bulk_block_ips(
     return response
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 async def apply_firewall_changes() -> Dict:
     """Force apply pending firewall changes and recompile the pf ruleset.
 
@@ -580,7 +581,7 @@ async def apply_firewall_changes() -> Dict:
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_pf_rules() -> Dict:
     """Read the compiled pf ruleset (/tmp/rules.debug) to verify what pf is
     actually enforcing vs what's in config.xml.

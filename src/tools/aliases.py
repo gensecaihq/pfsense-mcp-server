@@ -12,9 +12,10 @@ from ..helpers import (
 )
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
+from mcp.types import ToolAnnotations
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_aliases(
     search_term: Optional[str] = None,
     alias_type: Optional[str] = None,
@@ -82,7 +83,7 @@ async def search_aliases(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 async def manage_alias_addresses(
     alias_id: int,
     action: str,
@@ -121,7 +122,7 @@ async def manage_alias_addresses(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 async def create_alias(
     name: str,
     alias_type: str,
@@ -187,7 +188,7 @@ async def create_alias(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 async def update_alias(
     alias_id: int,
     name: Optional[str] = None,
@@ -252,7 +253,7 @@ async def update_alias(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
 async def delete_alias(
     alias_id: int,
     apply_immediately: bool = True,

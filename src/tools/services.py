@@ -5,9 +5,10 @@ from typing import Dict, Optional
 
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
+from mcp.types import ToolAnnotations
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_services(
     search_term: Optional[str] = None,
     status_filter: Optional[str] = None,
@@ -58,7 +59,7 @@ async def search_services(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 async def control_service(
     service_name: str,
     action: str

@@ -29,6 +29,16 @@ VERSION = "5.0.0"
 # Initialize FastMCP server
 mcp = FastMCP(
     "pfSense Enhanced MCP Server",
+    version=VERSION,
+    instructions=(
+        "You are managing a pfSense firewall via REST API v2. "
+        "All destructive operations (delete, bulk block) require confirm=True. "
+        "Object IDs are non-persistent array indices — they shift after deletions. "
+        "Use verify_descr on update/delete to guard against stale IDs, or "
+        "use find_object_by_field for stable lookups. "
+        "Always call search/list tools before update/delete to get current IDs. "
+        "Log retrieval is capped at 50 lines. Page size is capped at 200."
+    ),
 )
 
 # Global API client

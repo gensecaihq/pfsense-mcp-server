@@ -38,8 +38,8 @@ def main():
     )
     parser.add_argument(
         "--host",
-        default=os.getenv("MCP_HOST", "0.0.0.0"),
-        help="Host to bind to in HTTP mode (default: 0.0.0.0)"
+        default=os.getenv("MCP_HOST", "127.0.0.1"),
+        help="Host to bind to in HTTP mode (default: 127.0.0.1)"
     )
     parser.add_argument(
         "--port",
@@ -89,11 +89,7 @@ def main():
 
         from .middleware import BearerAuthMiddleware
 
-        # Use sse_app() for FastMCP < 2.14, http_app() for >= 2.14
-        if hasattr(mcp, 'http_app'):
-            app = mcp.http_app()
-        else:
-            app = mcp.sse_app()
+        app = mcp.http_app()
 
         # Require bearer auth for HTTP transport — fail closed
         api_key = os.getenv("MCP_API_KEY")
@@ -103,8 +99,15 @@ def main():
                 "Set MCP_API_KEY or use --transport stdio."
             )
             sys.exit(1)
-        app = BearerAuthMiddleware(app, api_key)
-        logger.info("Bearer token auth enabled (MCP_API_KEY is set)")
+        # Parse allowed origins from env (comma-separated) or use defaults
+        allowed_origins_str = os.getenv("MCP_ALLOWED_ORIGINS", "")
+        allowed_origins = None
+        if allowed_origins_str.strip():
+            allowed_origins = {o.strip().rstrip("/").lower() for o in allowed_origins_str.split(",")}
+            logger.info("Allowed origins: %s", allowed_origins)
+
+        app = BearerAuthMiddleware(app, api_key, allowed_origins=allowed_origins)
+        logger.info("Bearer token auth and Origin validation enabled")
 
         logger.info(f"Starting MCP server on http://{args.host}:{args.port}/mcp")
         uvicorn.run(app, host=args.host, port=args.port)

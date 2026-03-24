@@ -6,9 +6,10 @@ from typing import Dict, Optional
 from ..helpers import VALID_LOG_TYPES, parse_filterlog_entry, validate_ip_address
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
+from mcp.types import ToolAnnotations
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_firewall_log(
     lines: int = 20,
     action_filter: Optional[str] = None,
@@ -108,7 +109,7 @@ async def get_firewall_log(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def analyze_blocked_traffic(
     limit: int = 20,
     group_by_source: bool = True
@@ -191,7 +192,7 @@ async def analyze_blocked_traffic(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_logs_by_ip(
     ip_address: str,
     log_type: str = "firewall",

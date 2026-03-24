@@ -6,6 +6,7 @@ from typing import Dict
 
 from ..models import PaginationOptions, QueryFilter, SortOptions
 from ..server import get_api_client, logger, mcp
+from mcp.types import ToolAnnotations
 
 # Allowed endpoint prefixes for user-supplied paths (prevents path traversal)
 _SAFE_ENDPOINT_PREFIXES = (
@@ -30,7 +31,7 @@ def _validate_endpoint(endpoint: str) -> str:
     return endpoint
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def follow_api_link(link_url: str) -> Dict:
     """Follow a HATEOAS link from a previous API response
 
@@ -63,7 +64,7 @@ async def follow_api_link(link_url: str) -> Dict:
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True))
 async def enable_hateoas(confirm: bool = False) -> Dict:
     """Enable HATEOAS links in API responses on the pfSense server.
 
@@ -94,7 +95,7 @@ async def enable_hateoas(confirm: bool = False) -> Dict:
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True))
 async def disable_hateoas(confirm: bool = False) -> Dict:
     """Disable HATEOAS links in API responses on the pfSense server.
 
@@ -125,7 +126,7 @@ async def disable_hateoas(confirm: bool = False) -> Dict:
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def refresh_object_ids(endpoint: str) -> Dict:
     """Refresh object IDs by re-querying an endpoint (handles ID changes after deletions).
 
@@ -154,7 +155,7 @@ async def refresh_object_ids(endpoint: str) -> Dict:
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def find_object_by_field(
     endpoint: str,
     field: str,
@@ -201,7 +202,7 @@ async def find_object_by_field(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_api_capabilities() -> Dict:
     """Get comprehensive API capabilities and configuration"""
     client = get_api_client()
@@ -230,7 +231,7 @@ async def get_api_capabilities() -> Dict:
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def test_enhanced_connection() -> Dict:
     """Test enhanced API connection with feature validation"""
     client = get_api_client()

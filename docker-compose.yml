@@ -19,6 +19,11 @@ services:
       MCP_API_KEY: ${MCP_API_KEY}
       # Transport mode (must match command arg for healthcheck)
       MCP_TRANSPORT: streamable-http
+      # Bind to all interfaces inside container (default is 127.0.0.1 per MCP spec)
+      MCP_HOST: "0.0.0.0"
+      # Allowed origins (comma-separated) for CORS/DNS rebinding protection
+      MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
+      API_TIMEOUT: ${API_TIMEOUT:-30}
     command: ["-t", "streamable-http"]
     volumes:
       - ./logs:/logs:rw
