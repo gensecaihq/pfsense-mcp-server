@@ -225,7 +225,7 @@ class TestUpdateDhcpStaticMapping:
 class TestDeleteDhcpStaticMapping:
     async def test_error(self, mock_client, mock_make_request):
         mock_make_request.side_effect = Exception("delete failed")
-        result = await _delete_dhcp_static_mapping(mapping_id=3, interface="lan")
+        result = await _delete_dhcp_static_mapping(mapping_id=3, interface="lan", confirm=True)
         assert result["success"] is False
         assert "delete failed" in result["error"]
 
@@ -235,9 +235,11 @@ class TestDeleteDhcpStaticMapping:
             {"data": [{"id": 3, "parent_id": "lan", "mac": "aa:bb:cc:dd:ee:03"}]},
             {"data": {}},
         ]
-        result = await _delete_dhcp_static_mapping(mapping_id=3)
+        result = await _delete_dhcp_static_mapping(mapping_id=3, confirm=True)
         assert result["success"] is True
         assert result["mapping_id"] == 3
+        assert "note" in result  # ID shift warning
+        assert "warning" in result  # auto-detected parent_id warning
         delete_call = mock_make_request.call_args_list[1]
         data = delete_call.kwargs.get("data") or delete_call[1].get("data")
         assert data["id"] == 3
@@ -246,12 +248,18 @@ class TestDeleteDhcpStaticMapping:
     async def test_explicit_interface_skips_lookup(self, mock_client, mock_make_request):
         """When interface is provided, no lookup call is needed."""
         mock_make_request.return_value = {"data": {}}
-        result = await _delete_dhcp_static_mapping(mapping_id=3, interface="opt1")
+        result = await _delete_dhcp_static_mapping(mapping_id=3, interface="opt1", confirm=True)
         assert result["success"] is True
         assert mock_make_request.call_count == 1
+        assert "warning" not in result  # no auto-detection warning
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
         assert data["id"] == 3
         assert data["parent_id"] == "opt1"
+
+    async def test_confirm_required(self, mock_client, mock_make_request):
+        result = await _delete_dhcp_static_mapping(mapping_id=3, interface="lan")
+        assert result["success"] is False
+        assert "confirm" in result["error"].lower()
 
 
 # ---------------------------------------------------------------------------

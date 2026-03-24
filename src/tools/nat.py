@@ -178,14 +178,23 @@ async def create_nat_port_forward(
 @mcp.tool()
 async def delete_nat_port_forward(
     port_forward_id: int,
-    apply_immediately: bool = True
+    apply_immediately: bool = True,
+    confirm: bool = False,
 ) -> Dict:
-    """Delete a NAT port forwarding rule by ID
+    """Delete a NAT port forwarding rule by ID. WARNING: This is irreversible.
 
     Args:
         port_forward_id: Port forward rule ID (array index from search_nat_port_forwards)
         apply_immediately: Whether to apply changes immediately
+        confirm: Must be set to True to execute. Safety gate for destructive operations.
     """
+    if not confirm:
+        return {
+            "success": False,
+            "error": "This is a destructive operation. Set confirm=True to proceed.",
+            "details": f"Will permanently delete NAT port forward {port_forward_id}.",
+        }
+
     client = get_api_client()
     try:
         result = await client.delete_nat_port_forward(port_forward_id, apply_immediately)
@@ -197,6 +206,7 @@ async def delete_nat_port_forward(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
+            "note": "Object IDs have shifted after deletion. Re-query port forwards before performing further operations by ID.",
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:

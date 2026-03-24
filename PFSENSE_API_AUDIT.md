@@ -97,7 +97,7 @@ The `/auth/jwt` endpoint only accepts `BasicAuth`. Credentials must be sent via 
 
 ### HATEOAS
 
-HATEOAS is a global API setting stored in config, not a per-request toggle. The per-request `?hateoas=true` query parameter is not read by the API.
+HATEOAS is a global API setting stored in config, not a per-request toggle. The per-request `?hateoas=true` query parameter is not read by the API. This server correctly uses `PATCH /system/restapi/settings` to enable/disable HATEOAS, and does not inject per-request query parameters.
 
 ## Tool Count
 
@@ -111,4 +111,4 @@ HATEOAS is a global API setting stored in config, not a per-request toggle. The 
 | System | 4 | ~20 |
 | Logs | 3 | ~15 |
 | Services | 2 | ~13 |
-| **Total** | **41** | **223** |
+| **Total** | **41** | **262** |

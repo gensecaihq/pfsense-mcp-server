@@ -1,15 +1,11 @@
 """Log analysis tools for pfSense MCP server."""
 
-import re
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
-from ..helpers import VALID_LOG_TYPES, validate_ip_address
+from ..helpers import VALID_LOG_TYPES, parse_filterlog_entry, validate_ip_address
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
-
-# Regex to extract IPv4 addresses from raw pfSense filterlog text
-_IP_RE = re.compile(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b")
 
 
 @mcp.tool()
@@ -53,23 +49,40 @@ async def get_firewall_log(
             filters=filters if filters else None,
         )
 
-        # Client-side filtering on the raw text lines for remaining params
+        # Client-side filtering using parsed filterlog fields for precision.
+        # Falls back to substring matching for lines that cannot be parsed.
         entries = logs.get("data") or []
         if entries:
             def _matches(entry):
                 text = entry.get("text", "")
-                if action_filter and action_filter.lower() not in text.lower():
-                    return False
-                if interface and interface.lower() not in text.lower():
-                    return False
-                if source_ip and source_ip not in text:
-                    return False
-                if destination_ip and destination_ip not in text:
-                    return False
-                if destination_port and destination_port not in text:
-                    return False
-                if protocol and protocol.lower() not in text.lower():
-                    return False
+                parsed = parse_filterlog_entry(text)
+                if parsed:
+                    if action_filter and parsed.get("action", "").lower() != action_filter.lower():
+                        return False
+                    if interface and parsed.get("interface", "").lower() != interface.lower():
+                        return False
+                    if source_ip and parsed.get("src_ip", "") != source_ip:
+                        return False
+                    if destination_ip and parsed.get("dst_ip", "") != destination_ip:
+                        return False
+                    if destination_port and parsed.get("dst_port", "") != destination_port:
+                        return False
+                    if protocol and parsed.get("protocol", "").lower() != protocol.lower():
+                        return False
+                else:
+                    # Fallback: raw text substring match for non-filterlog lines
+                    if action_filter and action_filter.lower() not in text.lower():
+                        return False
+                    if interface and interface.lower() not in text.lower():
+                        return False
+                    if source_ip and source_ip not in text:
+                        return False
+                    if destination_ip and destination_ip not in text:
+                        return False
+                    if destination_port and destination_port not in text:
+                        return False
+                    if protocol and protocol.lower() not in text.lower():
+                        return False
                 return True
             entries = [e for e in entries if _matches(e)]
             logs["data"] = entries
@@ -119,16 +132,16 @@ async def analyze_blocked_traffic(
         log_data = logs.get("data") or []
 
         if group_by_source:
-            # The firewall log model only has a 'text' field with raw syslog lines.
-            # Parse IPs from the raw text using regex (pfSense filterlog format).
+            # Parse structured fields from the raw filterlog CSV format.
+            # This correctly extracts src_ip/dst_ip by field position rather
+            # than fragile regex ordering, and supports both IPv4 and IPv6.
 
             source_stats: dict = {}
             for entry in log_data:
                 text = entry.get("text", "")
-                ips = _IP_RE.findall(text)
-                # In filterlog format, source IP is typically the first IP found
-                src_ip = ips[0] if ips else "unknown"
-                dst_ip = ips[1] if len(ips) > 1 else None
+                parsed = parse_filterlog_entry(text)
+                src_ip = parsed.get("src_ip", "unknown") if parsed else "unknown"
+                dst_ip = parsed.get("dst_ip") if parsed else None
 
                 if src_ip not in source_stats:
                     source_stats[src_ip] = {

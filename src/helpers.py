@@ -1,10 +1,13 @@
 """Standalone helper functions for common query patterns and safety guards."""
 
 import ipaddress
+import logging
 import re
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from .models import PaginationOptions, QueryFilter, SortOptions
+
+logger = logging.getLogger(__name__)
 
 
 # Safety constants
@@ -159,7 +162,9 @@ VALID_ALIAS_TYPES = frozenset({"host", "network", "port", "url"})
 
 VALID_PROTOCOLS = frozenset({"tcp", "udp", "icmp", "tcp/udp", "any"})
 
-_MAC_RE = re.compile(r"^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$")
+_MAC_COLON_RE = re.compile(r"^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$")
+_MAC_HYPHEN_RE = re.compile(r"^([0-9a-fA-F]{2}-){5}[0-9a-fA-F]{2}$")
+_MAC_BARE_RE = re.compile(r"^[0-9a-fA-F]{12}$")
 
 MAX_BULK_IPS = 100
 
@@ -175,11 +180,40 @@ def validate_alias_name(name: str) -> Optional[str]:
     return None
 
 
+def normalize_mac_address(mac: str) -> str:
+    """Normalize a MAC address to colon-separated lowercase format.
+
+    Accepts colon-separated (AA:BB:CC:DD:EE:FF),
+    hyphen-separated (AA-BB-CC-DD-EE-FF),
+    and bare (AABBCCDDEEFF) formats.
+
+    Returns:
+        Normalized MAC in XX:XX:XX:XX:XX:XX format (lowercase).
+
+    Raises:
+        ValueError: If the MAC address is not valid in any supported format.
+    """
+    stripped = mac.strip()
+    if _MAC_COLON_RE.match(stripped):
+        return stripped.lower()
+    if _MAC_HYPHEN_RE.match(stripped):
+        return stripped.replace("-", ":").lower()
+    if _MAC_BARE_RE.match(stripped):
+        h = stripped.lower()
+        return ":".join(h[i:i+2] for i in range(0, 12, 2))
+    raise ValueError(
+        f"Invalid MAC address '{mac}'. Accepted formats: "
+        "XX:XX:XX:XX:XX:XX, XX-XX-XX-XX-XX-XX, or XXXXXXXXXXXX"
+    )
+
+
 def validate_mac_address(mac: str) -> Optional[str]:
     """Return an error message if the MAC address is invalid, else None."""
-    if not _MAC_RE.match(mac.strip()):
-        return f"Invalid MAC address '{mac}'. Expected format: XX:XX:XX:XX:XX:XX"
-    return None
+    try:
+        normalize_mac_address(mac)
+        return None
+    except ValueError as e:
+        return str(e)
 
 
 def validate_protocol(protocol: str) -> Optional[str]:
@@ -190,3 +224,145 @@ def validate_protocol(protocol: str) -> Optional[str]:
             f"Must be one of: {', '.join(sorted(VALID_PROTOCOLS))}"
         )
     return None
+
+
+def validate_alias_addresses(alias_type: str, addresses: List[str]) -> Optional[str]:
+    """Validate that addresses are appropriate for the alias type.
+
+    Returns an error message if validation fails, else None.
+    """
+    if not addresses:
+        return "Address list cannot be empty."
+
+    for addr in addresses:
+        addr = addr.strip()
+        if not addr:
+            return "Address list contains an empty entry."
+
+        if alias_type == "host":
+            # Must be a valid IP address (not a network with prefix) or alias name
+            try:
+                parsed = ipaddress.ip_address(addr)
+                continue  # valid IP
+            except ValueError:
+                pass
+            # Could be an alias name (alphanumeric/underscore)
+            if _ALIAS_NAME_RE.match(addr):
+                continue
+            return (
+                f"Invalid host alias entry '{addr}'. "
+                "Must be an IP address (e.g., 10.0.0.1) or an existing alias name."
+            )
+
+        elif alias_type == "network":
+            # Must be a valid CIDR network or alias name
+            try:
+                ipaddress.ip_network(addr, strict=False)
+                continue
+            except ValueError:
+                pass
+            if _ALIAS_NAME_RE.match(addr):
+                continue
+            return (
+                f"Invalid network alias entry '{addr}'. "
+                "Must be a CIDR network (e.g., 10.0.0.0/24) or an existing alias name."
+            )
+
+        elif alias_type == "port":
+            err = validate_port_value(addr, "port alias entry")
+            if err:
+                return err
+
+        elif alias_type == "url":
+            if not addr.startswith(("http://", "https://")):
+                return (
+                    f"Invalid URL alias entry '{addr}'. "
+                    "Must start with http:// or https://"
+                )
+
+    return None
+
+
+# --------------------------------------------------------------------------- #
+# pfSense filterlog parser
+# --------------------------------------------------------------------------- #
+# pfSense filterlog format (CSV after the syslog prefix):
+#   rule_number, sub_rule, anchor, tracker, interface, reason, action,
+#   direction, ip_version, ...
+# For IPv4 (ip_version=4):
+#   ..., tos, ecn, ttl, id, offset, flags, proto_id, protocol, length,
+#   src_ip, dst_ip, [src_port, dst_port if TCP/UDP]
+# For IPv6 (ip_version=6):
+#   ..., class, flow_label, hop_limit, protocol, proto_id, length,
+#   src_ip, dst_ip, [src_port, dst_port if TCP/UDP]
+
+def parse_filterlog_entry(text: str) -> Optional[Dict[str, str]]:
+    """Parse a pfSense filterlog syslog line into structured fields.
+
+    Returns a dict with keys: action, interface, direction, ip_version,
+    protocol, src_ip, dst_ip, src_port, dst_port (if applicable).
+    Returns None if the line cannot be parsed.
+    """
+    if not text:
+        return None
+
+    # Strip the syslog prefix (everything up to and including "filterlog[NNNN]: ")
+    marker = "filterlog["
+    idx = text.find(marker)
+    if idx == -1:
+        return None
+    colon_idx = text.find("]: ", idx)
+    if colon_idx == -1:
+        return None
+    csv_part = text[colon_idx + 3:]
+
+    fields = csv_part.split(",")
+    if len(fields) < 7:
+        return None
+
+    result: Dict[str, str] = {
+        "tracker": fields[3] if len(fields) > 3 else "",
+        "interface": fields[4] if len(fields) > 4 else "",
+        "reason": fields[5] if len(fields) > 5 else "",
+        "action": fields[6] if len(fields) > 6 else "",
+        "direction": fields[7] if len(fields) > 7 else "",
+        "ip_version": fields[8] if len(fields) > 8 else "",
+    }
+
+    ip_ver = result["ip_version"]
+
+    if ip_ver == "4" and len(fields) >= 20:
+        result["protocol"] = fields[16] if len(fields) > 16 else ""
+        result["src_ip"] = fields[18] if len(fields) > 18 else ""
+        result["dst_ip"] = fields[19] if len(fields) > 19 else ""
+        # TCP/UDP have src_port and dst_port after dst_ip
+        if len(fields) >= 22:
+            result["src_port"] = fields[20]
+            result["dst_port"] = fields[21]
+
+    elif ip_ver == "6" and len(fields) >= 17:
+        result["protocol"] = fields[12] if len(fields) > 12 else ""
+        result["src_ip"] = fields[15] if len(fields) > 15 else ""
+        result["dst_ip"] = fields[16] if len(fields) > 16 else ""
+        # TCP/UDP have src_port and dst_port after dst_ip
+        if len(fields) >= 19:
+            result["src_port"] = fields[17]
+            result["dst_port"] = fields[18]
+
+    else:
+        # Fallback: try to extract IPs via regex but validate them
+        _ipv4_re = re.compile(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b")
+        candidates = _ipv4_re.findall(csv_part)
+        valid_ips = []
+        for c in candidates:
+            try:
+                ipaddress.ip_address(c)
+                valid_ips.append(c)
+            except ValueError:
+                continue
+        if valid_ips:
+            result["src_ip"] = valid_ips[0]
+            if len(valid_ips) > 1:
+                result["dst_ip"] = valid_ips[1]
+
+    return result

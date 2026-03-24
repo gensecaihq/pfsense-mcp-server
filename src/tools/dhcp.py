@@ -6,6 +6,7 @@ from typing import Dict, Optional
 from ..helpers import (
     create_default_sort,
     create_pagination,
+    normalize_mac_address,
     validate_ip_address,
     validate_mac_address,
 )
@@ -49,7 +50,7 @@ async def search_dhcp_leases(
         interface: Filter by interface
         mac_address: Filter by specific MAC address
         hostname: Filter by hostname (supports partial matching)
-        state: Filter by lease state (active, expired, etc.)
+        state: Filter by lease state. Values: 'active' (current leases), 'expired' (past leases), 'released' (client-released). Default: 'active'
         page: Page number for pagination
         page_size: Number of results per page
         sort_by: Field to sort by (starts, ends, hostname, ip, mac)
@@ -215,10 +216,11 @@ async def create_dhcp_static_mapping(
         dns_server: Optional DNS server override
         apply_immediately: Whether to apply changes immediately
     """
-    # Validate MAC address format
-    mac_error = validate_mac_address(mac_address)
-    if mac_error:
-        return {"success": False, "error": mac_error}
+    # Validate and normalize MAC address (accepts AA:BB:CC:DD:EE:FF, AA-BB-CC-DD-EE-FF, AABBCCDDEEFF)
+    try:
+        mac_address = normalize_mac_address(mac_address)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
 
     # Validate IP address
     try:
@@ -334,32 +336,50 @@ async def update_dhcp_static_mapping(
 async def delete_dhcp_static_mapping(
     mapping_id: int,
     interface: Optional[str] = None,
-    apply_immediately: bool = True
+    apply_immediately: bool = True,
+    confirm: bool = False,
 ) -> Dict:
-    """Delete a DHCP static mapping by ID
+    """Delete a DHCP static mapping by ID. WARNING: This is irreversible.
 
     Args:
         mapping_id: Static mapping ID
-        interface: Interface/DHCP pool the mapping belongs to (e.g., "lan"). Auto-detected if not provided.
+        interface: Interface/DHCP pool the mapping belongs to (e.g., "lan"). Always pass this explicitly for reliability — auto-detection requires an extra API call and is subject to race conditions.
         apply_immediately: Whether to apply changes immediately
+        confirm: Must be set to True to execute. Safety gate for destructive operations.
     """
+    if not confirm:
+        return {
+            "success": False,
+            "error": "This is a destructive operation. Set confirm=True to proceed.",
+            "details": f"Will permanently delete DHCP static mapping {mapping_id}.",
+        }
+
     client = get_api_client()
     try:
         # pfSense API requires parent_id for child model operations
+        auto_detected = False
         if not interface:
             interface = await _lookup_mapping_parent_id(client, mapping_id)
+            auto_detected = True
 
         result = await client.delete_dhcp_static_mapping(mapping_id, interface, apply_immediately)
 
-        return {
+        response = {
             "success": True,
             "message": f"DHCP static mapping {mapping_id} deleted",
             "mapping_id": mapping_id,
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
+            "note": "Object IDs have shifted after deletion. Re-query mappings before performing further operations by ID.",
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
+        if auto_detected:
+            response["warning"] = (
+                f"Parent interface '{interface}' was auto-detected. "
+                "For reliability in automation, always pass the 'interface' parameter explicitly."
+            )
+        return response
     except Exception as e:
         logger.error(f"Failed to delete DHCP static mapping: {e}")
         return {"success": False, "error": str(e)}
@@ -433,6 +453,15 @@ async def update_dhcp_server_config(
         enable: Enable or disable the DHCP server
         apply_immediately: Whether to apply changes immediately
     """
+    # Validate IP fields before sending to API
+    for field_label, ip_val in [("range_from", range_from), ("range_to", range_to),
+                                 ("gateway", gateway), ("dns_server", dns_server)]:
+        if ip_val:
+            try:
+                validate_ip_address(ip_val)
+            except ValueError as e:
+                return {"success": False, "error": f"Invalid {field_label}: {e}"}
+
     client = get_api_client()
     try:
         field_map = {

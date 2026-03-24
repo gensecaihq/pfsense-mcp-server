@@ -7,6 +7,7 @@ from ..helpers import (
     VALID_ALIAS_TYPES,
     create_default_sort,
     create_pagination,
+    validate_alias_addresses,
     validate_alias_name,
 )
 from ..models import ControlParameters, QueryFilter
@@ -151,6 +152,11 @@ async def create_alias(
             "error": f"Invalid alias_type '{alias_type}'. Must be one of: {', '.join(sorted(VALID_ALIAS_TYPES))}",
         }
 
+    # Validate addresses match the alias type
+    addr_error = validate_alias_addresses(alias_type, addresses)
+    if addr_error:
+        return {"success": False, "error": addr_error}
+
     client = get_api_client()
     try:
         alias_data = {
@@ -249,14 +255,23 @@ async def update_alias(
 @mcp.tool()
 async def delete_alias(
     alias_id: int,
-    apply_immediately: bool = True
+    apply_immediately: bool = True,
+    confirm: bool = False,
 ) -> Dict:
-    """Delete an alias by ID
+    """Delete an alias by ID. WARNING: This is irreversible.
 
     Args:
         alias_id: Alias ID (array index from search_aliases)
         apply_immediately: Whether to apply changes immediately
+        confirm: Must be set to True to execute. Safety gate for destructive operations.
     """
+    if not confirm:
+        return {
+            "success": False,
+            "error": "This is a destructive operation. Set confirm=True to proceed.",
+            "details": f"Will permanently delete alias {alias_id}.",
+        }
+
     client = get_api_client()
     try:
         result = await client.delete_alias(alias_id, apply_immediately)
@@ -268,6 +283,7 @@ async def delete_alias(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
+            "note": "Object IDs have shifted after deletion. Re-query aliases before performing further operations by ID.",
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:

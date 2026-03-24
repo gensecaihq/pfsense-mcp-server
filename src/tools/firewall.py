@@ -219,9 +219,33 @@ async def create_firewall_rule_advanced(
         if position is not None:
             new_rule_id = result.get("data", {}).get("id")
             if new_rule_id is not None:
-                await client.move_firewall_rule(
-                    new_rule_id, position, apply_immediately=False
-                )
+                try:
+                    await client.move_firewall_rule(
+                        new_rule_id, position, apply_immediately=False
+                    )
+                except Exception as move_err:
+                    # Rollback: delete the rule we just created to avoid
+                    # leaving it at the wrong position in the ruleset
+                    try:
+                        await client.delete_firewall_rule(new_rule_id, apply_immediately=False)
+                        logger.error("Move to position %d failed; rule %d rolled back (deleted)", position, new_rule_id)
+                        return {
+                            "success": False,
+                            "error": (
+                                f"Rule was created (id={new_rule_id}) but move to position {position} failed. "
+                                f"Rule has been deleted to prevent misconfiguration. Error: {move_err}"
+                            ),
+                        }
+                    except Exception as del_err:
+                        logger.error("Move failed and rollback delete also failed: %s", del_err)
+                        return {
+                            "success": False,
+                            "error": (
+                                f"Rule was created (id={new_rule_id}) but move to position {position} failed: {move_err}. "
+                                f"Rollback deletion also failed: {del_err}. "
+                                f"Manual cleanup required — delete rule {new_rule_id}."
+                            ),
+                        }
             else:
                 logger.warning("Rule created but ID not returned — cannot move to position %d", position)
             # Apply after create+move (create was deferred above when position is set)
@@ -383,14 +407,23 @@ async def update_firewall_rule(
 @mcp.tool()
 async def delete_firewall_rule(
     rule_id: int,
-    apply_immediately: bool = True
+    apply_immediately: bool = True,
+    confirm: bool = False,
 ) -> Dict:
     """Delete a firewall rule from the live pfSense appliance. WARNING: This is irreversible.
 
     Args:
         rule_id: Rule ID (array index from search_firewall_rules, e.g., 0, 1, 2...)
         apply_immediately: Whether to apply changes immediately
+        confirm: Must be set to True to execute. Safety gate for destructive operations.
     """
+    if not confirm:
+        return {
+            "success": False,
+            "error": "This is a destructive operation. Set confirm=True to proceed.",
+            "details": f"Will permanently delete firewall rule {rule_id} from the live pfSense appliance.",
+        }
+
     client = get_api_client()
     try:
         result = await client.delete_firewall_rule(rule_id, apply_immediately)
@@ -402,6 +435,7 @@ async def delete_firewall_rule(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
+            "note": "Object IDs have shifted after deletion. Re-query rules before performing further operations by ID.",
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
@@ -413,7 +447,8 @@ async def delete_firewall_rule(
 async def bulk_block_ips(
     ip_addresses: List[str],
     interface: str = "wan",
-    description_prefix: str = "Bulk block via MCP"
+    description_prefix: str = "Bulk block via MCP",
+    confirm: bool = False,
 ) -> Dict:
     """Block multiple IP addresses on the live pfSense firewall. WARNING: Creates block rules.
 
@@ -421,7 +456,15 @@ async def bulk_block_ips(
         ip_addresses: List of IP addresses to block
         interface: Interface to apply blocks on
         description_prefix: Prefix for rule descriptions
+        confirm: Must be set to True to execute. Safety gate for destructive operations.
     """
+    if not confirm:
+        return {
+            "success": False,
+            "error": "This is a destructive operation. Set confirm=True to proceed.",
+            "details": f"Will create {len(ip_addresses)} block rules on interface '{interface}'.",
+        }
+
     # Cap bulk operations to prevent overwhelming pfSense
     if len(ip_addresses) > MAX_BULK_IPS:
         return {
@@ -465,17 +508,24 @@ async def bulk_block_ips(
             errors.append({"ip": ip, "error": str(e)})
 
     # Apply all changes at once
+    warning = None
     if results:
         try:
             await client.apply_firewall_changes()
             applied = True
         except Exception as e:
             applied = False
+            pending_ids = [r.get("rule_id") for r in results if r.get("rule_id") is not None]
+            warning = (
+                f"{len(results)} block rules were created but NOT applied to the running firewall. "
+                f"Call apply_firewall_changes() to activate them, or delete them to undo. "
+                f"Pending rule IDs: {pending_ids}. Apply error: {e}"
+            )
             logger.error(f"Failed to apply bulk changes: {e}")
     else:
         applied = False
 
-    return {
+    response = {
         "success": len(results) > 0,
         "total_requested": len(ip_addresses),
         "successful": len(results),
@@ -485,6 +535,9 @@ async def bulk_block_ips(
         "errors": errors,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
+    if warning:
+        response["warning"] = warning
+    return response
 
 
 @mcp.tool()

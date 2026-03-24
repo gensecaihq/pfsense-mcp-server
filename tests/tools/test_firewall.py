@@ -226,17 +226,23 @@ class TestUpdateFirewallRule:
 class TestDeleteFirewallRule:
     async def test_error(self, mock_client, mock_make_request):
         mock_make_request.side_effect = Exception("delete failed")
-        result = await _delete_firewall_rule(rule_id=5)
+        result = await _delete_firewall_rule(rule_id=5, confirm=True)
         assert result["success"] is False
         assert "delete failed" in result["error"]
 
     async def test_passes_id_and_applies(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {}}
-        result = await _delete_firewall_rule(rule_id=5)
+        result = await _delete_firewall_rule(rule_id=5, confirm=True)
         assert result["success"] is True
         assert result["rule_id"] == 5
+        assert "note" in result  # ID shift warning
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
         assert data["id"] == 5
+
+    async def test_confirm_required(self, mock_client, mock_make_request):
+        result = await _delete_firewall_rule(rule_id=5)
+        assert result["success"] is False
+        assert "confirm" in result["error"].lower()
 
 
 # ---------------------------------------------------------------------------
@@ -304,14 +310,14 @@ class TestMoveFirewallRule:
 class TestBulkBlockIps:
     async def test_success(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {"id": 10}}
-        result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"])
+        result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"], confirm=True)
         assert result["success"] is True
         assert result["successful"] == 2
         assert result["failed"] == 0
 
     async def test_all_fail(self, mock_client, mock_make_request):
         mock_make_request.side_effect = Exception("API error")
-        result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"])
+        result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"], confirm=True)
         assert result["success"] is False
         assert result["applied"] is False
         assert result["failed"] == 2
@@ -329,9 +335,10 @@ class TestBulkBlockIps:
             raise Exception("apply failed")
 
         mock_make_request.side_effect = side_effect
-        result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"])
+        result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"], confirm=True)
         assert result["successful"] == 2
         assert result["applied"] is False
+        assert "warning" in result
 
     async def test_partial_failure(self, mock_client, mock_make_request):
         call_count = 0
@@ -345,17 +352,22 @@ class TestBulkBlockIps:
             return {"data": {"id": call_count}}
 
         mock_make_request.side_effect = side_effect
-        result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"])
+        result = await _bulk_block_ips(ip_addresses=["1.2.3.4", "5.6.7.8"], confirm=True)
         assert result["successful"] == 1
         assert result["failed"] == 1
 
     async def test_statetype_included(self, mock_client, mock_make_request):
         """Bulk block rules must include statetype for pf filter compiler."""
         mock_make_request.return_value = {"data": {"id": 10}}
-        await _bulk_block_ips(ip_addresses=["1.2.3.4"])
+        await _bulk_block_ips(ip_addresses=["1.2.3.4"], confirm=True)
         # First call is the create, second is the apply
         create_data = mock_make_request.call_args_list[0].kwargs.get("data") or mock_make_request.call_args_list[0][1].get("data")
         assert create_data["statetype"] == "keep state"
+
+    async def test_confirm_required(self, mock_client, mock_make_request):
+        result = await _bulk_block_ips(ip_addresses=["1.2.3.4"])
+        assert result["success"] is False
+        assert "confirm" in result["error"].lower()
 
 
 # ---------------------------------------------------------------------------

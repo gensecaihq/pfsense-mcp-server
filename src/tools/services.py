@@ -3,9 +3,8 @@
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
+from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
-
-_VALID_STATUS_FILTERS = {"running", "stopped"}
 
 
 @mcp.tool()
@@ -17,20 +16,19 @@ async def search_services(
 
     Args:
         search_term: Search in service names or descriptions
-        status_filter: Filter by status (running, stopped)
+        status_filter: Filter by status (e.g., running, stopped). Any value accepted — pfSense will filter server-side.
     """
     client = get_api_client()
     try:
-        if status_filter is not None and status_filter not in _VALID_STATUS_FILTERS:
-            return {
-                "success": False,
-                "error": f"Invalid status_filter '{status_filter}'. Must be 'running' or 'stopped'",
-            }
-
         if status_filter == "running":
             result = await client.find_running_services()
         elif status_filter == "stopped":
             result = await client.find_stopped_services()
+        elif status_filter:
+            # Pass any status filter to the API — let pfSense decide validity
+            result = await client.get_services(
+                filters=[QueryFilter("status", status_filter)]
+            )
         else:
             result = await client.get_services()
 

@@ -42,14 +42,27 @@ class TestFollowApiLink:
 
 class TestEnableDisableHateoas:
     async def test_enable(self, mock_client, mock_make_request):
-        result = await _enable_hateoas()
+        mock_make_request.return_value = {"data": {"hateoas": True}}
+        result = await _enable_hateoas(confirm=True)
         assert result["success"] is True
-        assert mock_client.hateoas_enabled is True
+        # Verify it calls PATCH on the API
+        mock_make_request.assert_called_once()
 
     async def test_disable(self, mock_client, mock_make_request):
-        result = await _disable_hateoas()
+        mock_make_request.return_value = {"data": {"hateoas": False}}
+        result = await _disable_hateoas(confirm=True)
         assert result["success"] is True
-        assert mock_client.hateoas_enabled is False
+        mock_make_request.assert_called_once()
+
+    async def test_enable_requires_confirm(self, mock_client, mock_make_request):
+        result = await _enable_hateoas()
+        assert result["success"] is False
+        assert "confirm" in result["error"].lower()
+
+    async def test_disable_requires_confirm(self, mock_client, mock_make_request):
+        result = await _disable_hateoas()
+        assert result["success"] is False
+        assert "confirm" in result["error"].lower()
 
 
 # ---------------------------------------------------------------------------

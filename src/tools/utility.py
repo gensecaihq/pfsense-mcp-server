@@ -64,15 +64,29 @@ async def follow_api_link(link_url: str) -> Dict:
 
 
 @mcp.tool()
-async def enable_hateoas() -> Dict:
-    """Enable HATEOAS links in API responses for this session"""
+async def enable_hateoas(confirm: bool = False) -> Dict:
+    """Enable HATEOAS links in API responses on the pfSense server.
+
+    WARNING: This modifies the pfSense REST API server-wide setting via
+    PATCH /system/restapi/settings. It affects ALL API consumers, not just
+    this MCP session.
+
+    Args:
+        confirm: Must be True to proceed (this changes a global server setting).
+    """
+    if not confirm:
+        return {
+            "success": False,
+            "error": "This modifies a global pfSense REST API setting. Set confirm=True to proceed.",
+            "details": "Enabling HATEOAS adds navigation links to all API responses for all consumers.",
+        }
     client = get_api_client()
     try:
-        result = await client.enable_hateoas()
+        result = await client.set_hateoas(True)
         return {
             "success": True,
-            "message": "HATEOAS enabled - API responses will now include navigation links",
-            "result": result,
+            "message": "HATEOAS enabled on pfSense REST API server — all API responses will now include navigation links",
+            "result": result.get("data", result),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
@@ -81,15 +95,29 @@ async def enable_hateoas() -> Dict:
 
 
 @mcp.tool()
-async def disable_hateoas() -> Dict:
-    """Disable HATEOAS links in API responses for this session"""
+async def disable_hateoas(confirm: bool = False) -> Dict:
+    """Disable HATEOAS links in API responses on the pfSense server.
+
+    WARNING: This modifies the pfSense REST API server-wide setting via
+    PATCH /system/restapi/settings. It affects ALL API consumers, not just
+    this MCP session.
+
+    Args:
+        confirm: Must be True to proceed (this changes a global server setting).
+    """
+    if not confirm:
+        return {
+            "success": False,
+            "error": "This modifies a global pfSense REST API setting. Set confirm=True to proceed.",
+            "details": "Disabling HATEOAS removes navigation links from all API responses for all consumers.",
+        }
     client = get_api_client()
     try:
-        result = await client.disable_hateoas()
+        result = await client.set_hateoas(False)
         return {
             "success": True,
-            "message": "HATEOAS disabled - API responses will be more compact",
-            "result": result,
+            "message": "HATEOAS disabled on pfSense REST API server — API responses will be more compact",
+            "result": result.get("data", result),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:

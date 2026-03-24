@@ -179,14 +179,20 @@ class TestUpdateAlias:
 class TestDeleteAlias:
     async def test_error(self, mock_client, mock_make_request):
         mock_make_request.side_effect = Exception("delete failed")
-        result = await _delete_alias(alias_id=0)
+        result = await _delete_alias(alias_id=0, confirm=True)
         assert result["success"] is False
         assert "delete failed" in result["error"]
 
     async def test_passes_id_and_applies(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {}}
-        result = await _delete_alias(alias_id=2)
+        result = await _delete_alias(alias_id=2, confirm=True)
         assert result["success"] is True
         assert result["alias_id"] == 2
+        assert "note" in result  # ID shift warning
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
         assert data["id"] == 2
+
+    async def test_confirm_required(self, mock_client, mock_make_request):
+        result = await _delete_alias(alias_id=0)
+        assert result["success"] is False
+        assert "confirm" in result["error"].lower()

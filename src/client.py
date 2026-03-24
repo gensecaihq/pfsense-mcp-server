@@ -141,7 +141,6 @@ class EnhancedPfSenseAPIClient:
         sort: Optional[SortOptions] = None,
         pagination: Optional[PaginationOptions] = None,
         extra_params: Optional[Dict[str, str]] = None,
-        hateoas: Optional[bool] = None
     ) -> str:
         """Build query parameters for GET requests.
 
@@ -149,6 +148,10 @@ class EnhancedPfSenseAPIClient:
         included here. The pfSense API reads them from the JSON request body
         on POST/PATCH/DELETE, not from the query string. They are merged into
         the request body by _make_request().
+
+        NOTE: HATEOAS is a server-side setting controlled via
+        PATCH /system/restapi/settings. Per-request ?hateoas=true is NOT
+        supported by the pfSense API, so it is not included here.
         """
         params = {}
 
@@ -166,11 +169,6 @@ class EnhancedPfSenseAPIClient:
         if pagination:
             params.update(pagination.to_params())
 
-        # Add HATEOAS (per-request override, or fall back to session default)
-        use_hateoas = hateoas if hateoas is not None else self.hateoas_enabled
-        if use_hateoas:
-            params["hateoas"] = "true"
-
         # Add extra parameters
         if extra_params:
             params.update(extra_params)
@@ -187,7 +185,6 @@ class EnhancedPfSenseAPIClient:
         pagination: Optional[PaginationOptions] = None,
         control: Optional[ControlParameters] = None,
         extra_params: Optional[Dict[str, str]] = None,
-        hateoas: Optional[bool] = None
     ) -> Dict:
         """Make API request with enhanced features.
 
@@ -225,7 +222,7 @@ class EnhancedPfSenseAPIClient:
 
         # Build query string (filters, sort, pagination — NOT control params)
         query_string = self._build_query_params(
-            filters, sort, pagination, extra_params, hateoas=hateoas
+            filters, sort, pagination, extra_params
         )
         if query_string:
             url += f"?{query_string}"
@@ -663,16 +660,19 @@ class EnhancedPfSenseAPIClient:
         The POST /status/service endpoint requires the service's integer 'id'
         (array index), not the service name. The 'name' field is read-only.
         """
-        result = await self.get_services(
-            filters=[QueryFilter("name", service_name)]
-        )
+        # Fetch all services so we can show available names on failure
+        result = await self.get_services()
         services = result.get("data") or []
         for svc in services:
             if svc.get("name") == service_name:
                 svc_id = svc.get("id")
                 if svc_id is not None:
                     return int(svc_id)
-        raise ValueError(f"Service '{service_name}' not found")
+        available = sorted(set(s.get("name") for s in services if s.get("name")))
+        raise ValueError(
+            f"Service '{service_name}' not found. "
+            f"Available services: {', '.join(available)}"
+        )
 
     async def start_service(self, service_name: str) -> Dict:
         """Start a service by name"""
@@ -1016,15 +1016,18 @@ class EnhancedPfSenseAPIClient:
         """Get API capabilities and settings"""
         return await self._make_request("GET", "/system/restapi/settings")
 
-    async def enable_hateoas(self) -> Dict:
-        """Enable HATEOAS for this session"""
-        self.hateoas_enabled = True
-        return {"message": "HATEOAS enabled for this session"}
+    async def set_hateoas(self, enabled: bool) -> Dict:
+        """Enable or disable HATEOAS on the pfSense REST API server.
 
-    async def disable_hateoas(self) -> Dict:
-        """Disable HATEOAS for this session"""
-        self.hateoas_enabled = False
-        return {"message": "HATEOAS disabled for this session"}
+        HATEOAS is a global server-side setting, NOT a per-request toggle.
+        This calls PATCH /system/restapi/settings to change it.
+        """
+        result = await self._make_request(
+            "PATCH", "/system/restapi/settings",
+            data={"hateoas": enabled},
+        )
+        self.hateoas_enabled = enabled
+        return result
 
     async def close(self):
         """Close HTTP client and reset state"""

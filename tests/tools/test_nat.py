@@ -123,16 +123,22 @@ class TestCreateNatPortForward:
 class TestDeleteNatPortForward:
     async def test_error(self, mock_client, mock_make_request):
         mock_make_request.side_effect = Exception("delete failed")
-        result = await _delete_nat_port_forward(port_forward_id=3)
+        result = await _delete_nat_port_forward(port_forward_id=3, confirm=True)
         assert result["success"] is False
         assert "delete failed" in result["error"]
 
     async def test_passes_id(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {}}
-        result = await _delete_nat_port_forward(port_forward_id=3)
+        result = await _delete_nat_port_forward(port_forward_id=3, confirm=True)
         assert result["success"] is True
+        assert "note" in result  # ID shift warning
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
         assert data["id"] == 3
+
+    async def test_confirm_required(self, mock_client, mock_make_request):
+        result = await _delete_nat_port_forward(port_forward_id=3)
+        assert result["success"] is False
+        assert "confirm" in result["error"].lower()
 
 
 # ---------------------------------------------------------------------------
