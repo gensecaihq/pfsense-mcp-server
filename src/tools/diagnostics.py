@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
+from ..guardrails import guarded
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def run_ping_diagnostic(
     host: str,
@@ -55,21 +56,17 @@ async def run_ping_diagnostic(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def reboot_system(
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Reboot the pfSense system. WARNING: This will cause a service interruption.
 
     Args:
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": "Will reboot the pfSense system, causing a service interruption.",
-        }
-
     client = get_api_client()
     try:
         result = await client.crud_create("/diagnostics/reboot", {})
@@ -87,21 +84,17 @@ async def reboot_system(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def halt_system(
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Halt (shut down) the pfSense system. WARNING: This will power off the system.
 
     Args:
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": "Will halt the pfSense system, powering it off completely.",
-        }
-
     client = get_api_client()
     try:
         result = await client.crud_create("/diagnostics/halt_system", {})
@@ -192,23 +185,19 @@ async def get_config_revision(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_config_revision(
     revision_id: int,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a configuration history revision by ID. WARNING: This is irreversible.
 
     Args:
         revision_id: Revision ID (from get_config_history)
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete config revision {revision_id}.",
-        }
-
     client = get_api_client()
     try:
         result = await client.crud_delete("/diagnostics/config_history/revision", revision_id)

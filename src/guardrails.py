@@ -143,36 +143,90 @@ def build_approval_request(
     )
 
     return {
+        "success": False,
         "approval_required": True,
+        "error": f"This is a {risk.value}-risk operation. Set confirm=True to proceed.",
         "request_id": request.request_id,
         "risk_level": risk.value,
         "tool": tool_name,
-        "description": description,
         "impact": impact,
         "parameters_visible": request.parameters,
-        "instruction": f"This is a {risk.value}-risk operation. Set confirm=True to proceed.",
+        "reversible": risk != RiskLevel.CRITICAL,
+        "how_to_proceed": f"Call {tool_name}(..., confirm=True) to execute.",
+        "how_to_preview": f"Call {tool_name}(..., dry_run=True) to preview without executing.",
+        "how_to_verify": "Use find_object_by_field() or search tools to verify the target object before confirming." if "delete" in tool_name else None,
         "timestamp": request.timestamp,
     }
 
 
+def _extract_object_id(params: Dict) -> str:
+    """Extract the object ID from parameters, trying common field names."""
+    for key in ("rule_id", "alias_id", "id", "mapping_id", "port_forward_id",
+                "tunnel_id", "peer_id", "override_id", "access_list_id",
+                "certificate_id", "ca_id", "crl_id", "user_id", "client_id",
+                "gateway_id", "group_id", "route_id", "schedule_id", "tunable_id",
+                "shaper_id", "queue_id", "limiter_id", "vlan_id", "interface_id",
+                "vip_id", "state_id", "revision_id", "backend_id", "frontend_id",
+                "zone_id", "record_id"):
+        val = params.get(key)
+        if val is not None:
+            return str(val)
+    return "unknown"
+
+
 def _build_impact_summary(tool_name: str, params: Dict) -> str:
-    """Generate a human-readable impact summary for a destructive action."""
+    """Generate a detailed, human-readable impact summary for informed decision-making."""
     if tool_name == "halt_system":
-        return "WILL SHUT DOWN the pfSense appliance. Network traffic will stop."
+        return (
+            "WILL SHUT DOWN the pfSense appliance. All network traffic will stop immediately. "
+            "Physical access or out-of-band management (IPMI/iLO) required to restart. "
+            "This action is IRREVERSIBLE remotely."
+        )
     if tool_name == "reboot_system":
-        return "WILL REBOOT the pfSense appliance. Brief network outage expected."
+        return (
+            "WILL REBOOT the pfSense appliance. Network traffic will be interrupted for 1-5 minutes. "
+            "All active VPN tunnels, NAT sessions, and firewall states will be dropped. "
+            "The appliance will come back online automatically."
+        )
     if tool_name == "bulk_block_ips":
-        count = len(params.get("ip_addresses", []))
+        ips = params.get("ip_addresses", [])
+        count = len(ips)
         iface = params.get("interface", "wan")
-        return f"Will create {count} block rules on interface '{iface}'."
+        ip_preview = ", ".join(ips[:5])
+        if count > 5:
+            ip_preview += f", ... and {count - 5} more"
+        return (
+            f"Will create {count} BLOCK rules on interface '{iface}' for: {ip_preview}. "
+            f"These rules will drop all traffic from the listed IPs. "
+            f"Rules are created with apply=True and will take effect immediately."
+        )
     if tool_name.startswith("delete_"):
         obj_type = tool_name.replace("delete_", "").replace("_", " ")
-        obj_id = params.get("rule_id") or params.get("alias_id") or params.get("id") or params.get("mapping_id") or params.get("port_forward_id") or "unknown"
-        return f"Will permanently delete {obj_type} with ID {obj_id}. Object IDs will shift."
+        obj_id = _extract_object_id(params)
+        apply = params.get("apply_immediately", True)
+        verify = params.get("verify_descr")
+        lines = [
+            f"Will PERMANENTLY DELETE {obj_type} with ID {obj_id}.",
+            f"Apply immediately: {'yes' if apply else 'no (pending until manual apply)'}.",
+            "After deletion, all subsequent object IDs will shift down by 1.",
+            "This action CANNOT be undone — the object and its configuration will be lost.",
+        ]
+        if verify:
+            lines.append(f"Stale-ID guard active: will verify descr='{verify}' before deleting.")
+        return " ".join(lines)
+    if tool_name == "disconnect_openvpn_client":
+        return (
+            "Will forcibly disconnect an active OpenVPN client connection. "
+            "The client may automatically reconnect depending on its configuration."
+        )
     if tool_name.startswith("create_"):
         obj_type = tool_name.replace("create_", "").replace("_", " ")
-        return f"Will create a new {obj_type} on the live pfSense appliance."
-    return f"Will execute {tool_name.replace('_', ' ')}."
+        apply = params.get("apply_immediately", True)
+        return (
+            f"Will create a new {obj_type} on the live pfSense appliance. "
+            f"Apply immediately: {'yes — changes take effect now' if apply else 'no — requires manual apply'}."
+        )
+    return f"Will execute {tool_name.replace('_', ' ')} on the live pfSense appliance."
 
 
 def _redact_sensitive(params: Dict) -> Dict:
@@ -288,6 +342,13 @@ _critical_limiter = RateLimiter(
     max_ops=int(os.getenv("MCP_RATE_LIMIT_CRITICAL", "2")),
     window_seconds=300,  # 5-minute window for critical ops
 )
+
+
+def reset_rate_limiters():
+    """Reset all rate limiters (for testing)."""
+    _delete_limiter._timestamps.clear()
+    _create_limiter._timestamps.clear()
+    _critical_limiter._timestamps.clear()
 
 
 def check_rate_limit(tool_name: str) -> Optional[str]:
@@ -545,3 +606,72 @@ def check_guardrails(
 
     # All checks passed
     return None
+
+
+# ---------------------------------------------------------------------------
+# Guarded Tool Wrapper — Automatically applies guardrails to any tool
+# ---------------------------------------------------------------------------
+
+import functools
+import inspect
+
+
+def guarded(fn):
+    """Decorator that applies the full guardrail system to a tool function.
+
+    Extracts `confirm` and `dry_run` from the function's kwargs, runs
+    check_guardrails() with all 8 layers, and only calls the wrapped
+    function if all checks pass.
+
+    Usage:
+        @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
+        @guarded
+        async def delete_something(id: int, confirm: bool = False, dry_run: bool = False):
+            # This code only runs if guardrails pass
+            ...
+
+    The decorator:
+    1. Extracts all non-confirm/dry_run params as the parameter dict
+    2. Calls check_guardrails(tool_name, params, confirm, dry_run)
+    3. If guardrails return a blocking response, returns it immediately
+    4. If guardrails pass, calls the original function
+    5. After successful execution, logs the audit result
+    """
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        tool_name = fn.__name__
+        confirm = kwargs.get("confirm", False)
+        dry_run = kwargs.get("dry_run", False)
+
+        # Build parameter dict for guardrail inspection (exclude internal flags)
+        params = {}
+        sig = inspect.signature(fn)
+        for name, param in sig.parameters.items():
+            if name in ("confirm", "dry_run"):
+                continue
+            if name in kwargs:
+                params[name] = kwargs[name]
+            elif args and list(sig.parameters.keys()).index(name) < len(args):
+                params[name] = args[list(sig.parameters.keys()).index(name)]
+
+        # Run all guardrail checks
+        block = check_guardrails(tool_name, params, confirm=confirm, dry_run=dry_run)
+        if block is not None:
+            return block
+
+        # Guardrails passed — execute the tool
+        result = await fn(*args, **kwargs)
+
+        # Post-execution audit log
+        success = result.get("success", False) if isinstance(result, dict) else True
+        audit_log(
+            tool_name,
+            classify_risk(tool_name),
+            params,
+            result="success" if success else "failed",
+            user_confirmed=confirm,
+        )
+
+        return result
+
+    return wrapper

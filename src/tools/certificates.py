@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
+from ..guardrails import guarded
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_certificates(
     search_term: Optional[str] = None,
@@ -192,23 +193,19 @@ async def update_certificate(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_certificate(
     certificate_id: int,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a certificate by ID. WARNING: This is irreversible.
 
     Args:
         certificate_id: Certificate ID (array index from search_certificates)
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete certificate {certificate_id}.",
-        }
-
     client = get_api_client()
     try:
         result = await client._make_request(
@@ -527,23 +524,19 @@ async def update_certificate_authority(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_certificate_authority(
     ca_id: int,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a Certificate Authority by ID. WARNING: This is irreversible.
 
     Args:
         ca_id: Certificate Authority ID (array index from search_certificate_authorities)
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete Certificate Authority {ca_id}.",
-        }
-
     client = get_api_client()
     try:
         result = await client._make_request(
@@ -701,23 +694,19 @@ async def update_crl(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_crl(
     crl_id: int,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a Certificate Revocation List (CRL) by ID. WARNING: This is irreversible.
 
     Args:
         crl_id: CRL ID (array index from search_crls)
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete CRL {crl_id}.",
-        }
-
     client = get_api_client()
     try:
         result = await client._make_request(

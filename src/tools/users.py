@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 # ------------------------------------------------------------------ #
 
 
+from ..guardrails import guarded
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_users(
     search_term: Optional[str] = None,
@@ -207,23 +208,19 @@ async def update_user(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_user(
     user_id: int,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a pfSense local user by ID. WARNING: This is irreversible.
 
     Args:
         user_id: User ID (array index from search_users)
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete user {user_id}.",
-        }
-
     client = get_api_client()
     try:
         result = await client.delete_user(user_id)
@@ -419,23 +416,19 @@ async def update_group(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_group(
     group_id: int,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a pfSense user group by ID. WARNING: This is irreversible.
 
     Args:
         group_id: Group ID (array index from search_groups)
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete group {group_id}.",
-        }
-
     client = get_api_client()
     try:
         result = await client.delete_group(group_id)
@@ -767,23 +760,19 @@ async def update_auth_server(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_auth_server(
     auth_server_id: int,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a pfSense authentication server by ID. WARNING: This is irreversible.
 
     Args:
         auth_server_id: Auth server ID (array index from search_auth_servers)
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete auth server {auth_server_id}.",
-        }
-
     client = get_api_client()
     try:
         result = await client.delete_auth_server(auth_server_id)

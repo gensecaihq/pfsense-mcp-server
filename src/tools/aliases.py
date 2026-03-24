@@ -15,6 +15,7 @@ from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
 
 
+from ..guardrails import guarded
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_aliases(
     search_term: Optional[str] = None,
@@ -254,10 +255,12 @@ async def update_alias(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_alias(
     alias_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete an alias by ID. WARNING: This is irreversible.
 
@@ -265,14 +268,8 @@ async def delete_alias(
         alias_id: Alias ID (array index from search_aliases)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete alias {alias_id}.",
-        }
-
     client = get_api_client()
     try:
         result = await client.delete_alias(alias_id, apply_immediately)

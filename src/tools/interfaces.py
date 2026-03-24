@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
+from ..guardrails import guarded
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_interface_configs(
     search_term: Optional[str] = None,
@@ -204,10 +205,12 @@ async def update_interface(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_interface(
     interface_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete (unassign) an interface by ID. WARNING: This is irreversible.
 
@@ -215,14 +218,8 @@ async def delete_interface(
         interface_id: Interface ID (from search_interface_configs)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete interface {interface_id}.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)
@@ -433,10 +430,12 @@ async def update_vlan(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_vlan(
     vlan_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a VLAN by ID. WARNING: This is irreversible.
 
@@ -444,14 +443,8 @@ async def delete_vlan(
         vlan_id: VLAN ID (from search_vlans)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete VLAN {vlan_id}.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)

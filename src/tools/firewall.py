@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Union
 
+from ..guardrails import guarded
 from ..helpers import (
     MAX_BULK_IPS,
     create_default_sort,
@@ -416,10 +417,12 @@ async def update_firewall_rule(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_firewall_rule(
     rule_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
     verify_descr: Optional[str] = None,
 ) -> Dict:
     """Delete a firewall rule from the live pfSense appliance. WARNING: This is irreversible.
@@ -428,15 +431,9 @@ async def delete_firewall_rule(
         rule_id: Rule ID (array index from search_firewall_rules, e.g., 0, 1, 2...)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
         verify_descr: Safety check — if provided, verifies the rule at this ID still has this description before deleting. Prevents deleting the wrong rule after ID shifts.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete firewall rule {rule_id} from the live pfSense appliance.",
-        }
-
     client = get_api_client()
     try:
         # Stale-ID guard: verify the rule still matches before deleting
@@ -462,11 +459,13 @@ async def delete_firewall_rule(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def bulk_block_ips(
     ip_addresses: List[str],
     interface: str = "wan",
     description_prefix: str = "Bulk block via MCP",
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Block multiple IP addresses on the live pfSense firewall. WARNING: Creates block rules.
 
@@ -475,14 +474,8 @@ async def bulk_block_ips(
         interface: Interface to apply blocks on
         description_prefix: Prefix for rule descriptions
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will create {len(ip_addresses)} block rules on interface '{interface}'.",
-        }
-
     # Cap bulk operations to prevent overwhelming pfSense
     if len(ip_addresses) > MAX_BULK_IPS:
         return {

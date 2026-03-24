@@ -14,6 +14,7 @@ from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
 
 # API endpoint constants (pfSense REST API v2 paths, without /api/v2 prefix)
+from ..guardrails import guarded
 _SETTINGS = "/services/dns_resolver/settings"
 _HOST_OVERRIDES = "/services/dns_resolver/host_overrides"
 _HOST_OVERRIDE = "/services/dns_resolver/host_override"
@@ -307,10 +308,12 @@ async def update_dns_host_override(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_dns_host_override(
     override_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a DNS host override by ID. WARNING: This is irreversible.
 
@@ -318,14 +321,8 @@ async def delete_dns_host_override(
         override_id: Host override ID (from search_dns_host_overrides)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete DNS host override {override_id}.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)
@@ -579,10 +576,12 @@ async def update_dns_domain_override(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_dns_domain_override(
     override_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a DNS domain override by ID. WARNING: This is irreversible.
 
@@ -590,14 +589,8 @@ async def delete_dns_domain_override(
         override_id: Domain override ID (from search_dns_domain_overrides)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete DNS domain override {override_id}.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)
@@ -790,10 +783,12 @@ async def update_dns_access_list(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_dns_access_list(
     access_list_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a DNS Resolver access list. WARNING: This is irreversible.
 
@@ -801,14 +796,8 @@ async def delete_dns_access_list(
         access_list_id: Access list ID
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete DNS access list {access_list_id}.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)

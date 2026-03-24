@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
+from ..guardrails import guarded
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_traffic_shapers(
     search_term: Optional[str] = None,
@@ -191,10 +192,12 @@ async def update_traffic_shaper(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_traffic_shaper(
     shaper_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a traffic shaper by ID. WARNING: This is irreversible.
 
@@ -202,14 +205,8 @@ async def delete_traffic_shaper(
         shaper_id: Traffic shaper ID (from search_traffic_shapers)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete traffic shaper {shaper_id}.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)
@@ -413,10 +410,12 @@ async def update_shaper_queue(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_shaper_queue(
     queue_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a shaper queue by ID. WARNING: This is irreversible.
 
@@ -424,14 +423,8 @@ async def delete_shaper_queue(
         queue_id: Shaper queue ID (from search_shaper_queues)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete shaper queue {queue_id}.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)
@@ -630,10 +623,12 @@ async def update_traffic_limiter(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_traffic_limiter(
     limiter_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a traffic limiter by ID. WARNING: This is irreversible.
 
@@ -641,14 +636,8 @@ async def delete_traffic_limiter(
         limiter_id: Traffic limiter ID (from search_traffic_limiters)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete traffic limiter {limiter_id}.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)

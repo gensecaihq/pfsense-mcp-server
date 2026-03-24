@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
+from ..guardrails import guarded
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_virtual_ips(
     search_term: Optional[str] = None,
@@ -239,10 +240,12 @@ async def update_virtual_ip(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_virtual_ip(
     vip_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a virtual IP by ID. WARNING: This is irreversible.
 
@@ -250,14 +253,8 @@ async def delete_virtual_ip(
         vip_id: Virtual IP ID (from search_virtual_ips)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete virtual IP {vip_id}.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)

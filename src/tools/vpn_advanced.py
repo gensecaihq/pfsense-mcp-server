@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
+from ..guardrails import guarded
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_ipsec_phase2_encryptions(
     parent_id: Optional[int] = None,
@@ -177,10 +178,12 @@ async def update_ipsec_phase2_encryption(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_ipsec_phase2_encryption(
     encryption_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete an IPsec Phase 2 encryption entry by ID. WARNING: This is irreversible.
 
@@ -188,14 +191,8 @@ async def delete_ipsec_phase2_encryption(
         encryption_id: Encryption entry ID (from search_ipsec_phase2_encryptions)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete IPsec Phase 2 encryption {encryption_id}.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)
@@ -453,23 +450,19 @@ async def search_openvpn_server_connections(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def disconnect_openvpn_client(
     connection_id: int,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Disconnect an active OpenVPN client connection. WARNING: This will terminate the client session.
 
     Args:
         connection_id: Connection ID (from search_openvpn_server_connections)
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will disconnect OpenVPN client connection {connection_id}.",
-        }
-
     client = get_api_client()
     try:
         result = await client.crud_delete(

@@ -15,6 +15,7 @@ from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
 
 
+from ..guardrails import guarded
 async def _lookup_mapping_parent_id(client, mapping_id: int) -> str:
     """Look up a DHCP static mapping's parent_id (interface) by its ID.
 
@@ -334,11 +335,13 @@ async def update_dhcp_static_mapping(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_dhcp_static_mapping(
     mapping_id: int,
     interface: str,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a DHCP static mapping by ID. WARNING: This is irreversible.
 
@@ -347,14 +350,8 @@ async def delete_dhcp_static_mapping(
         interface: Interface/DHCP pool the mapping belongs to (e.g., "lan"). Required to avoid race conditions with auto-detection.
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete DHCP static mapping {mapping_id} on interface '{interface}'.",
-        }
-
     client = get_api_client()
     try:
         result = await client.delete_dhcp_static_mapping(mapping_id, interface, apply_immediately)

@@ -9,6 +9,7 @@ from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
 
 # API endpoint constants
+from ..guardrails import guarded
 _TUNNELS = "/vpn/wireguard/tunnels"
 _TUNNEL = "/vpn/wireguard/tunnel"
 _PEERS = "/vpn/wireguard/peers"
@@ -198,10 +199,12 @@ async def update_wireguard_tunnel(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_wireguard_tunnel(
     tunnel_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a WireGuard tunnel by ID. WARNING: This is irreversible.
 
@@ -209,14 +212,8 @@ async def delete_wireguard_tunnel(
         tunnel_id: Tunnel ID (from search_wireguard_tunnels)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete WireGuard tunnel {tunnel_id}.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)
@@ -426,10 +423,12 @@ async def update_wireguard_peer(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_wireguard_peer(
     peer_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a WireGuard peer by ID. WARNING: This is irreversible.
 
@@ -437,14 +436,8 @@ async def delete_wireguard_peer(
         peer_id: Peer ID (from search_wireguard_peers)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete WireGuard peer {peer_id}.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)

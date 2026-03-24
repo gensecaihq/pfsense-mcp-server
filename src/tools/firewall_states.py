@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
+from ..guardrails import guarded
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_firewall_states(
     search_term: Optional[str] = None,
@@ -68,9 +69,11 @@ async def search_firewall_states(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_firewall_state(
     id: str,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a specific firewall state (active connection) by ID. WARNING: This is irreversible.
 
@@ -79,14 +82,8 @@ async def delete_firewall_state(
     Args:
         id: State ID (from search_firewall_states)
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will terminate firewall state {id}, dropping the associated connection.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=False)

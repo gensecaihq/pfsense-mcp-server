@@ -19,6 +19,15 @@ from src.pfsense_api_enhanced import (  # noqa: E402
 )
 
 
+@pytest.fixture(autouse=True)
+def _reset_guardrail_rate_limiters():
+    """Reset guardrail rate limiters between tests to prevent cross-test interference."""
+    from src.guardrails import reset_rate_limiters
+    reset_rate_limiters()
+    yield
+    reset_rate_limiters()
+
+
 @pytest.fixture()
 def mock_make_request():
     """Patch _make_request on the client class and return the AsyncMock."""

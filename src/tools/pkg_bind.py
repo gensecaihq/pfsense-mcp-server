@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 # ---------------------------------------------------------------------------
 
 
+from ..guardrails import guarded
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_bind_zones(
     search_term: Optional[str] = None,
@@ -182,10 +183,12 @@ async def update_bind_zone(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
 async def delete_bind_zone(
     zone_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    dry_run: bool = False,
 ) -> Dict:
     """Delete a BIND DNS zone by ID. WARNING: This is irreversible.
 
@@ -195,14 +198,8 @@ async def delete_bind_zone(
         zone_id: Zone ID (from search_bind_zones)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        dry_run: If True, preview the operation without executing.
     """
-    if not confirm:
-        return {
-            "success": False,
-            "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete BIND zone {zone_id} and all its records.",
-        }
-
     client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)
