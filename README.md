@@ -265,6 +265,21 @@ Passwords, keys, tokens, secrets, and certificates are automatically redacted (`
 
 Optional `MCP_ALLOWED_TOOLS` env var restricts which tools can execute destructive actions. Read-only tools are always allowed.
 
+### 9. Automatic Config Backup
+
+Every HIGH and CRITICAL operation automatically captures the pfSense config revision ID before executing. On success, the response includes rollback instructions:
+
+```json
+{
+  "config_backup": {
+    "pre_change_revision_id": 42,
+    "rollback_instruction": "To undo, call restore_config_backup(revision_id=42, confirm=True)"
+  }
+}
+```
+
+Use `get_config_history` to browse revisions, `compare_config_revisions` to diff, and `restore_config_backup` to roll back.
+
 ### Additional Safety
 
 | Feature | Description |
@@ -402,6 +417,7 @@ src/
 | `MCP_RATE_LIMIT_CRITICAL` | No | `2` | Max critical operations (reboot/halt) per 300s |
 | `MCP_ALLOWED_TOOLS` | No | all | Comma-separated allowlist of permitted destructive tools |
 | `MCP_ROLLBACK_BUFFER` | No | `50` | Number of rollback entries to keep in memory |
+| `MCP_READ_ONLY` | No | `false` | If `true`, only read-only tools are registered (118 of 327) |
 
 ## Docker
 
@@ -416,7 +432,7 @@ docker run --rm -e PFSENSE_URL=https://pfsense.local -e PFSENSE_API_KEY=your-key
 docker compose up
 ```
 
-The `docker-compose.yml` runs in `streamable-http` mode on port 3000 with bearer auth.
+The `docker-compose.yml` runs in `streamable-http` mode on port 3000 with bearer auth. Container security: read-only filesystem, all capabilities dropped (only `NET_BIND_SERVICE`), `no-new-privileges`, noexec tmpfs, non-root user (`mcp:1000`).
 
 ## Testing
 
@@ -468,8 +484,8 @@ This MCP server has been verified against the pfSense REST API v2 PHP source cod
 - Help improve documentation based on real-world usage
 
 **Code Contributions**
-- Add tools for missing endpoint categories (VPN, routing, DNS, certificates)
-- Add support for pfSense packages (Snort, Suricata, HAProxy)
+- Integration tests against real pfSense appliances
+- Support for additional pfSense packages (Snort, Suricata, ntopng)
 - Improve test coverage for edge cases
 - Performance optimizations
 
