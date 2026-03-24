@@ -7,6 +7,9 @@
 # Generated files
 pfsense-openapi-v2.json
 
+# Internal planning docs
+ollama-todo.md
+
 # Python
 __pycache__/
 *.py[cod]
