@@ -9,6 +9,8 @@ from ..helpers import (
     create_interface_filter,
     create_pagination,
     create_port_filter,
+    safe_data_dict,
+    sanitize_description,
     validate_ip_address,
     validate_port_value,
 )
@@ -186,7 +188,7 @@ async def create_firewall_rule_advanced(
         "ipprotocol": "inet",
         "source": source,
         "destination": destination,
-        "descr": description or f"Created via MCP at {datetime.now(timezone.utc).isoformat()}",
+        "descr": sanitize_description(description) if description else f"Created via MCP at {datetime.now(timezone.utc).isoformat()}",
         "log": log_matches,
         "statetype": "keep state",  # Required for pf filter compiler
         "disabled": disabled,
@@ -217,7 +219,7 @@ async def create_firewall_rule_advanced(
 
         # If a specific position was requested, move the rule there
         if position is not None:
-            new_rule_id = result.get("data", {}).get("id")
+            new_rule_id = safe_data_dict(result).get("id")
             if new_rule_id is not None:
                 try:
                     await client.move_firewall_rule(
@@ -318,7 +320,8 @@ async def update_firewall_rule(
     description: Optional[str] = None,
     disabled: Optional[bool] = None,
     log_matches: Optional[bool] = None,
-    apply_immediately: bool = True
+    apply_immediately: bool = True,
+    verify_descr: Optional[str] = None,
 ) -> Dict:
     """Update an existing firewall rule by ID
 
@@ -335,9 +338,16 @@ async def update_firewall_rule(
         disabled: Whether the rule is disabled
         log_matches: Whether to log rule matches
         apply_immediately: Whether to apply changes immediately
+        verify_descr: Safety check — if provided, verifies the rule at this ID still has this description before updating. Prevents operating on the wrong rule after ID shifts.
     """
     client = get_api_client()
     try:
+        # Stale-ID guard: verify the rule still matches before updating
+        if verify_descr is not None:
+            id_err = await client.verify_object_id("/firewall/rules", rule_id, "descr", verify_descr)
+            if id_err:
+                return {"success": False, "error": id_err}
+
         # Validate port formats before sending to API
         for port_param, port_val in [("source_port", source_port), ("destination_port", destination_port)]:
             if port_val:
@@ -409,6 +419,7 @@ async def delete_firewall_rule(
     rule_id: int,
     apply_immediately: bool = True,
     confirm: bool = False,
+    verify_descr: Optional[str] = None,
 ) -> Dict:
     """Delete a firewall rule from the live pfSense appliance. WARNING: This is irreversible.
 
@@ -416,6 +427,7 @@ async def delete_firewall_rule(
         rule_id: Rule ID (array index from search_firewall_rules, e.g., 0, 1, 2...)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
+        verify_descr: Safety check — if provided, verifies the rule at this ID still has this description before deleting. Prevents deleting the wrong rule after ID shifts.
     """
     if not confirm:
         return {
@@ -426,6 +438,11 @@ async def delete_firewall_rule(
 
     client = get_api_client()
     try:
+        # Stale-ID guard: verify the rule still matches before deleting
+        if verify_descr is not None:
+            id_err = await client.verify_object_id("/firewall/rules", rule_id, "descr", verify_descr)
+            if id_err:
+                return {"success": False, "error": id_err}
         result = await client.delete_firewall_rule(rule_id, apply_immediately)
 
         return {
@@ -501,7 +518,7 @@ async def bulk_block_ips(
             # Don't apply immediately for bulk operations
             control = ControlParameters(apply=False)
             result = await client.create_firewall_rule(rule_data, control)
-            results.append({"ip": ip, "success": True, "rule_id": result.get("data", {}).get("id")})
+            results.append({"ip": ip, "success": True, "rule_id": safe_data_dict(result).get("id")})
 
         except Exception as e:
             logger.error(f"Failed to block IP {ip}: {e}")

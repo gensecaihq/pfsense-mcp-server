@@ -1,10 +1,17 @@
-"""Tests for helpers.py — MAC normalization, filterlog parser, alias address validation."""
+"""Tests for helpers.py — MAC normalization, filterlog parser, alias address validation,
+pagination bounds, description sanitization, safe_data helpers."""
 
 import pytest
 
 from src.helpers import (
+    MAX_OFFSET,
+    MAX_PAGE,
+    create_pagination,
     normalize_mac_address,
     parse_filterlog_entry,
+    safe_data_dict,
+    safe_data_list,
+    sanitize_description,
     validate_alias_addresses,
     validate_mac_address,
 )
@@ -178,3 +185,120 @@ class TestValidateAliasAddresses:
         result = validate_alias_addresses("host", ["10.0.0.1", ""])
         assert result is not None
         assert "empty" in result.lower()
+
+
+# ---------------------------------------------------------------------------
+# Pagination bounds
+# ---------------------------------------------------------------------------
+
+class TestPaginationBounds:
+    def test_normal_page(self):
+        p, page, size = create_pagination(1, 50)
+        assert p.offset == 0
+        assert p.limit == 50
+        assert page == 1
+
+    def test_extreme_page_capped(self):
+        p, page, size = create_pagination(999999, 200)
+        assert page == MAX_PAGE
+        assert p.offset <= MAX_OFFSET
+
+    def test_negative_page_clamped(self):
+        p, page, size = create_pagination(-5, 200)
+        assert page == 1
+        assert p.offset == 0
+
+    def test_zero_page_size_defaults(self):
+        p, page, size = create_pagination(1, 0)
+        assert size == 50
+
+    def test_max_page_boundary(self):
+        p, page, size = create_pagination(MAX_PAGE, 200)
+        assert page == MAX_PAGE
+        assert p.offset == (MAX_PAGE - 1) * 200
+
+
+# ---------------------------------------------------------------------------
+# Description sanitization
+# ---------------------------------------------------------------------------
+
+class TestSanitizeDescription:
+    def test_normal_string(self):
+        assert sanitize_description("Allow HTTPS traffic") == "Allow HTTPS traffic"
+
+    def test_truncates_long_string(self):
+        long = "a" * 2000
+        result = sanitize_description(long)
+        assert len(result) == 1024
+
+    def test_strips_control_chars(self):
+        result = sanitize_description("hello\x00world\x01test")
+        assert "\x00" not in result
+        assert "\x01" not in result
+        assert "helloworld" in result
+
+    def test_keeps_newlines_and_tabs(self):
+        result = sanitize_description("line1\nline2\ttab")
+        assert "\n" in result
+        assert "\t" in result
+
+
+# ---------------------------------------------------------------------------
+# safe_data_dict / safe_data_list
+# ---------------------------------------------------------------------------
+
+class TestSafeDataHelpers:
+    def test_safe_data_dict_normal(self):
+        assert safe_data_dict({"data": {"id": 1}}) == {"id": 1}
+
+    def test_safe_data_dict_none(self):
+        assert safe_data_dict({"data": None}) == {}
+
+    def test_safe_data_dict_string(self):
+        assert safe_data_dict({"data": "error"}) == {}
+
+    def test_safe_data_dict_missing(self):
+        assert safe_data_dict({}) == {}
+
+    def test_safe_data_dict_non_dict_input(self):
+        assert safe_data_dict(None) == {}
+
+    def test_safe_data_list_normal(self):
+        assert safe_data_list({"data": [{"id": 1}]}) == [{"id": 1}]
+
+    def test_safe_data_list_none(self):
+        assert safe_data_list({"data": None}) == []
+
+    def test_safe_data_list_dict_instead(self):
+        assert safe_data_list({"data": {"id": 1}}) == []
+
+    def test_safe_data_list_missing(self):
+        assert safe_data_list({}) == []
+
+
+# ---------------------------------------------------------------------------
+# Filterlog IP validation in positional parse
+# ---------------------------------------------------------------------------
+
+class TestFilterlogIpValidation:
+    def test_invalid_ip_in_src_position(self):
+        """If field at src_ip position is not a valid IP, it should be empty."""
+        line = (
+            "Jan 15 pfSense filterlog[1]: "
+            "5,,,1000,wan,match,block,in,4,0x0,,128,12345,0,none,6,tcp,60,"
+            "NOT_AN_IP,192.168.1.1,54321,22,0,S,"
+        )
+        result = parse_filterlog_entry(line)
+        assert result is not None
+        assert result["src_ip"] == ""
+        assert result["dst_ip"] == "192.168.1.1"
+
+    def test_valid_ips_pass_through(self):
+        line = (
+            "Jan 15 pfSense filterlog[1]: "
+            "5,,,1000,wan,match,block,in,4,0x0,,128,12345,0,none,6,tcp,60,"
+            "10.0.0.1,10.0.0.2,54321,22,0,S,"
+        )
+        result = parse_filterlog_entry(line)
+        assert result["src_ip"] == "10.0.0.1"
+        assert result["dst_ip"] == "10.0.0.2"

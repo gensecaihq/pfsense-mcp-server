@@ -54,7 +54,12 @@ def get_api_client() -> EnhancedPfSenseAPIClient:
             "PLUS_24_11": PfSenseVersion.PLUS_24_11,
             "PLUS_25_11": PfSenseVersion.PLUS_25_11,
         }
-        version = version_map.get(pf_version, PfSenseVersion.CE_2_8_0)
+        version = version_map.get(pf_version)
+        if version is None:
+            raise ValueError(
+                f"PFSENSE_VERSION='{pf_version}' is not recognized. "
+                f"Valid options: {', '.join(version_map.keys())}"
+            )
 
         # Determine auth method
         auth_method_str = os.getenv("AUTH_METHOD", "api_key").lower()
@@ -76,11 +81,10 @@ def get_api_client() -> EnhancedPfSenseAPIClient:
         if auth_method == AuthMethod.API_KEY and not api_key:
             logger.warning("PFSENSE_API_KEY is not set — API calls will fail with 401")
 
-        if pf_version not in version_map:
-            logger.warning(
-                "PFSENSE_VERSION='%s' is not recognized — defaulting to CE_2_8_0. "
-                "Valid options: %s", pf_version, ", ".join(version_map.keys())
-            )
+        try:
+            api_timeout = int(os.getenv("API_TIMEOUT", "30"))
+        except ValueError:
+            api_timeout = 30
 
         api_client = EnhancedPfSenseAPIClient(
             host=pfsense_url,
@@ -89,6 +93,7 @@ def get_api_client() -> EnhancedPfSenseAPIClient:
             password=os.getenv("PFSENSE_PASSWORD"),
             api_key=api_key,
             verify_ssl=os.getenv("VERIFY_SSL", "true").lower() == "true",
+            timeout=api_timeout,
             version=version,
             enable_hateoas=os.getenv("ENABLE_HATEOAS", "false").lower() == "true"
         )

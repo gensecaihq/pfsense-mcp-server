@@ -59,13 +59,12 @@ def main():
         client = get_api_client()
         try:
             logger.info("Testing connection to pfSense API...")
-            connected = await client.test_connection()
-            if connected:
+            result = await client.test_connection()
+            if result["connected"]:
                 logger.info("Successfully connected to pfSense API")
                 return True
             else:
-                logger.error("Failed to connect to pfSense API")
-                logger.error("Please check your PFSENSE_URL, authentication credentials, and network connectivity")
+                logger.error("Failed to connect to pfSense API: %s", result.get("error", "unknown error"))
                 return False
         except Exception as e:
             logger.error(f"Connection error: {e}")

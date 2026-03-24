@@ -236,12 +236,13 @@ async def test_enhanced_connection() -> Dict:
     client = get_api_client()
     try:
         # Test basic connection
-        connected = await client.test_connection()
+        conn_result = await client.test_connection()
 
-        if not connected:
+        if not conn_result["connected"]:
             return {
                 "success": False,
                 "message": "Basic connection failed",
+                "error": conn_result.get("error", "unknown"),
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
 

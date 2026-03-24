@@ -7,6 +7,7 @@ from ..helpers import (
     create_default_sort,
     create_interface_filter,
     create_pagination,
+    sanitize_description,
     validate_ip_address,
     validate_port_value,
     validate_protocol,
@@ -147,7 +148,7 @@ async def create_nat_port_forward(
         }
 
         if description:
-            forward_data["descr"] = description
+            forward_data["descr"] = sanitize_description(description)
         else:
             forward_data["descr"] = f"Port forward via MCP at {datetime.now(timezone.utc).isoformat()}"
 

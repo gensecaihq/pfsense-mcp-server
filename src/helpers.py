@@ -20,6 +20,40 @@ VALID_LOG_TYPES = frozenset({
 })
 
 
+def safe_data_dict(result: Dict) -> Dict:
+    """Safely extract the 'data' dict from an API response.
+
+    Returns the data dict if present and is a dict, otherwise an empty dict.
+    Guards against data=null, data="string", or missing data key.
+    """
+    data = result.get("data") if isinstance(result, dict) else None
+    return data if isinstance(data, dict) else {}
+
+
+def safe_data_list(result: Dict) -> List:
+    """Safely extract the 'data' list from an API response.
+
+    Returns the data list if present and is a list, otherwise an empty list.
+    """
+    data = result.get("data") if isinstance(result, dict) else None
+    return data if isinstance(data, list) else []
+
+
+MAX_DESCRIPTION_LENGTH = 1024
+
+
+def sanitize_description(descr: str) -> str:
+    """Sanitize and cap a description field to prevent issues with pfSense config.
+
+    Strips control characters, truncates to MAX_DESCRIPTION_LENGTH.
+    """
+    # Remove control characters (keep newlines and tabs)
+    cleaned = "".join(c for c in descr if c == "\n" or c == "\t" or (ord(c) >= 32))
+    if len(cleaned) > MAX_DESCRIPTION_LENGTH:
+        cleaned = cleaned[:MAX_DESCRIPTION_LENGTH]
+    return cleaned
+
+
 def create_ip_filter(ip_address: str, operator: str = "exact") -> QueryFilter:
     """Create filter for IP address fields"""
     return QueryFilter("ip", ip_address, operator)
@@ -51,6 +85,11 @@ def create_date_range_filters(
 
 MAX_PAGE_SIZE = 200
 
+# Cap max offset to prevent pfSense PHP memory exhaustion.
+# 10,000 objects × 200 per page = page 50 max is generous for any pfSense install.
+MAX_PAGE = 500
+MAX_OFFSET = MAX_PAGE * MAX_PAGE_SIZE  # 100,000
+
 
 def create_pagination(page: int, page_size: int = 50) -> tuple:
     """Create pagination options (capped to avoid pfSense PHP memory exhaustion).
@@ -60,10 +99,12 @@ def create_pagination(page: int, page_size: int = 50) -> tuple:
     """
     if page < 1:
         page = 1
+    if page > MAX_PAGE:
+        page = MAX_PAGE
     if page_size < 1:
         page_size = 50
     safe_size = min(page_size, MAX_PAGE_SIZE)
-    offset = (page - 1) * safe_size
+    offset = min((page - 1) * safe_size, MAX_OFFSET)
     return PaginationOptions(limit=safe_size, offset=offset), page, safe_size
 
 
@@ -333,8 +374,19 @@ def parse_filterlog_entry(text: str) -> Optional[Dict[str, str]]:
 
     if ip_ver == "4" and len(fields) >= 20:
         result["protocol"] = fields[16] if len(fields) > 16 else ""
-        result["src_ip"] = fields[18] if len(fields) > 18 else ""
-        result["dst_ip"] = fields[19] if len(fields) > 19 else ""
+        # Validate extracted IPs to guard against format changes
+        raw_src = fields[18] if len(fields) > 18 else ""
+        raw_dst = fields[19] if len(fields) > 19 else ""
+        try:
+            ipaddress.ip_address(raw_src)
+            result["src_ip"] = raw_src
+        except ValueError:
+            result["src_ip"] = ""
+        try:
+            ipaddress.ip_address(raw_dst)
+            result["dst_ip"] = raw_dst
+        except ValueError:
+            result["dst_ip"] = ""
         # TCP/UDP have src_port and dst_port after dst_ip
         if len(fields) >= 22:
             result["src_port"] = fields[20]
@@ -342,8 +394,19 @@ def parse_filterlog_entry(text: str) -> Optional[Dict[str, str]]:
 
     elif ip_ver == "6" and len(fields) >= 17:
         result["protocol"] = fields[12] if len(fields) > 12 else ""
-        result["src_ip"] = fields[15] if len(fields) > 15 else ""
-        result["dst_ip"] = fields[16] if len(fields) > 16 else ""
+        # IPv6 addresses are validated more loosely (contain colons)
+        raw_src = fields[15] if len(fields) > 15 else ""
+        raw_dst = fields[16] if len(fields) > 16 else ""
+        try:
+            ipaddress.ip_address(raw_src)
+            result["src_ip"] = raw_src
+        except ValueError:
+            result["src_ip"] = ""
+        try:
+            ipaddress.ip_address(raw_dst)
+            result["dst_ip"] = raw_dst
+        except ValueError:
+            result["dst_ip"] = ""
         # TCP/UDP have src_port and dst_port after dst_ip
         if len(fields) >= 19:
             result["src_port"] = fields[17]

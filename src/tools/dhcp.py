@@ -335,7 +335,7 @@ async def update_dhcp_static_mapping(
 @mcp.tool()
 async def delete_dhcp_static_mapping(
     mapping_id: int,
-    interface: Optional[str] = None,
+    interface: str,
     apply_immediately: bool = True,
     confirm: bool = False,
 ) -> Dict:
@@ -343,7 +343,7 @@ async def delete_dhcp_static_mapping(
 
     Args:
         mapping_id: Static mapping ID
-        interface: Interface/DHCP pool the mapping belongs to (e.g., "lan"). Always pass this explicitly for reliability — auto-detection requires an extra API call and is subject to race conditions.
+        interface: Interface/DHCP pool the mapping belongs to (e.g., "lan"). Required to avoid race conditions with auto-detection.
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
     """
@@ -351,20 +351,14 @@ async def delete_dhcp_static_mapping(
         return {
             "success": False,
             "error": "This is a destructive operation. Set confirm=True to proceed.",
-            "details": f"Will permanently delete DHCP static mapping {mapping_id}.",
+            "details": f"Will permanently delete DHCP static mapping {mapping_id} on interface '{interface}'.",
         }
 
     client = get_api_client()
     try:
-        # pfSense API requires parent_id for child model operations
-        auto_detected = False
-        if not interface:
-            interface = await _lookup_mapping_parent_id(client, mapping_id)
-            auto_detected = True
-
         result = await client.delete_dhcp_static_mapping(mapping_id, interface, apply_immediately)
 
-        response = {
+        return {
             "success": True,
             "message": f"DHCP static mapping {mapping_id} deleted",
             "mapping_id": mapping_id,
@@ -374,12 +368,6 @@ async def delete_dhcp_static_mapping(
             "note": "Object IDs have shifted after deletion. Re-query mappings before performing further operations by ID.",
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
-        if auto_detected:
-            response["warning"] = (
-                f"Parent interface '{interface}' was auto-detected. "
-                "For reliability in automation, always pass the 'interface' parameter explicitly."
-            )
-        return response
     except Exception as e:
         logger.error(f"Failed to delete DHCP static mapping: {e}")
         return {"success": False, "error": str(e)}

@@ -126,7 +126,13 @@ class EnhancedPfSenseAPIClient:
         response.raise_for_status()
         data = response.json()
 
-        self.jwt_token = data.get("data", {}).get("token")
+        token = data.get("data", {}).get("token") if isinstance(data.get("data"), dict) else None
+        if not token:
+            raise ValueError(
+                "JWT token not returned by /auth/jwt endpoint. "
+                "Response may be malformed or API version incompatible."
+            )
+        self.jwt_token = token
         self.jwt_expiry = datetime.now() + timedelta(hours=1)
 
     def _is_jwt_expired(self) -> bool:
@@ -986,6 +992,40 @@ class EnhancedPfSenseAPIClient:
         data = result.get("data") or []
         return data[0] if data else None
 
+    # Stale-ID Guard
+
+    async def verify_object_id(
+        self,
+        endpoint: str,
+        object_id: int,
+        field: str,
+        expected_value: str,
+    ) -> Optional[str]:
+        """Verify an object ID still points to the expected object.
+
+        Returns None if verified, or an error message if the ID is stale.
+        """
+        try:
+            filters = [QueryFilter("id", str(object_id))]
+            result = await self._make_request(
+                "GET", endpoint,
+                filters=filters,
+                pagination=PaginationOptions(limit=1),
+            )
+            data = result.get("data") or []
+            if not data:
+                return f"Object with ID {object_id} not found at {endpoint}. IDs may have shifted after a deletion."
+            obj = data[0]
+            actual = str(obj.get(field, ""))
+            if actual != str(expected_value):
+                return (
+                    f"ID {object_id} does not match expected {field}='{expected_value}' "
+                    f"(actual: '{actual}'). IDs may have shifted — re-query before operating."
+                )
+        except Exception as e:
+            return f"Failed to verify object ID: {e}"
+        return None
+
     # HATEOAS Navigation
 
     def extract_links(self, response: Dict) -> Dict[str, str]:
@@ -1004,13 +1044,30 @@ class EnhancedPfSenseAPIClient:
 
     # Utility Methods
 
-    async def test_connection(self) -> bool:
-        """Test API connection"""
+    async def test_connection(self) -> Dict:
+        """Test API connection.
+
+        Returns:
+            Dict with 'connected' (bool) and 'error' (str, if failed).
+        """
         try:
             await self.get_system_status()
-            return True
-        except Exception:
-            return False
+            return {"connected": True}
+        except httpx.ConnectError as e:
+            return {"connected": False, "error": f"Cannot reach {self.host}: {e}"}
+        except httpx.TimeoutException:
+            return {"connected": False, "error": f"Connection to {self.host} timed out after {self.timeout}s"}
+        except Exception as e:
+            error_str = str(e)
+            if "401" in error_str:
+                return {"connected": False, "error": "Authentication failed (401). Check your API key or credentials."}
+            if "403" in error_str:
+                return {"connected": False, "error": "Access denied (403). API user may lack required privileges."}
+            if "404" in error_str:
+                return {"connected": False, "error": "API endpoint not found (404). Is the pfSense REST API v2 package installed?"}
+            if "SSL" in error_str or "certificate" in error_str.lower():
+                return {"connected": False, "error": f"SSL/TLS error: {e}. Try setting VERIFY_SSL=false for self-signed certs."}
+            return {"connected": False, "error": str(e)}
 
     async def get_api_capabilities(self) -> Dict:
         """Get API capabilities and settings"""
