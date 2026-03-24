@@ -2,6 +2,10 @@
 .env
 .env.local
 .env.*.local
+.env.test
+
+# Generated files
+pfsense-openapi-v2.json
 
 # Python
 __pycache__/
