@@ -330,7 +330,7 @@ async def update_freeradius_client(
         descr: Description
         apply_immediately: Whether to apply changes immediately
     """
-    api_client = get_api_client()
+    client = get_api_client()
     try:
         params = {
             "ip": ip,
@@ -351,7 +351,7 @@ async def update_freeradius_client(
             return {"success": False, "error": "No fields to update - provide at least one field"}
 
         control = ControlParameters(apply=apply_immediately)
-        result = await api_client.crud_update("/services/freeradius/client", client_id, updates, control)
+        result = await client.crud_update("/services/freeradius/client", client_id, updates, control)
 
         return {
             "success": True,
@@ -360,7 +360,7 @@ async def update_freeradius_client(
             "fields_updated": list(updates.keys()),
             "applied": apply_immediately,
             "result": result.get("data", result),
-            "links": api_client.extract_links(result),
+            "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
@@ -388,10 +388,10 @@ async def delete_freeradius_client(
             "details": f"Will permanently delete FreeRADIUS client {client_id}.",
         }
 
-    api_client = get_api_client()
+    client = get_api_client()
     try:
         control = ControlParameters(apply=apply_immediately)
-        result = await api_client.crud_delete("/services/freeradius/client", client_id, control)
+        result = await client.crud_delete("/services/freeradius/client", client_id, control)
 
         return {
             "success": True,
@@ -399,7 +399,7 @@ async def delete_freeradius_client(
             "client_id": client_id,
             "applied": apply_immediately,
             "result": result.get("data", result),
-            "links": api_client.extract_links(result),
+            "links": client.extract_links(result),
             "note": "Object IDs have shifted after deletion. Re-query clients before performing further operations by ID.",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }

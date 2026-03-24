@@ -1028,9 +1028,11 @@ class EnhancedPfSenseAPIClient:
         """Generic delete for any singular endpoint."""
         if control is None:
             control = ControlParameters(apply=True)
-        data = {"id": obj_id}
+        data = {}
         if extra_data:
             data.update(extra_data)
+        # Ensure id is never overridden by extra_data
+        data["id"] = obj_id
         return await self._make_request(
             "DELETE", endpoint, data=data, control=control,
         )

@@ -737,3 +737,95 @@ async def apply_dns_resolver_changes() -> Dict:
     except Exception as e:
         logger.error(f"Failed to apply DNS Resolver changes: {e}")
         return {"success": False, "error": str(e)}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+async def update_dns_access_list(
+    access_list_id: int,
+    aclname: Optional[str] = None,
+    aclaction: Optional[str] = None,
+    descr: Optional[str] = None,
+    apply_immediately: bool = True,
+) -> Dict:
+    """Update an existing DNS Resolver access list
+
+    Args:
+        access_list_id: Access list ID
+        aclname: Access list name
+        aclaction: Action (allow, deny, refuse, allow_snoop, deny_non_local, refuse_non_local)
+        descr: Description
+        apply_immediately: Whether to apply changes immediately
+    """
+    client = get_api_client()
+    try:
+        updates = {}
+        if aclname is not None:
+            updates["aclname"] = aclname
+        if aclaction is not None:
+            updates["aclaction"] = aclaction
+        if descr is not None:
+            updates["descr"] = sanitize_description(descr)
+
+        if not updates:
+            return {"success": False, "error": "No fields to update — provide at least one field"}
+
+        control = ControlParameters(apply=apply_immediately)
+        result = await client.crud_update(
+            "/services/dns_resolver/access_list", access_list_id, updates, control
+        )
+
+        return {
+            "success": True,
+            "message": f"DNS access list {access_list_id} updated",
+            "access_list_id": access_list_id,
+            "fields_updated": list(updates.keys()),
+            "applied": apply_immediately,
+            "result": result.get("data", result),
+            "links": client.extract_links(result),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Failed to update DNS access list: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+async def delete_dns_access_list(
+    access_list_id: int,
+    apply_immediately: bool = True,
+    confirm: bool = False,
+) -> Dict:
+    """Delete a DNS Resolver access list. WARNING: This is irreversible.
+
+    Args:
+        access_list_id: Access list ID
+        apply_immediately: Whether to apply changes immediately
+        confirm: Must be set to True to execute. Safety gate for destructive operations.
+    """
+    if not confirm:
+        return {
+            "success": False,
+            "error": "This is a destructive operation. Set confirm=True to proceed.",
+            "details": f"Will permanently delete DNS access list {access_list_id}.",
+        }
+
+    client = get_api_client()
+    try:
+        control = ControlParameters(apply=apply_immediately)
+        result = await client.crud_delete(
+            "/services/dns_resolver/access_list", access_list_id, control
+        )
+
+        return {
+            "success": True,
+            "message": f"DNS access list {access_list_id} deleted",
+            "access_list_id": access_list_id,
+            "applied": apply_immediately,
+            "result": result.get("data", result),
+            "links": client.extract_links(result),
+            "note": "Object IDs have shifted after deletion. Re-query access lists before performing further operations by ID.",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Failed to delete DNS access list: {e}")
+        return {"success": False, "error": str(e)}

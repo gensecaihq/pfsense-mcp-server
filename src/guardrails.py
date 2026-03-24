@@ -181,13 +181,20 @@ def _redact_sensitive(params: Dict) -> Dict:
     Passwords, keys, and secrets are replaced with '***REDACTED***'.
     """
     sensitive_keys = {"password", "pre_shared_key", "presharedkey", "privatekey",
-                      "secret", "passphrase", "api_key", "prv", "key"}
+                      "secret", "passphrase", "api_key", "prv", "key",
+                      "pwd", "passwd", "token", "jwt_token", "bearer_token",
+                      "cert", "certificate"}
     redacted = {}
     for k, v in params.items():
         if k.lower() in sensitive_keys:
             redacted[k] = "***REDACTED***"
         elif isinstance(v, dict):
             redacted[k] = _redact_sensitive(v)
+        elif isinstance(v, list):
+            redacted[k] = [
+                _redact_sensitive(item) if isinstance(item, dict) else item
+                for item in v
+            ]
         else:
             redacted[k] = v
     return redacted
@@ -443,7 +450,7 @@ def sanitize_input(value: str, field_name: str = "input") -> Optional[str]:
 
 
 def sanitize_parameters(params: Dict[str, Any]) -> Optional[str]:
-    """Scan all string parameters for injection patterns.
+    """Scan all string parameters for injection patterns, recursively.
 
     Returns the first error found, or None if all clean.
     """
@@ -452,10 +459,18 @@ def sanitize_parameters(params: Dict[str, Any]) -> Optional[str]:
             err = sanitize_input(value, key)
             if err:
                 return err
+        elif isinstance(value, dict):
+            err = sanitize_parameters(value)
+            if err:
+                return err
         elif isinstance(value, list):
             for i, item in enumerate(value):
                 if isinstance(item, str):
                     err = sanitize_input(item, f"{key}[{i}]")
+                    if err:
+                        return err
+                elif isinstance(item, dict):
+                    err = sanitize_parameters(item)
                     if err:
                         return err
     return None

@@ -657,6 +657,49 @@ async def create_crl(
         return {"success": False, "error": str(e)}
 
 
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+async def update_crl(
+    crl_id: int,
+    descr: Optional[str] = None,
+    lifetime: Optional[int] = None,
+) -> Dict:
+    """Update a Certificate Revocation List (CRL) by ID
+
+    Args:
+        crl_id: CRL ID (array index from search_crls)
+        descr: Description
+        lifetime: CRL lifetime in days
+    """
+    client = get_api_client()
+    try:
+        updates = {}
+        if descr is not None:
+            updates["descr"] = sanitize_description(descr)
+        if lifetime is not None:
+            updates["lifetime"] = lifetime
+
+        if not updates:
+            return {"success": False, "error": "No fields to update — provide at least one field"}
+
+        result = await client._make_request(
+            "PATCH", "/system/crl",
+            data={**updates, "id": crl_id},
+        )
+
+        return {
+            "success": True,
+            "message": f"CRL {crl_id} updated",
+            "crl_id": crl_id,
+            "fields_updated": list(updates.keys()),
+            "result": result.get("data", result),
+            "links": client.extract_links(result),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Failed to update CRL: {e}")
+        return {"success": False, "error": str(e)}
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
 async def delete_crl(
     crl_id: int,

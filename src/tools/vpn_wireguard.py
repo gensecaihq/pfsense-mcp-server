@@ -9,14 +9,14 @@ from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
 
 # API endpoint constants
-_TUNNELS = "/api/v2/vpn/wireguard/tunnels"
-_TUNNEL = "/api/v2/vpn/wireguard/tunnel"
-_PEERS = "/api/v2/vpn/wireguard/peers"
-_PEER = "/api/v2/vpn/wireguard/peer"
-_PEER_ALLOWED_IPS = "/api/v2/vpn/wireguard/peer/allowed_ips"
-_PEER_ALLOWED_IP = "/api/v2/vpn/wireguard/peer/allowed_ip"
-_SETTINGS = "/api/v2/vpn/wireguard/settings"
-_APPLY = "/api/v2/vpn/wireguard/apply"
+_TUNNELS = "/vpn/wireguard/tunnels"
+_TUNNEL = "/vpn/wireguard/tunnel"
+_PEERS = "/vpn/wireguard/peers"
+_PEER = "/vpn/wireguard/peer"
+_PEER_ALLOWED_IPS = "/vpn/wireguard/peer/allowed_ips"
+_PEER_ALLOWED_IP = "/vpn/wireguard/peer/allowed_ip"
+_SETTINGS = "/vpn/wireguard/settings"
+_APPLY = "/vpn/wireguard/apply"
 
 
 # --- Tunnel tools ---

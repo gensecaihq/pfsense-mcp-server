@@ -27,7 +27,7 @@ async def search_openvpn_servers(
     mode: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
-    sort_by: str = "description",
+    sort_by: str = "descr",
 ) -> Dict:
     """Search OpenVPN server instances with filtering and pagination.
 
@@ -45,7 +45,7 @@ async def search_openvpn_servers(
         filters: List[QueryFilter] = []
 
         if search_term:
-            filters.append(QueryFilter("description", search_term, "contains"))
+            filters.append(QueryFilter("descr", search_term, "contains"))
         if protocol:
             filters.append(QueryFilter("protocol", protocol))
         if interface:
@@ -175,9 +175,9 @@ async def create_openvpn_server(
         }
 
         if description:
-            server_data["description"] = sanitize_description(description)
+            server_data["descr"] = sanitize_description(description)
         else:
-            server_data["description"] = f"OpenVPN server via MCP at {datetime.now(timezone.utc).isoformat()}"
+            server_data["descr"] = f"OpenVPN server via MCP at {datetime.now(timezone.utc).isoformat()}"
 
         optional_fields = {
             "tls": tls,
@@ -308,7 +308,7 @@ async def update_openvpn_server(
             "dev_mode": dev_mode,
             "interface": interface,
             "local_port": local_port,
-            "description": description,
+            "descr": description,
             "tls": tls,
             "ca": ca,
             "cert": cert,
@@ -413,7 +413,7 @@ async def search_openvpn_clients(
     server_addr: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
-    sort_by: str = "description",
+    sort_by: str = "descr",
 ) -> Dict:
     """Search OpenVPN client instances with filtering and pagination.
 
@@ -431,7 +431,7 @@ async def search_openvpn_clients(
         filters: List[QueryFilter] = []
 
         if search_term:
-            filters.append(QueryFilter("description", search_term, "contains"))
+            filters.append(QueryFilter("descr", search_term, "contains"))
         if protocol:
             filters.append(QueryFilter("protocol", protocol))
         if interface:
@@ -549,9 +549,9 @@ async def create_openvpn_client(
         }
 
         if description:
-            client_data["description"] = sanitize_description(description)
+            client_data["descr"] = sanitize_description(description)
         else:
-            client_data["description"] = f"OpenVPN client via MCP at {datetime.now(timezone.utc).isoformat()}"
+            client_data["descr"] = f"OpenVPN client via MCP at {datetime.now(timezone.utc).isoformat()}"
 
         optional_fields = {
             "tls": tls,
@@ -669,7 +669,7 @@ async def update_openvpn_client(
             "protocol": protocol,
             "dev_mode": dev_mode,
             "interface": interface,
-            "description": description,
+            "descr": description,
             "tls": tls,
             "ca": ca,
             "cert": cert,
@@ -770,7 +770,7 @@ async def search_openvpn_csos(
     server_id: Optional[int] = None,
     page: int = 1,
     page_size: int = 20,
-    sort_by: str = "description",
+    sort_by: str = "descr",
 ) -> Dict:
     """Search OpenVPN Client Specific Overrides (CSOs) with filtering and pagination.
 
@@ -790,7 +790,7 @@ async def search_openvpn_csos(
         filters: List[QueryFilter] = []
 
         if search_term:
-            filters.append(QueryFilter("description", search_term, "contains"))
+            filters.append(QueryFilter("descr", search_term, "contains"))
         if common_name:
             filters.append(QueryFilter("common_name", common_name))
         if server_id is not None:
@@ -912,7 +912,7 @@ async def manage_openvpn_cso(
         field_map = {
             "common_name": common_name,
             "server_id": server_id,
-            "description": description,
+            "descr": description,
             "tunnel_network": tunnel_network,
             "local_network": local_network,
             "remote_network": remote_network,
@@ -927,7 +927,7 @@ async def manage_openvpn_cso(
 
         for field_name, value in field_map.items():
             if value is not None:
-                if field_name == "description":
+                if field_name == "descr":
                     cso_data[field_name] = sanitize_description(str(value))
                 else:
                     cso_data[field_name] = value
@@ -942,8 +942,8 @@ async def manage_openvpn_cso(
             if not common_name:
                 return {"success": False, "error": "common_name is required for create action."}
 
-            if "description" not in cso_data:
-                cso_data["description"] = f"CSO for {common_name} via MCP at {datetime.now(timezone.utc).isoformat()}"
+            if "descr" not in cso_data:
+                cso_data["descr"] = f"CSO for {common_name} via MCP at {datetime.now(timezone.utc).isoformat()}"
 
             result = await client.crud_create("/vpn/openvpn/cso", cso_data, control)
 
