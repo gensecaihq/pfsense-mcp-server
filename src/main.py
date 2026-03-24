@@ -11,6 +11,9 @@ import sys
 
 from .server import VERSION, get_api_client, logger, mcp, reset_api_client
 
+# Read-only mode: only register read-level tools (MCP security best practice: least privilege)
+_READ_ONLY_MODE = os.getenv("MCP_READ_ONLY", "false").lower() == "true"
+
 # Import tool modules — each registers tools via @mcp.tool() on import
 from .tools import (  # noqa: F401
     aliases,
@@ -49,6 +52,20 @@ from .tools import (  # noqa: F401
     vpn_wireguard,
 )
 
+# In read-only mode, remove all non-read tools after registration
+if _READ_ONLY_MODE:
+    from .guardrails import RiskLevel, classify_risk
+    _all_tools = dict(mcp._tool_manager._tools)
+    for name in list(_all_tools.keys()):
+        if classify_risk(name) != RiskLevel.READ:
+            del mcp._tool_manager._tools[name]
+    _removed = len(_all_tools) - len(mcp._tool_manager._tools)
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        "READ-ONLY MODE: Removed %d non-read tools. %d read-only tools available.",
+        _removed, len(mcp._tool_manager._tools),
+    )
+
 
 # Main execution
 def main():
@@ -79,6 +96,19 @@ def main():
     logger.info(f"Connecting to pfSense at: {os.getenv('PFSENSE_URL')}")
     logger.info(f"Auth Method: {os.getenv('AUTH_METHOD', 'api_key')}")
     logger.info(f"Transport: {args.transport}")
+
+    # Security warnings per MCP spec best practices
+    if os.getenv("VERIFY_SSL", "true").lower() == "false":
+        logger.warning(
+            "SECURITY: SSL verification is DISABLED (VERIFY_SSL=false). "
+            "This is acceptable for self-signed certs in labs but NOT recommended for production."
+        )
+    if args.transport == "streamable-http" and args.host != "127.0.0.1" and args.host != "localhost":
+        logger.warning(
+            "SECURITY: HTTP transport is binding to %s (not localhost). "
+            "Ensure TLS is terminated by a reverse proxy (nginx, Caddy) in production.",
+            args.host,
+        )
 
     # Test connection before starting server
     async def test_conn():
