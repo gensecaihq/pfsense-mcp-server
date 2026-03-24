@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timezone
 from typing import Dict
 
+from ..guardrails import classify_risk, get_rollback_history
 from ..models import PaginationOptions, QueryFilter, SortOptions
 from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
@@ -295,3 +296,55 @@ async def test_enhanced_connection() -> Dict:
     except Exception as e:
         logger.error(f"Enhanced connection test failed: {e}")
         return {"success": False, "error": str(e)}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
+async def get_guardrail_status() -> Dict:
+    """Get the current guardrail configuration and recent action history.
+
+    Shows risk classification for tools, rate limits, allowlist status,
+    and recent rollback entries for destructive operations.
+    """
+    from ..guardrails import ALLOWED_TOOLS, _AUDIT_LOG_PATH
+
+    return {
+        "success": True,
+        "guardrails": {
+            "allowlist_active": ALLOWED_TOOLS is not None,
+            "allowed_tools_count": len(ALLOWED_TOOLS) if ALLOWED_TOOLS else "all",
+            "audit_log_path": _AUDIT_LOG_PATH or "disabled (set MCP_AUDIT_LOG to enable)",
+            "rate_limits": {
+                "delete_ops": "10 per 60s (MCP_RATE_LIMIT_DELETE)",
+                "create_ops": "20 per 60s (MCP_RATE_LIMIT_CREATE)",
+                "critical_ops": "2 per 300s (MCP_RATE_LIMIT_CRITICAL)",
+            },
+        },
+        "recent_rollback_entries": get_rollback_history(limit=10),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
+async def check_tool_risk(tool_name: str) -> Dict:
+    """Check the risk classification and guardrail requirements for a tool.
+
+    Args:
+        tool_name: Name of the MCP tool to check (e.g., "delete_firewall_rule")
+    """
+    risk = classify_risk(tool_name)
+    requires_confirm = risk.value in ("high", "critical")
+
+    return {
+        "success": True,
+        "tool": tool_name,
+        "risk_level": risk.value,
+        "requires_confirm": requires_confirm,
+        "description": {
+            "read": "No state change. Safe to call freely.",
+            "low": "Reversible settings change. No confirmation required.",
+            "medium": "Creates or modifies configuration. Rate-limited.",
+            "high": "Destructive/irreversible. Requires confirm=True. Rate-limited.",
+            "critical": "System-level destructive. Requires confirm=True. Strictly rate-limited.",
+        }.get(risk.value, "Unknown risk level."),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
