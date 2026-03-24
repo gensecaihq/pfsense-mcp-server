@@ -235,9 +235,9 @@ class TestDeleteDhcpStaticMapping:
         assert result["success"] is True
         assert result["mapping_id"] == 3
         assert "note" in result  # ID shift warning
-        # interface is now required, so only 1 API call (no lookup)
-        assert mock_make_request.call_count == 1
-        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        # Last call should be the DELETE (first call is config history capture from @guarded)
+        delete_call = mock_make_request.call_args
+        data = delete_call.kwargs.get("data") or delete_call[1].get("data")
         assert data["id"] == 3
         assert data["parent_id"] == "lan"
 
@@ -245,8 +245,8 @@ class TestDeleteDhcpStaticMapping:
         mock_make_request.return_value = {"data": {}}
         result = await _delete_dhcp_static_mapping(mapping_id=3, interface="opt1", confirm=True)
         assert result["success"] is True
-        assert mock_make_request.call_count == 1
-        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        delete_call = mock_make_request.call_args
+        data = delete_call.kwargs.get("data") or delete_call[1].get("data")
         assert data["id"] == 3
         assert data["parent_id"] == "opt1"
 

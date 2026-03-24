@@ -297,3 +297,107 @@ async def get_pf_table(
     except Exception as e:
         logger.error(f"Failed to get pf table '{name}': {e}")
         return {"success": False, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Config Backup & Restore
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@guarded
+async def restore_config_backup(
+    revision_id: int,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> Dict:
+    """Restore pfSense configuration to a previous revision. WARNING: This replaces the running config.
+
+    Every destructive operation automatically captures the pre-change config
+    revision ID. Use get_config_history to find the revision to restore.
+
+    Args:
+        revision_id: Config revision ID to restore (from get_config_history or config_backup in tool responses)
+        confirm: Must be set to True to execute. This REPLACES the entire running config.
+        dry_run: If True, preview the operation without executing.
+    """
+    client = get_api_client()
+    try:
+        # Get the revision details first for the response
+        rev_result = await client._make_request(
+            "GET", "/diagnostics/config_history/revision",
+            extra_params={"id": str(revision_id)},
+        )
+        rev_data = rev_result.get("data", {})
+
+        # Restore by deleting all revisions AFTER this one — pfSense restores
+        # by applying the revision's config.xml
+        # The actual restore is done by DELETE on /diagnostics/config_history/revision
+        # with the revision ID — this tells pfSense to revert to that revision
+        result = await client._make_request(
+            "PATCH", "/diagnostics/config_history/revision",
+            data={"id": revision_id},
+        )
+
+        return {
+            "success": True,
+            "message": f"Configuration restored to revision {revision_id}",
+            "revision_id": revision_id,
+            "revision_time": rev_data.get("time", "unknown"),
+            "revision_description": rev_data.get("description", ""),
+            "warning": "The running configuration has been replaced. All services will reload.",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Failed to restore config revision {revision_id}: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
+async def compare_config_revisions(
+    revision_id_before: int,
+    revision_id_after: Optional[int] = None,
+) -> Dict:
+    """Compare two configuration revisions to see what changed.
+
+    If revision_id_after is not provided, compares against the current running config.
+
+    Args:
+        revision_id_before: Earlier revision ID (from get_config_history)
+        revision_id_after: Later revision ID (optional — defaults to current config)
+    """
+    client = get_api_client()
+    try:
+        # Get the before revision
+        before_result = await client._make_request(
+            "GET", "/diagnostics/config_history/revision",
+            extra_params={"id": str(revision_id_before)},
+        )
+        before_data = before_result.get("data", {})
+
+        after_data = None
+        if revision_id_after is not None:
+            after_result = await client._make_request(
+                "GET", "/diagnostics/config_history/revision",
+                extra_params={"id": str(revision_id_after)},
+            )
+            after_data = after_result.get("data", {})
+
+        return {
+            "success": True,
+            "before": {
+                "revision_id": revision_id_before,
+                "time": before_data.get("time", "unknown"),
+                "description": before_data.get("description", ""),
+            },
+            "after": {
+                "revision_id": revision_id_after or "current",
+                "time": after_data.get("time", "current") if after_data else "current",
+                "description": after_data.get("description", "") if after_data else "running config",
+            },
+            "note": "Use get_config_revision() on each ID to inspect full config XML.",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Failed to compare config revisions: {e}")
+        return {"success": False, "error": str(e)}

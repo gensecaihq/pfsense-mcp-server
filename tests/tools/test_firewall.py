@@ -329,8 +329,8 @@ class TestBulkBlockIps:
         async def side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            # First two calls create rules OK, third call (apply) fails
-            if call_count <= 2:
+            # First call is config history (from @guarded), then creates, then apply
+            if call_count <= 3:
                 return {"data": {"id": call_count}}
             raise Exception("apply failed")
 
@@ -360,8 +360,14 @@ class TestBulkBlockIps:
         """Bulk block rules must include statetype for pf filter compiler."""
         mock_make_request.return_value = {"data": {"id": 10}}
         await _bulk_block_ips(ip_addresses=["1.2.3.4"], confirm=True)
-        # First call is the create, second is the apply
-        create_data = mock_make_request.call_args_list[0].kwargs.get("data") or mock_make_request.call_args_list[0][1].get("data")
+        # Find the create call (has "statetype" in data) — skip config history call from @guarded
+        create_data = None
+        for call in mock_make_request.call_args_list:
+            data = call.kwargs.get("data") or (call[1].get("data") if len(call) > 1 else None)
+            if isinstance(data, dict) and "statetype" in data:
+                create_data = data
+                break
+        assert create_data is not None, "No create call found with statetype"
         assert create_data["statetype"] == "keep state"
 
     async def test_confirm_required(self, mock_client, mock_make_request):

@@ -615,6 +615,8 @@ def check_guardrails(
 import functools
 import inspect
 
+from .models import PaginationOptions
+
 
 def guarded(fn):
     """Decorator that applies the full guardrail system to a tool function.
@@ -659,8 +661,48 @@ def guarded(fn):
         if block is not None:
             return block
 
+        # Capture pre-change config revision for rollback
+        pre_change_revision = None
+        risk = classify_risk(tool_name)
+        if risk in (RiskLevel.HIGH, RiskLevel.CRITICAL):
+            try:
+                from .server import get_api_client as _get_client
+                _client = _get_client()
+                _hist = await _client.crud_list(
+                    "/diagnostics/config_history/revisions",
+                    pagination=PaginationOptions(limit=1),
+                )
+                _revisions = _hist.get("data") or []
+                if _revisions:
+                    pre_change_revision = {
+                        "id": _revisions[0].get("id"),
+                        "time": _revisions[0].get("time"),
+                        "description": _revisions[0].get("description", ""),
+                    }
+            except Exception:
+                pass  # Non-critical — don't block the operation
+
         # Guardrails passed — execute the tool
         result = await fn(*args, **kwargs)
+
+        # Post-execution: attach pre-change revision for rollback
+        if isinstance(result, dict) and pre_change_revision and result.get("success"):
+            result["config_backup"] = {
+                "pre_change_revision_id": pre_change_revision["id"],
+                "pre_change_time": pre_change_revision["time"],
+                "pre_change_description": pre_change_revision["description"],
+                "rollback_instruction": (
+                    f"To undo this change, call restore_config_backup("
+                    f"revision_id={pre_change_revision['id']}, confirm=True)"
+                ),
+            }
+            # Record in rollback buffer
+            record_rollback(
+                tool_name,
+                tool_name.replace("delete_", "").replace("_", " "),
+                _extract_object_id(params),
+                pre_change_revision,
+            )
 
         # Post-execution audit log
         success = result.get("success", False) if isinstance(result, dict) else True
