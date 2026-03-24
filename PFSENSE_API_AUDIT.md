@@ -133,15 +133,24 @@ pfSense uses non-persistent array indices as object IDs. After any deletion, all
 
 ## Tool Count
 
-| Domain | Tools | Test Count |
+| Domain | Files | Tools |
 |---|---|---|
-| Firewall | 9 | ~75 |
-| DHCP | 7 | ~35 |
-| Utility | 7 | ~25 |
-| Aliases | 5 | ~25 |
-| NAT | 4 | ~25 |
-| System | 4 | ~20 |
-| Logs | 3 | ~15 |
-| Services | 2 | ~13 |
-| Helpers | — | ~50 |
-| **Total** | **41** | **282** |
+| Firewall (rules, aliases, schedules, states, virtual IPs, shaping) | 6 | 43 |
+| NAT (port forwards, outbound, 1:1) | 3 | 16 |
+| VPN (OpenVPN, IPsec, WireGuard, advanced) | 4 | 51 |
+| Routing (gateways, groups, static routes) | 1 | 16 |
+| DNS (resolver, forwarder) | 2 | 24 |
+| DHCP (core, advanced) | 2 | 17 |
+| Certificates/PKI | 1 | 15 |
+| Users & Auth | 1 | 12 |
+| Interfaces (config, VLANs, bridges, groups) | 1 | 14 |
+| System & Diagnostics | 3 | 34 |
+| Services (core, misc) | 2 | 14 |
+| Logs | 1 | 3 |
+| Packages (HAProxy, ACME, BIND, FreeRADIUS) | 4 | 43 |
+| Utility & Guardrails | 1 | 9 |
+| Guardrails system | 1 | — |
+| Helpers & validation | 1 | — |
+| **Total** | **33 tool files** | **315 tools** |
+
+**Tests: 308 passing**
