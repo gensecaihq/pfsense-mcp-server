@@ -39,6 +39,7 @@ from .tools import (  # noqa: F401
     system_advanced,
     system_settings,
     traffic_shaper,
+    troubleshoot,
     users,
     utility,
     virtual_ips,
