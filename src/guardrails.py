@@ -40,7 +40,9 @@ class RiskLevel(str, Enum):
     CRITICAL = "critical"      # System-level destructive (reboot, halt, bulk delete, wipe)
 
 
-# Map of tool name patterns to risk levels
+# Map of tool name patterns to risk levels.
+# Exact matches are checked first, then prefix matches, so put specific
+# overrides before generic prefixes.
 _RISK_CLASSIFICATION = {
     # CRITICAL — system-level destructive
     "halt_system": RiskLevel.CRITICAL,
@@ -48,6 +50,7 @@ _RISK_CLASSIFICATION = {
     "bulk_block_ips": RiskLevel.CRITICAL,
 
     # HIGH — destructive/irreversible
+    "restore_config_backup": RiskLevel.HIGH,
     "delete_": RiskLevel.HIGH,
     "disconnect_": RiskLevel.HIGH,
 
@@ -60,7 +63,6 @@ _RISK_CLASSIFICATION = {
     "renew_": RiskLevel.MEDIUM,
     "register_": RiskLevel.MEDIUM,
     "generate_": RiskLevel.MEDIUM,
-    "export_": RiskLevel.MEDIUM,
 
     # LOW — reversible settings changes
     "update_": RiskLevel.LOW,
@@ -76,6 +78,10 @@ _RISK_CLASSIFICATION = {
     "analyze_": RiskLevel.READ,
     "follow_": RiskLevel.READ,
     "test_": RiskLevel.READ,
+    "check_": RiskLevel.READ,
+    "diagnose_": RiskLevel.READ,
+    "compare_": RiskLevel.READ,
+    "export_": RiskLevel.READ,
     "system_status": RiskLevel.READ,
     "refresh_": RiskLevel.READ,
     "run_ping": RiskLevel.READ,
