@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 [![pfSense API](https://img.shields.io/badge/pfSense%20REST%20API-v2.7.3-orange.svg)](https://pfrest.org/)
-[![Tests](https://img.shields.io/badge/tests-223%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-282%20passing-brightgreen.svg)](#testing)
 
 A Model Context Protocol (MCP) server for managing pfSense firewalls through Claude Desktop, Claude Code, and other MCP-compatible clients. Verified against the pfSense REST API v2 PHP source code for production accuracy.
 
@@ -48,7 +48,7 @@ No additional setup needed. Uses your pfSense local database username and passwo
 Go to **System > REST API > Keys** to generate an API key. The key is tied to the user who creates it and inherits that user's privileges. Keys can also be generated via `POST /api/v2/auth/key`.
 
 **Option C: JWT**
-Uses your pfSense local database credentials to obtain a short-lived token (default: 1 hour) via `POST /api/v2/auth/jwt`. The MCP server handles token retrieval and refresh automatically.
+Uses your pfSense local database credentials to obtain a short-lived token (default: 1 hour) via `POST /api/v2/auth/jwt`. The MCP server handles token retrieval and refresh automatically. The token is validated on refresh — if the API returns a malformed response, startup fails with a clear error instead of silently sending invalid credentials.
 
 See the [pfSense REST API Installation Guide](PFSENSE_API_INSTALLATION.md) for detailed instructions.
 
@@ -60,7 +60,7 @@ cd pfsense-mcp-server
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env with your pfSense connection details (see below)
+# Edit .env with your pfSense connection details (see Environment Variables below)
 ```
 
 ### 3. Configure Claude Desktop
@@ -120,6 +120,8 @@ python -m src.main
 python -m src.main -t streamable-http --port 3000
 ```
 
+On startup, the server tests the connection to pfSense and reports specific error details on failure (authentication errors, SSL issues, unreachable host, missing API package).
+
 ## MCP Tools (41 total)
 
 ### Firewall Rules (9 tools)
@@ -127,21 +129,21 @@ python -m src.main -t streamable-http --port 3000
 |---|---|
 | `search_firewall_rules` | Search rules with filtering by interface, source IP, port, type, description |
 | `find_blocked_rules` | Find all block/reject rules |
-| `create_firewall_rule_advanced` | Create rule with position control and validation |
-| `update_firewall_rule` | Update an existing rule by ID |
-| `delete_firewall_rule` | Delete a rule by ID |
+| `create_firewall_rule_advanced` | Create rule with position control, validation, and rollback on failure |
+| `update_firewall_rule` | Update an existing rule by ID (supports `verify_descr` for stale-ID safety) |
+| `delete_firewall_rule` | Delete a rule by ID (requires `confirm=True`, supports `verify_descr`) |
 | `move_firewall_rule` | Reorder a rule to a new position |
 | `apply_firewall_changes` | Explicitly trigger pf filter reload |
-| `bulk_block_ips` | Block multiple IPs with a single apply |
+| `bulk_block_ips` | Block multiple IPs with a single apply (requires `confirm=True`) |
 | `get_pf_rules` | Read the compiled pf ruleset (/tmp/rules.debug) |
 
 ### Aliases (5 tools)
 | Tool | Description |
 |---|---|
 | `search_aliases` | Search aliases by name, type, or contained IP |
-| `create_alias` | Create a new alias (host, network, port, url) |
+| `create_alias` | Create a new alias (host, network, port, url) with address type validation |
 | `update_alias` | Update an existing alias |
-| `delete_alias` | Delete an alias |
+| `delete_alias` | Delete an alias (requires `confirm=True`) |
 | `manage_alias_addresses` | Add or remove addresses from an alias |
 
 ### NAT Port Forwards (4 tools)
@@ -150,30 +152,30 @@ python -m src.main -t streamable-http --port 3000
 | `search_nat_port_forwards` | Search port forward rules |
 | `create_nat_port_forward` | Create a port forward with validation |
 | `update_nat_port_forward` | Update a port forward |
-| `delete_nat_port_forward` | Delete a port forward |
+| `delete_nat_port_forward` | Delete a port forward (requires `confirm=True`) |
 
 ### DHCP (7 tools)
 | Tool | Description |
 |---|---|
-| `search_dhcp_leases` | Search active DHCP leases |
+| `search_dhcp_leases` | Search DHCP leases by state (active, expired, released) |
 | `search_dhcp_static_mappings` | Search static DHCP reservations |
-| `create_dhcp_static_mapping` | Create a static mapping |
+| `create_dhcp_static_mapping` | Create a static mapping (accepts all MAC formats) |
 | `update_dhcp_static_mapping` | Update a static mapping |
-| `delete_dhcp_static_mapping` | Delete a static mapping |
+| `delete_dhcp_static_mapping` | Delete a static mapping (requires `confirm=True` and explicit `interface`) |
 | `get_dhcp_server_config` | Get DHCP server configuration |
-| `update_dhcp_server_config` | Update DHCP server settings |
+| `update_dhcp_server_config` | Update DHCP server settings (validates IP fields) |
 
 ### Services (2 tools)
 | Tool | Description |
 |---|---|
 | `search_services` | List services with status filtering |
-| `control_service` | Start, stop, or restart a service by name |
+| `control_service` | Start, stop, or restart a service by name (shows available names on error) |
 
 ### Logs & Monitoring (3 tools)
 | Tool | Description |
 |---|---|
-| `get_firewall_log` | Get firewall log entries (max 50 lines) |
-| `analyze_blocked_traffic` | Group blocked traffic by source IP with threat scoring |
+| `get_firewall_log` | Get firewall log entries with parsed field-level filtering |
+| `analyze_blocked_traffic` | Group blocked traffic by source IP with threat scoring (IPv4 and IPv6) |
 | `search_logs_by_ip` | Search logs for a specific IP address |
 
 ### System (4 tools)
@@ -188,11 +190,48 @@ python -m src.main -t streamable-http --port 3000
 | Tool | Description |
 |---|---|
 | `follow_api_link` | Follow a HATEOAS link |
-| `enable_hateoas` / `disable_hateoas` | Toggle HATEOAS link inclusion |
-| `refresh_object_ids` | Re-query endpoint to get fresh IDs |
-| `find_object_by_field` | Look up object by field value |
+| `enable_hateoas` / `disable_hateoas` | Toggle HATEOAS via `PATCH /system/restapi/settings` (requires `confirm=True`) |
+| `refresh_object_ids` | Re-query endpoint to get fresh IDs after deletions |
+| `find_object_by_field` | Look up object by field value (safer than using IDs) |
 | `get_api_capabilities` | Get REST API settings |
 | `test_enhanced_connection` | Test connection and feature availability |
+
+## Safety Features
+
+### Destructive Operation Gates
+
+All destructive tools (delete, bulk block) require `confirm=True` to execute. Without it, they return a description of what the operation would do, preventing accidental changes by LLM clients.
+
+### Stale-ID Protection
+
+pfSense object IDs are non-persistent array indices that shift after any deletion. To prevent operating on the wrong object:
+
+- All delete responses include a note warning that IDs have shifted
+- `update_firewall_rule` and `delete_firewall_rule` accept an optional `verify_descr` parameter that cross-checks the rule description before operating
+- `refresh_object_ids` and `find_object_by_field` utilities are available for stable lookups
+
+### Input Validation
+
+| Validation | What it catches |
+|---|---|
+| Port format | Rejects `"53 853"` (crashes pf compiler), validates range bounds 1-65535 |
+| IP address | Uses Python `ipaddress` module, rejects invalid IPs, accepts CIDR notation |
+| MAC address | Accepts colon (`AA:BB:CC:DD:EE:FF`), hyphen (`AA-BB-CC-DD-EE-FF`), and bare (`AABBCCDDEEFF`) formats; normalizes to lowercase colon |
+| Alias addresses | Validates entries match alias type (IPs for host, CIDRs for network, ports for port, URLs for url) |
+| Alias names | 1-31 chars, alphanumeric and underscores, must start with letter or underscore |
+| Descriptions | Stripped of control characters and capped at 1024 characters |
+| Log types | Allowlisted to prevent path traversal (`firewall`, `system`, `dhcp`, `openvpn`, `auth`) |
+| Diagnostic commands | Exact-match allowlist (only `cat /tmp/rules.debug`) |
+| Pagination | Page size capped at 200, page number capped at 500, offset capped at 100,000 |
+| Log lines | Capped at 50 per request to prevent pfSense PHP memory exhaustion |
+
+### Rollback on Failure
+
+When creating a firewall rule with a specific position, if the create succeeds but the move fails, the rule is automatically deleted to prevent leaving it at the wrong position.
+
+### Bulk Operation Warnings
+
+If `bulk_block_ips` creates rules but `apply_firewall_changes()` fails, the response includes a `warning` field listing the pending rule IDs and instructions for manual apply or cleanup.
 
 ## API Endpoint Coverage
 
@@ -205,13 +244,13 @@ python -m src.main -t streamable-http --port 3000
 | DHCP Static Mappings | `/services/dhcp_server/static_mappings`, `/services/dhcp_server/static_mapping` | Full CRUD |
 | DHCP Server Config | `/services/dhcp_servers`, `/services/dhcp_server` | Read + Update |
 | Services | `/status/services`, `/status/service` | Read + Control |
-| Firewall Logs | `/status/logs/firewall` | Read (text-based filtering) |
+| Firewall Logs | `/status/logs/firewall` | Read (parsed field-level filtering) |
 | System Logs | `/status/logs/system`, `/status/logs/dhcp`, `/status/logs/openvpn`, `/status/logs/auth` | Read |
 | System Status | `/status/system` | Read |
 | Interfaces | `/status/interfaces` | Read |
 | ARP Table | `/diagnostics/arp_table` | Read |
-| Diagnostics | `/diagnostics/command_prompt` | Execute |
-| API Settings | `/system/restapi/settings` | Read |
+| Diagnostics | `/diagnostics/command_prompt` | Execute (allowlisted commands only) |
+| API Settings | `/system/restapi/settings` | Read + Update (HATEOAS toggle) |
 
 ### Not Yet Implemented
 
@@ -231,7 +270,7 @@ src/
   server.py        FastMCP instance + API client singleton
   client.py        HTTP client for pfSense REST API v2
   models.py        Enums, dataclasses (QueryFilter, SortOptions, etc.)
-  helpers.py       Validation, pagination, safety guards
+  helpers.py       Validation, pagination, filterlog parser, safety guards
   middleware.py    Bearer auth middleware for HTTP transport
   tools/
     firewall.py    9 tools
@@ -248,14 +287,15 @@ src/
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `PFSENSE_URL` | Yes | `https://pfsense.local` | pfSense URL |
+| `PFSENSE_URL` | Yes | — | pfSense URL (e.g., `https://192.168.1.1`) |
 | `AUTH_METHOD` | No | `api_key` | `api_key`, `basic`, or `jwt` |
 | `PFSENSE_API_KEY` | Yes (for `api_key` auth) | — | REST API key (generate at System > REST API > Keys) |
 | `PFSENSE_USERNAME` | Yes (for `basic`/`jwt` auth) | — | pfSense local database username |
 | `PFSENSE_PASSWORD` | Yes (for `basic`/`jwt` auth) | — | pfSense local database password |
-| `PFSENSE_VERSION` | No | `CE_2_8_0` | `CE_2_8_0`, `CE_2_8_1`, `CE_26_03`, `PLUS_24_11`, `PLUS_25_11` |
-| `VERIFY_SSL` | No | `true` | Verify SSL certificates |
-| `ENABLE_HATEOAS` | No | `false` | Include HATEOAS links in responses |
+| `PFSENSE_VERSION` | No | `CE_2_8_0` | Must be one of: `CE_2_8_0`, `CE_2_8_1`, `CE_26_03`, `PLUS_24_11`, `PLUS_25_11`. Unrecognized values cause a startup error. |
+| `VERIFY_SSL` | No | `true` | Verify SSL certificates (`false` for self-signed certs) |
+| `API_TIMEOUT` | No | `30` | API request timeout in seconds (increase for slow hardware or large rulesets) |
+| `ENABLE_HATEOAS` | No | `false` | Initial HATEOAS state (can be toggled at runtime via tools) |
 | `LOG_LEVEL` | No | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `MCP_TRANSPORT` | No | `stdio` | `stdio` or `streamable-http` |
 | `MCP_HOST` | No | `0.0.0.0` | Bind address for HTTP mode |
@@ -280,7 +320,7 @@ The `docker-compose.yml` runs in `streamable-http` mode on port 3000 with bearer
 ## Testing
 
 ```bash
-# Run all 223 tests
+# Run all 282 tests
 python -m pytest tests/ -v
 
 # With coverage
@@ -291,24 +331,18 @@ python -m pytest tests/tools/ -v
 
 # Only client tests
 python -m pytest tests/test_api_client.py -v
+
+# Only helper tests (validation, parsing)
+python -m pytest tests/test_helpers.py -v
 ```
-
-## Safety Guards
-
-- **Page size capped at 200** — prevents pfSense PHP memory exhaustion
-- **Log lines capped at 50** — same reason
-- **Port format validation** — rejects `"53 853"` which crashes the pf compiler
-- **IP validation** — validates addresses before sending to API
-- **Log type allowlist** — prevents path traversal via log endpoint
-- **Bearer auth required** for HTTP transport mode (fail-closed)
-- **Control parameters in JSON body** — verified against pfSense API PHP source
 
 ## Known Limitations
 
-- Firewall log API only exposes raw `text` field; per-field filtering is done client-side
-- HATEOAS toggle is a global API setting, not per-request (the tools toggle a local session flag)
-- pfSense object IDs are non-persistent array indices that change after deletions
+- Firewall log API only exposes a raw `text` field; the server parses filterlog CSV format by field position for structured filtering, with regex fallback for non-standard lines
+- HATEOAS is a global pfSense REST API setting — `enable_hateoas`/`disable_hateoas` call `PATCH /system/restapi/settings` which affects all API consumers
+- pfSense object IDs are non-persistent array indices that change after deletions — use `verify_descr` or `find_object_by_field` for safety
 - Log retrieval is capped at 50 lines per request to prevent PHP memory exhaustion
+- The filterlog parser uses hardcoded CSV field positions for pfSense filterlog format — format changes across pfSense versions could affect IP extraction (extracted IPs are validated via `ipaddress` module)
 
 ## Community & Contributions
 

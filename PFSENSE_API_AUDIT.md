@@ -31,7 +31,12 @@
 | `/status/logs/{system,dhcp,openvpn,auth}` | `search_logs_by_ip` (non-firewall types) | Yes |
 | `/diagnostics/arp_table` | `get_arp_table` | Yes |
 | `/diagnostics/command_prompt` | `get_pf_rules` | Yes |
-| `/system/restapi/settings` | `get_api_capabilities` | Yes |
+
+### Implemented (Read + Update)
+
+| API Endpoint | MCP Tools | Verified |
+|---|---|---|
+| `/system/restapi/settings` | `get_api_capabilities`, `enable_hateoas`, `disable_hateoas` | Yes |
 
 ### Not Yet Implemented
 
@@ -73,7 +78,7 @@ Firewall rules use `many=true` for the `interface` field, so it must be an array
 
 ### Service Control Requires Numeric ID
 
-The `POST /status/service` endpoint requires the service's integer `id` (array index), not the `name` field (which is read-only). This server looks up the ID by name before sending the control request.
+The `POST /status/service` endpoint requires the service's integer `id` (array index), not the `name` field (which is read-only). This server looks up the ID by name before sending the control request, and reports available service names on lookup failure.
 
 ### Sort Order Constants
 
@@ -81,7 +86,7 @@ Sort order values must be PHP constant names: `SORT_ASC` and `SORT_DESC` (resolv
 
 ### Firewall Log Model
 
-The `FirewallLog` model only has a single `text` field containing the raw log line. Per-field filters like `action`, `src_ip`, `dst_ip` do not exist as model fields. This server uses `text__contains` for server-side text matching and client-side post-filtering.
+The `FirewallLog` model only has a single `text` field containing the raw log line. Per-field filters like `action`, `src_ip`, `dst_ip` do not exist as model fields. This server uses `text__contains` for server-side text matching, then parses the filterlog CSV format by field position for structured client-side filtering (IPv4 and IPv6). Extracted IPs are validated via Python's `ipaddress` module.
 
 ### Log Line Limits
 
@@ -93,22 +98,50 @@ The ARP table model uses `ip_address` and `mac_address` as field names (not `ip`
 
 ### JWT Authentication
 
-The `/auth/jwt` endpoint only accepts `BasicAuth`. Credentials must be sent via `Authorization: Basic <base64>` header, not in the JSON body.
+The `/auth/jwt` endpoint only accepts `BasicAuth`. Credentials must be sent via `Authorization: Basic <base64>` header, not in the JSON body. The token is validated after retrieval — if the response lacks a valid token, a clear error is raised instead of sending `"Bearer None"`.
 
 ### HATEOAS
 
 HATEOAS is a global API setting stored in config, not a per-request toggle. The per-request `?hateoas=true` query parameter is not read by the API. This server correctly uses `PATCH /system/restapi/settings` to enable/disable HATEOAS, and does not inject per-request query parameters.
 
+### Pagination Safety
+
+Pagination offset is capped at 100,000 (page 500 × 200 per page) to prevent pfSense PHP memory exhaustion from extreme offset values.
+
+### Object ID Instability
+
+pfSense uses non-persistent array indices as object IDs. After any deletion, all subsequent IDs shift. This server provides:
+- `verify_object_id()` — cross-checks an ID against a stable field before operating
+- `verify_descr` parameter on firewall rule update/delete
+- `refresh_object_ids()` and `find_object_by_field()` utility tools
+
+## Safety Features
+
+| Feature | Description |
+|---|---|
+| Confirm gates | All destructive operations require `confirm=True` |
+| Stale-ID guard | Optional `verify_descr` on update/delete to prevent wrong-object operations |
+| Rollback | Rule create+move failure triggers automatic cleanup deletion |
+| Bulk warnings | Apply failure on bulk operations reports pending rule IDs |
+| Input validation | Port, IP, MAC, alias name/type/content, description length, log type |
+| Command allowlist | Diagnostic commands restricted to exact `frozenset` match |
+| Path traversal prevention | Log types allowlisted, endpoint paths prefix-validated |
+| Timing-safe auth | HTTP transport bearer token uses `hmac.compare_digest` |
+| Configurable timeout | `API_TIMEOUT` env var (default 30s) for slow operations |
+| Connection diagnostics | Startup test reports specific error: 401/403/404/SSL/timeout/network |
+| Version validation | Unrecognized `PFSENSE_VERSION` causes startup error (not silent default) |
+
 ## Tool Count
 
 | Domain | Tools | Test Count |
 |---|---|---|
-| Firewall | 9 | ~70 |
+| Firewall | 9 | ~75 |
 | DHCP | 7 | ~35 |
-| Utility | 7 | ~20 |
+| Utility | 7 | ~25 |
 | Aliases | 5 | ~25 |
 | NAT | 4 | ~25 |
 | System | 4 | ~20 |
 | Logs | 3 | ~15 |
 | Services | 2 | ~13 |
-| **Total** | **41** | **262** |
+| Helpers | — | ~50 |
+| **Total** | **41** | **282** |
