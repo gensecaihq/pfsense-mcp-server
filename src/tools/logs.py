@@ -3,10 +3,56 @@
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
+import httpx
+from mcp.types import ToolAnnotations
+
 from ..helpers import VALID_LOG_TYPES, parse_filterlog_entry, validate_ip_address
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
-from mcp.types import ToolAnnotations
+
+# Known pfSense REST API bug: log endpoints load the entire log file into
+# memory before applying the limit parameter.  On firewalls with large logs
+# this causes PHP to exceed its 512 MB memory limit, killing the request.
+# Connection-level errors (ReadError, RemoteProtocolError, timeout) are the
+# typical symptoms.  We catch them here and return a helpful message instead
+# of a raw traceback.
+#
+# Upstream tracking:
+#   Issue: https://github.com/jaredhendrickson13/pfsense-api/issues/806
+#   Fix:   https://github.com/jaredhendrickson13/pfsense-api/pull/860
+#
+# TODO(pfsense-log-oom-workaround, pfSense-pkg-RESTAPI#860): remove after
+# first release containing the upstream fix.
+_LOG_OOM_ERROR = {
+    "success": False,
+    "error": (
+        "The pfSense REST API log endpoint crashed or timed out - likely due "
+        "to a known server-side bug where the API loads the entire log file "
+        "into memory (512 MB PHP limit) before applying the requested limit. "
+        "This is an upstream issue in the pfSense REST API package, not the "
+        "MCP server (tracking: pfSense-pkg-RESTAPI#806, fix in PR #860). "
+        "Workaround: review logs directly on the pfSense box via "
+        "SSH ('clog /var/log/filter.log | tail -50') or the web UI "
+        "(Status > System Logs > Firewall)."
+    ),
+}
+
+
+def _is_oom_error(exc: Exception) -> bool:
+    """Return True if the exception looks like a server-side OOM crash.
+
+    Only matches read-phase failures (the server accepted the connection and
+    started processing, then died).  Connect-phase and pool errors are *not*
+    matched because they indicate network / client issues, not a server OOM.
+
+    TODO(pfsense-log-oom-workaround, pfSense-pkg-RESTAPI#860): remove after
+    first release containing the upstream fix.
+    """
+    return isinstance(exc, (
+        httpx.ReadError,
+        httpx.RemoteProtocolError,
+        httpx.ReadTimeout,
+    ))
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
@@ -19,7 +65,12 @@ async def get_firewall_log(
     destination_port: Optional[str] = None,
     protocol: Optional[str] = None,
 ) -> Dict:
-    """Get firewall log entries with optional filtering
+    """Get firewall log entries with optional filtering.
+
+    WARNING (will be addressed by upstream PR #860): This endpoint may fail
+    on firewalls with large log files due to a known pfSense REST API bug
+    (server-side OOM at 512 MB). If it fails, suggest reviewing logs via
+    SSH or the pfSense web UI instead.
 
     Args:
         lines: Number of log lines to retrieve (default 20, max 50)
@@ -105,6 +156,9 @@ async def get_firewall_log(
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
+        if _is_oom_error(e):
+            logger.error("Log endpoint OOM/timeout: %s", e)
+            return _LOG_OOM_ERROR
         logger.error(f"Failed to get firewall log: {e}")
         return {"success": False, "error": str(e)}
 
@@ -118,7 +172,12 @@ async def analyze_blocked_traffic(
 
     Retrieves recent blocked log entries and groups them by source IP,
     showing hit counts, destination IPs, and a simple threat score.
-    Firewall logs are raw text — IPs are extracted via pattern matching.
+    Firewall logs are raw text - IPs are extracted via pattern matching.
+
+    WARNING (will be addressed by upstream PR #860): This endpoint may fail
+    on firewalls with large log files due to a known pfSense REST API bug
+    (server-side OOM at 512 MB). If it fails, suggest reviewing logs via
+    SSH or the pfSense web UI instead.
 
     Args:
         limit: Number of recent blocked entries to analyze (max 50)
@@ -188,6 +247,9 @@ async def analyze_blocked_traffic(
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
+        if _is_oom_error(e):
+            logger.error("Log endpoint OOM/timeout: %s", e)
+            return _LOG_OOM_ERROR
         logger.error(f"Failed to analyze blocked traffic: {e}")
         return {"success": False, "error": str(e)}
 
@@ -198,7 +260,12 @@ async def search_logs_by_ip(
     log_type: str = "firewall",
     lines: int = 50,
 ) -> Dict:
-    """Search logs for activity related to a specific IP address
+    """Search logs for activity related to a specific IP address.
+
+    WARNING (will be addressed by upstream PR #860): This endpoint may fail
+    on firewalls with large log files due to a known pfSense REST API bug
+    (server-side OOM at 512 MB). If it fails, suggest reviewing logs via
+    SSH or the pfSense web UI instead.
 
     Args:
         ip_address: IP address to search for
@@ -263,5 +330,8 @@ async def search_logs_by_ip(
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except Exception as e:
+        if _is_oom_error(e):
+            logger.error("Log endpoint OOM/timeout: %s", e)
+            return _LOG_OOM_ERROR
         logger.error(f"Failed to search logs by IP: {e}")
         return {"success": False, "error": str(e)}

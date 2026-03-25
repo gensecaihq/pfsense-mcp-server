@@ -191,6 +191,7 @@ class EnhancedPfSenseAPIClient:
         pagination: Optional[PaginationOptions] = None,
         control: Optional[ControlParameters] = None,
         extra_params: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None,
     ) -> Dict:
         """Make API request with enhanced features.
 
@@ -241,17 +242,22 @@ class EnhancedPfSenseAPIClient:
         needs_body = method.upper() in ("POST", "PATCH", "PUT") or (method.upper() == "DELETE" and data)
         headers = await self._get_auth_headers(include_content_type=needs_body)
 
+        # Per-request timeout override (used by log endpoints to fail fast).
+        # Only the read phase is shortened so connect/write/pool timeouts
+        # keep using the client defaults and don't cause false positives.
+        req_timeout = httpx.Timeout(self.timeout, read=timeout) if timeout else None
+
         # Make request
         if method.upper() == "GET":
-            response = await self.client.get(url, headers=headers)
+            response = await self.client.get(url, headers=headers, timeout=req_timeout)
         elif method.upper() == "POST":
-            response = await self.client.post(url, headers=headers, json=data)
+            response = await self.client.post(url, headers=headers, json=data, timeout=req_timeout)
         elif method.upper() == "PATCH":
-            response = await self.client.patch(url, headers=headers, json=data)
+            response = await self.client.patch(url, headers=headers, json=data, timeout=req_timeout)
         elif method.upper() == "PUT":
-            response = await self.client.put(url, headers=headers, json=data)
+            response = await self.client.put(url, headers=headers, json=data, timeout=req_timeout)
         elif method.upper() == "DELETE":
-            response = await self.client.delete(url, headers=headers, json=data)
+            response = await self.client.delete(url, headers=headers, json=data, timeout=req_timeout)
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
@@ -564,6 +570,20 @@ class EnhancedPfSenseAPIClient:
         )
 
     # Enhanced Log Methods
+    #
+    # WARNING: pfSense REST API log endpoints load the entire log file into
+    # memory before applying the limit parameter. On firewalls with large
+    # logs this causes PHP to exceed its 512 MB memory limit and crash.
+    # All log methods use a short timeout (LOG_TIMEOUT) to fail fast rather
+    # than waiting for the server to OOM and drop the connection.
+    #
+    # Upstream tracking:
+    #   Issue: https://github.com/jaredhendrickson13/pfsense-api/issues/806
+    #   Fix:   https://github.com/jaredhendrickson13/pfsense-api/pull/860
+    #
+    # TODO(pfsense-log-oom-workaround, pfSense-pkg-RESTAPI#860): remove after
+    # first release containing the upstream fix.
+    LOG_TIMEOUT = 10  # seconds
 
     async def get_firewall_logs(
         self,
@@ -580,7 +600,8 @@ class EnhancedPfSenseAPIClient:
 
         return await self._make_request(
             "GET", "/status/logs/firewall",
-            filters=filters, pagination=pagination
+            filters=filters, pagination=pagination,
+            timeout=self.LOG_TIMEOUT,
         )
 
     async def get_logs_by_ip(self, ip_address: str, lines: int = 20) -> Dict:
@@ -631,7 +652,8 @@ class EnhancedPfSenseAPIClient:
         endpoint = f"/status/logs/{log_type}"
         return await self._make_request(
             "GET", endpoint,
-            filters=filters, pagination=pagination
+            filters=filters, pagination=pagination,
+            timeout=self.LOG_TIMEOUT,
         )
 
     # Enhanced Service Methods
