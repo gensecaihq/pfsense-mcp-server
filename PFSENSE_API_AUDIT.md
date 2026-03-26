@@ -1,6 +1,6 @@
 # pfSense REST API v2 Audit
 
-**Version**: pfSense MCP Server v5.0.0
+**Version**: pfSense MCP Server v1.0.0
 **API**: pfSense REST API v2.7.3 (pfrest/pfSense-pkg-RESTAPI)
 **Audit Date**: March 2026
 **Method**: Verified against the pfSense REST API v2 PHP source code (Endpoint.inc, ContentHandler, model files)

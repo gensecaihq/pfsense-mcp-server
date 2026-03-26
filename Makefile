@@ -3,7 +3,7 @@ SHELL := /bin/bash
 .PHONY: help build run stop clean test lint format logs shell
 
 # Variables
-VERSION ?= 5.0.0
+VERSION ?= 1.0.0
 DOCKER_REGISTRY ?=
 IMAGE_NAME ?= pfsense-mcp
 FULL_IMAGE_NAME = $(if $(DOCKER_REGISTRY),$(DOCKER_REGISTRY)/$(IMAGE_NAME),$(IMAGE_NAME))

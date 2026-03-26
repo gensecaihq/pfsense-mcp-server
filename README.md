@@ -1,14 +1,14 @@
-# pfSense Enhanced MCP Server
+# pfSense MCP Server
 
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/gensecaihq-pfsense-mcp-server-badge.png)](https://mseep.ai/app/gensecaihq-pfsense-mcp-server)
-[![Version](https://img.shields.io/badge/version-5.0.0-blue.svg)](https://github.com/gensecaihq/pfsense-mcp-server)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/gensecaihq/pfsense-mcp-server/releases/tag/v1.0.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
+[![MCP](https://img.shields.io/badge/MCP%202025--11--25-Compatible-green.svg)](https://modelcontextprotocol.io)
 [![pfSense API](https://img.shields.io/badge/pfSense%20REST%20API-v2.7.3-orange.svg)](https://pfrest.org/)
 [![Tests](https://img.shields.io/badge/tests-308%20passing-brightgreen.svg)](#testing)
 [![Tools](https://img.shields.io/badge/MCP%20tools-327-blue.svg)](#mcp-tools-327-total)
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/gensecaihq-pfsense-mcp-server-badge.png)](https://mseep.ai/app/gensecaihq-pfsense-mcp-server)
 
-A Model Context Protocol (MCP) server for managing pfSense firewalls through Claude Desktop, Claude Code, and other MCP-compatible clients. Verified against the pfSense REST API v2 PHP source code for production accuracy. Full defense-in-depth guardrail system for destructive operations.
+A production-ready [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for managing pfSense firewalls through Claude Desktop, Claude Code, and other MCP-compatible AI clients. 327 tools covering firewall rules, VPN, routing, DNS, DHCP, certificates, users, and more — with a 9-layer defense-in-depth guardrail system for safe AI-driven infrastructure management.
 
 ## Supported pfSense Versions
 

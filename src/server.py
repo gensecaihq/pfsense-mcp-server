@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Version
-VERSION = "5.0.0"
+VERSION = "1.0.0"
 
 # Initialize FastMCP server
 mcp = FastMCP(
