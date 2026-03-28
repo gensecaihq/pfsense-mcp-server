@@ -1,6 +1,15 @@
 """Unit tests for log tools (src/tools/logs.py)."""
 
-from src.tools.logs import analyze_blocked_traffic, get_firewall_log, search_logs_by_ip
+import httpx
+import pytest
+
+from src.tools.logs import (
+    _LOG_OOM_ERROR,
+    _is_oom_error,
+    analyze_blocked_traffic,
+    get_firewall_log,
+    search_logs_by_ip,
+)
 
 _get_firewall_log = get_firewall_log.fn
 _analyze_blocked_traffic = analyze_blocked_traffic.fn
@@ -113,3 +122,84 @@ class TestSearchLogsByIp:
         pagination = mock_make_request.call_args.kwargs.get("pagination")
         assert pagination is not None
         assert pagination.limit == 50
+
+
+# ---------------------------------------------------------------------------
+# _is_oom_error classifier
+# ---------------------------------------------------------------------------
+
+class TestIsOomError:
+    """Verify _is_oom_error matches only read-phase failures."""
+
+    @pytest.mark.parametrize("exc_cls", [
+        httpx.ReadError,
+        httpx.RemoteProtocolError,
+        httpx.ReadTimeout,
+    ])
+    def test_matches_read_phase_errors(self, exc_cls):
+        assert _is_oom_error(exc_cls("boom")) is True
+
+    @pytest.mark.parametrize("exc_cls", [
+        httpx.ConnectTimeout,
+        httpx.ConnectError,
+        httpx.PoolTimeout,
+    ])
+    def test_does_not_match_connect_pool_errors(self, exc_cls):
+        assert _is_oom_error(exc_cls("boom")) is False
+
+    def test_does_not_match_generic_exception(self):
+        assert _is_oom_error(Exception("something else")) is False
+
+
+# ---------------------------------------------------------------------------
+# OOM error handling in each tool
+# ---------------------------------------------------------------------------
+
+class TestLogOomHandling:
+    """All three log tools should return _LOG_OOM_ERROR on read-phase failures."""
+
+    async def test_get_firewall_log_oom(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = httpx.ReadError("peer closed connection")
+        result = await _get_firewall_log()
+        assert result == _LOG_OOM_ERROR
+
+    async def test_analyze_blocked_traffic_oom(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = httpx.ReadTimeout("read timed out")
+        result = await _analyze_blocked_traffic()
+        assert result == _LOG_OOM_ERROR
+
+    async def test_search_logs_by_ip_oom(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = httpx.RemoteProtocolError("connection reset")
+        result = await _search_logs_by_ip(ip_address="10.0.0.1")
+        assert result == _LOG_OOM_ERROR
+
+    async def test_non_oom_error_still_returned_normally(self, mock_client, mock_make_request):
+        """A ConnectTimeout should NOT be mapped to the OOM error."""
+        mock_make_request.side_effect = httpx.ConnectTimeout("connect timed out")
+        result = await _get_firewall_log()
+        assert result["success"] is False
+        assert result != _LOG_OOM_ERROR
+        assert "connect timed out" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# LOG_TIMEOUT passthrough
+# ---------------------------------------------------------------------------
+
+class TestLogTimeout:
+    """Log client methods should pass LOG_TIMEOUT to _make_request."""
+
+    async def test_get_firewall_logs_passes_timeout(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": []}
+        await _get_firewall_log()
+        assert mock_make_request.call_args.kwargs.get("timeout") == mock_client.LOG_TIMEOUT
+
+    async def test_search_logs_by_ip_passes_timeout(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": []}
+        await _search_logs_by_ip(ip_address="10.0.0.1", log_type="firewall")
+        assert mock_make_request.call_args.kwargs.get("timeout") == mock_client.LOG_TIMEOUT
+
+    async def test_get_logs_passes_timeout(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": []}
+        await _search_logs_by_ip(ip_address="10.0.0.1", log_type="system")
+        assert mock_make_request.call_args.kwargs.get("timeout") == mock_client.LOG_TIMEOUT
