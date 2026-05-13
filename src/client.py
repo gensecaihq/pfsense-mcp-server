@@ -251,7 +251,7 @@ class EnhancedPfSenseAPIClient:
         elif method.upper() == "PUT":
             response = await self.client.put(url, headers=headers, json=data)
         elif method.upper() == "DELETE":
-            response = await self.client.delete(url, headers=headers, json=data)
+            response = await self.client.request("DELETE", url, headers=headers, json=data)
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
