@@ -377,6 +377,7 @@ async def update_log_settings(
     logall: Optional[bool] = None,
     filter: Optional[bool] = None,
     dhcp: Optional[bool] = None,
+    logconfigchanges: Optional[bool] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Update the system log settings
@@ -394,6 +395,7 @@ async def update_log_settings(
         logall: Log all packets (not just those matching rules)
         filter: Log packets matched by firewall rules
         dhcp: Log DHCP events
+        logconfigchanges: Whether to log configuration changes to syslog (Status → System Logs → Settings → Logging Preferences → "Configuration changes")
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
@@ -424,6 +426,8 @@ async def update_log_settings(
             updates["filter"] = filter
         if dhcp is not None:
             updates["dhcp"] = dhcp
+        if logconfigchanges is not None:
+            updates["logconfigchanges"] = logconfigchanges
 
         if not updates:
             return {"success": False, "error": "No fields to update - provide at least one field"}
