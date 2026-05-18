@@ -148,6 +148,7 @@ async def create_firewall_rule_advanced(
     disabled: bool = False,
     apply_immediately: bool = True,
     log_matches: bool = True,
+    ipprotocol: str = "inet",
 ) -> Dict:
     """Create a firewall rule on the live pfSense appliance.
 
@@ -167,6 +168,7 @@ async def create_firewall_rule_advanced(
         disabled: Create the rule in disabled state (useful for staging)
         apply_immediately: Whether to apply changes to the running firewall
         log_matches: Whether to log packets matching this rule
+        ipprotocol: IP protocol family — "inet" (IPv4, default), "inet6" (IPv6), or "inet46" (both)
     """
     client = get_api_client()
 
@@ -178,6 +180,10 @@ async def create_firewall_rule_advanced(
     if protocol.lower() not in ("tcp", "udp", "tcp/udp", "icmp", "any"):
         return {"success": False, "error": f"Invalid protocol '{protocol}'. Must be: tcp, udp, tcp/udp, icmp, any"}
 
+    # Validate ipprotocol
+    if ipprotocol not in ("inet", "inet6", "inet46"):
+        return {"success": False, "error": f"Invalid ipprotocol '{ipprotocol}'. Must be: inet (IPv4), inet6 (IPv6), inet46 (both)"}
+
     # Validate port formats before sending to API
     for port_param, port_val in [("source_port", source_port), ("destination_port", destination_port)]:
         if port_val:
@@ -188,7 +194,7 @@ async def create_firewall_rule_advanced(
     rule_data = {
         "interface": [interface] if isinstance(interface, str) else interface,
         "type": rule_type,
-        "ipprotocol": "inet",
+        "ipprotocol": ipprotocol,
         "source": source,
         "destination": destination,
         "descr": sanitize_description(description) if description else f"Created via MCP at {datetime.now(timezone.utc).isoformat()}",
