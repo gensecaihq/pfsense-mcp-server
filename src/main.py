@@ -135,7 +135,10 @@ def main():
 
     connected = asyncio.run(test_conn())
     if not connected:
-        sys.exit(1)
+        logger.warning(
+            "Preflight connectivity check failed; starting MCP server anyway. "
+            "Tools will surface errors individually if pfSense is actually unreachable."
+        )
 
     if args.transport == "stdio":
         logger.info("Starting MCP server in stdio mode...")
