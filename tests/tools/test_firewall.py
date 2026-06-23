@@ -177,6 +177,33 @@ class TestCreateFirewallRuleAdvanced:
         )
         assert result["success"] is True
 
+    async def test_ipprotocol_defaults_to_inet(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 9}}
+        await _create_firewall_rule_advanced(
+            interface="lan", rule_type="pass", protocol="tcp",
+            source="any", destination="any",
+        )
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[0][2]
+        assert data["ipprotocol"] == "inet"
+
+    async def test_ipprotocol_inet6_threaded_through(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 10}}
+        await _create_firewall_rule_advanced(
+            interface="lan", rule_type="block", protocol="udp",
+            source="any", destination="ff02::fb", ipprotocol="inet6",
+        )
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[0][2]
+        assert data["ipprotocol"] == "inet6"
+
+    async def test_ipprotocol_invalid_rejected(self, mock_client, mock_make_request):
+        result = await _create_firewall_rule_advanced(
+            interface="lan", rule_type="pass", protocol="tcp",
+            source="any", destination="any", ipprotocol="foo",
+        )
+        assert result["success"] is False
+        assert "Invalid ipprotocol" in result["error"]
+        mock_make_request.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # update_firewall_rule

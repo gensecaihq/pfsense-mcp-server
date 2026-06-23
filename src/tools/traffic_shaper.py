@@ -1,20 +1,19 @@
 """Traffic shaper tools for pfSense MCP server."""
 
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional, Union
 
-from ..helpers import create_default_sort, create_pagination, sanitize_description
-from ..models import ControlParameters, QueryFilter
-from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
-
 
 # ---------------------------------------------------------------------------
 # Traffic Shapers
 # ---------------------------------------------------------------------------
-
-
 from ..guardrails import guarded, rate_limited
+from ..helpers import create_default_sort, create_pagination, sanitize_description
+from ..models import ControlParameters, QueryFilter
+from ..server import get_api_client, logger, mcp
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_traffic_shapers(
     search_term: Optional[str] = None,
@@ -485,9 +484,9 @@ async def search_traffic_limiters(
         if search_term:
             term_lower = search_term.lower()
             limiters = [
-                l for l in limiters
-                if term_lower in l.get("name", "").lower()
-                or term_lower in l.get("descr", "").lower()
+                lim for lim in limiters
+                if term_lower in lim.get("name", "").lower()
+                or term_lower in lim.get("descr", "").lower()
             ]
 
         return {

@@ -1,10 +1,44 @@
 """Unit tests for log tools (src/tools/logs.py)."""
 
-from src.tools.logs import analyze_blocked_traffic, get_firewall_log, search_logs_by_ip
+import httpx
+
+from src.tools.logs import (
+    _is_oom_error,
+    analyze_blocked_traffic,
+    get_firewall_log,
+    search_logs_by_ip,
+)
 
 _get_firewall_log = get_firewall_log.fn
 _analyze_blocked_traffic = analyze_blocked_traffic.fn
 _search_logs_by_ip = search_logs_by_ip.fn
+
+
+# ---------------------------------------------------------------------------
+# OOM / read-phase failure handling (PR #6, pfSense-pkg-RESTAPI#806)
+# ---------------------------------------------------------------------------
+
+class TestLogOomHandling:
+    def test_classifier_matches_read_phase_failures(self):
+        assert _is_oom_error(httpx.ReadError("boom"))
+        assert _is_oom_error(httpx.RemoteProtocolError("boom"))
+        assert _is_oom_error(httpx.ReadTimeout("boom"))
+
+    def test_classifier_ignores_unrelated_errors(self):
+        assert not _is_oom_error(httpx.ConnectError("boom"))
+        assert not _is_oom_error(ValueError("boom"))
+
+    async def test_get_firewall_log_returns_oom_message(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = httpx.ReadError("server died")
+        result = await _get_firewall_log()
+        assert result["success"] is False
+        assert "pfSense-pkg-RESTAPI#806" in result["error"]
+
+    async def test_non_oom_error_passes_through(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("plain failure")
+        result = await _get_firewall_log()
+        assert result["success"] is False
+        assert "plain failure" in result["error"]
 
 
 # ---------------------------------------------------------------------------

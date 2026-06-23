@@ -322,7 +322,7 @@ def validate_alias_addresses(alias_type: str, addresses: List[str]) -> Optional[
         if alias_type == "host":
             # Must be a valid IP address (not a network with prefix) or alias name
             try:
-                parsed = ipaddress.ip_address(addr)
+                ipaddress.ip_address(addr)
                 continue  # valid IP
             except ValueError:
                 pass

@@ -3,9 +3,10 @@
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
+from mcp.types import ToolAnnotations
+
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
-from mcp.types import ToolAnnotations
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))

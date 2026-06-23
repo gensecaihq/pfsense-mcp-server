@@ -203,21 +203,26 @@ class TestMakeRequestContentType:
             assert headers["Content-Type"] == "application/json"
 
     async def test_delete_with_body_includes_content_type(self):
+        # DELETE is routed through client.request() because httpx.delete()
+        # does not accept a json= kwarg (issue #12).
         resp = self._mock_response()
         with patch.object(self.client, "_ensure_client"):
             self.client.client = MagicMock()
-            self.client.client.delete = AsyncMock(return_value=resp)
+            self.client.client.request = AsyncMock(return_value=resp)
             await self.client._make_request("DELETE", "/firewall/rule", data={"id": 0})
-            headers = self.client.client.delete.call_args.kwargs["headers"]
+            assert self.client.client.request.call_args.args[0] == "DELETE"
+            headers = self.client.client.request.call_args.kwargs["headers"]
             assert headers["Content-Type"] == "application/json"
+            assert self.client.client.request.call_args.kwargs["json"] == {"id": 0}
 
     async def test_delete_without_body_omits_content_type(self):
         resp = self._mock_response()
         with patch.object(self.client, "_ensure_client"):
             self.client.client = MagicMock()
-            self.client.client.delete = AsyncMock(return_value=resp)
+            self.client.client.request = AsyncMock(return_value=resp)
             await self.client._make_request("DELETE", "/firewall/rule")
-            headers = self.client.client.delete.call_args.kwargs["headers"]
+            assert self.client.client.request.call_args.args[0] == "DELETE"
+            headers = self.client.client.request.call_args.kwargs["headers"]
             assert "Content-Type" not in headers
 
 

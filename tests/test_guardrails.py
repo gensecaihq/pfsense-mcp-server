@@ -1,7 +1,6 @@
 """Tests for the guardrail system — action classification, approval gates,
 rate limiting, input sanitization, dry-run, and rollback tracking."""
 
-import pytest
 
 from src.guardrails import (
     RiskLevel,
@@ -16,7 +15,6 @@ from src.guardrails import (
     sanitize_input,
     sanitize_parameters,
 )
-
 
 # ---------------------------------------------------------------------------
 # Action Classification

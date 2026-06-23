@@ -9,12 +9,12 @@ import os
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from ..guardrails import get_rollback_history
-from ..helpers import parse_filterlog_entry
-from ..models import PaginationOptions, QueryFilter
-from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
 
+from ..guardrails import get_rollback_history
+from ..helpers import parse_filterlog_entry
+from ..models import QueryFilter
+from ..server import get_api_client, logger, mcp
 
 # ---------------------------------------------------------------------------
 # 1. Diagnose Connectivity

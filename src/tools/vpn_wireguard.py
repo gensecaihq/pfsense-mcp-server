@@ -1,15 +1,16 @@
 """WireGuard VPN tools for pfSense MCP server."""
 
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional
 
-from ..helpers import create_default_sort, create_pagination
-from ..models import ControlParameters, QueryFilter
-from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
 
 # API endpoint constants
 from ..guardrails import guarded, rate_limited
+from ..helpers import create_default_sort, create_pagination
+from ..models import ControlParameters, QueryFilter
+from ..server import get_api_client, logger, mcp
+
 _TUNNELS = "/vpn/wireguard/tunnels"
 _TUNNEL = "/vpn/wireguard/tunnel"
 _PEERS = "/vpn/wireguard/peers"

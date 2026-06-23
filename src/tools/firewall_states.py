@@ -1,20 +1,19 @@
 """Firewall state tools for pfSense MCP server."""
 
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
-from ..helpers import create_pagination, create_default_sort, sanitize_description
-from ..models import ControlParameters, QueryFilter
-from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
-
 
 # ---------------------------------------------------------------------------
 # Firewall States
 # ---------------------------------------------------------------------------
-
-
 from ..guardrails import guarded
+from ..helpers import create_default_sort, create_pagination
+from ..models import ControlParameters
+from ..server import get_api_client, logger, mcp
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_firewall_states(
     search_term: Optional[str] = None,
