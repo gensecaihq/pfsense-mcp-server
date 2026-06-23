@@ -1,20 +1,18 @@
 """Diagnostics tools for pfSense MCP server."""
 
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional, Union
 
-from ..helpers import create_default_sort, create_pagination, sanitize_description
-from ..models import ControlParameters, QueryFilter
-from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
-
 
 # ---------------------------------------------------------------------------
 # Ping Diagnostic
 # ---------------------------------------------------------------------------
-
-
 from ..guardrails import guarded
+from ..helpers import create_default_sort, create_pagination
+from ..server import get_api_client, logger, mcp
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def run_ping_diagnostic(
     host: str,
@@ -168,7 +166,7 @@ async def get_config_revision(
     client = get_api_client()
     try:
         result = await client.crud_get_settings(
-            f"/diagnostics/config_history/revision",
+            "/diagnostics/config_history/revision",
             params={"id": revision_id},
         )
 
@@ -334,7 +332,7 @@ async def restore_config_backup(
         # by applying the revision's config.xml
         # The actual restore is done by DELETE on /diagnostics/config_history/revision
         # with the revision ID — this tells pfSense to revert to that revision
-        result = await client._make_request(
+        await client._make_request(
             "PATCH", "/diagnostics/config_history/revision",
             data={"id": revision_id},
         )

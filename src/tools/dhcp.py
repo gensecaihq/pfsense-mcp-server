@@ -3,19 +3,19 @@
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
+from mcp.types import ToolAnnotations
+
+from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_pagination,
     normalize_mac_address,
     validate_ip_address,
-    validate_mac_address,
 )
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
-from mcp.types import ToolAnnotations
 
 
-from ..guardrails import guarded, rate_limited
 async def _lookup_mapping_parent_id(client, mapping_id: int) -> str:
     """Look up a DHCP static mapping's parent_id (interface) by its ID.
 

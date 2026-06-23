@@ -3,18 +3,22 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from ..helpers import create_pagination, create_default_sort, sanitize_description, normalize_mac_address
-from ..models import ControlParameters, QueryFilter
-from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
-
 
 # ---------------------------------------------------------------------------
 # NTP Settings
 # ---------------------------------------------------------------------------
-
-
 from ..guardrails import guarded, rate_limited
+from ..helpers import (
+    create_default_sort,
+    create_pagination,
+    normalize_mac_address,
+    sanitize_description,
+)
+from ..models import ControlParameters
+from ..server import get_api_client, logger, mcp
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_ntp_settings() -> Dict:
     """Get the NTP service settings"""

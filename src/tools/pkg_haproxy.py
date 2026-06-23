@@ -3,18 +3,17 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from ..helpers import create_pagination, create_default_sort, sanitize_description
-from ..models import ControlParameters, QueryFilter
-from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
-
 
 # ---------------------------------------------------------------------------
 # Backends
 # ---------------------------------------------------------------------------
-
-
 from ..guardrails import guarded, rate_limited
+from ..helpers import create_default_sort, create_pagination, sanitize_description
+from ..models import ControlParameters, QueryFilter
+from ..server import get_api_client, logger, mcp
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_haproxy_backends(
     search_term: Optional[str] = None,

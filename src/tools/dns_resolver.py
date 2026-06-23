@@ -3,6 +3,10 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
+from mcp.types import ToolAnnotations
+
+# API endpoint constants (pfSense REST API v2 paths, without /api/v2 prefix)
+from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_pagination,
@@ -11,10 +15,7 @@ from ..helpers import (
 )
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
-from mcp.types import ToolAnnotations
 
-# API endpoint constants (pfSense REST API v2 paths, without /api/v2 prefix)
-from ..guardrails import guarded, rate_limited
 _SETTINGS = "/services/dns_resolver/settings"
 _HOST_OVERRIDES = "/services/dns_resolver/host_overrides"
 _HOST_OVERRIDE = "/services/dns_resolver/host_override"

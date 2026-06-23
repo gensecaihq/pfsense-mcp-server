@@ -618,10 +618,10 @@ def check_guardrails(
 # Guarded Tool Wrapper — Automatically applies guardrails to any tool
 # ---------------------------------------------------------------------------
 
-import functools
-import inspect
+import functools  # noqa: E402
+import inspect  # noqa: E402
 
-from .models import PaginationOptions
+from .models import PaginationOptions  # noqa: E402
 
 
 def rate_limited(fn):

@@ -4,10 +4,11 @@ import os
 from datetime import datetime, timezone
 from typing import Dict
 
+from mcp.types import ToolAnnotations
+
 from ..guardrails import classify_risk, get_rollback_history
 from ..models import PaginationOptions, QueryFilter, SortOptions
 from ..server import get_api_client, logger, mcp
-from mcp.types import ToolAnnotations
 
 # Allowed endpoint prefixes for user-supplied paths (prevents path traversal)
 _SAFE_ENDPOINT_PREFIXES = (
@@ -23,7 +24,7 @@ def _validate_endpoint(endpoint: str) -> str:
     if not endpoint.startswith("/"):
         endpoint = f"/{endpoint}"
     if ".." in endpoint:
-        raise ValueError(f"Invalid endpoint path: contains '..'")
+        raise ValueError("Invalid endpoint path: contains '..'")
     if not any(endpoint.startswith(prefix) for prefix in _SAFE_ENDPOINT_PREFIXES):
         raise ValueError(
             f"Endpoint '{endpoint}' is not in the allowed prefix list. "
@@ -305,7 +306,7 @@ async def get_guardrail_status() -> Dict:
     Shows risk classification for tools, rate limits, allowlist status,
     and recent rollback entries for destructive operations.
     """
-    from ..guardrails import ALLOWED_TOOLS, _AUDIT_LOG_PATH
+    from ..guardrails import _AUDIT_LOG_PATH, ALLOWED_TOOLS
 
     return {
         "success": True,
