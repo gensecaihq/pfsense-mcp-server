@@ -3,12 +3,11 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from ..helpers import create_pagination, create_default_sort, sanitize_description
-from ..models import ControlParameters, QueryFilter
-from ..server import get_api_client, logger, mcp
 from mcp.types import ToolAnnotations
-from ..guardrails import rate_limited
 
+from ..guardrails import rate_limited
+from ..models import ControlParameters
+from ..server import get_api_client, logger, mcp
 
 # ---------------------------------------------------------------------------
 # System Timezone
@@ -201,7 +200,10 @@ async def update_webgui_settings(
         if port is not None:
             if port < 1 or port > 65535:
                 return {"success": False, "error": "port must be between 1 and 65535"}
-            updates["port"] = port
+            # pfSense REST API v2 requires `port` as a string (config.xml stores
+            # it as text; GET returns "443", not 443). Accept an int for caller
+            # ergonomics but send it as a string. See issue #7.
+            updates["port"] = str(port)
         if ssl_certref is not None:
             updates["ssl-certref"] = ssl_certref
         if max_processes is not None:
@@ -366,34 +368,64 @@ async def get_log_settings() -> Dict:
 @rate_limited
 async def update_log_settings(
     format: Optional[str] = None,
-    reverse: Optional[bool] = None,
+    reverseorder: Optional[bool] = None,
     nentries: Optional[int] = None,
     logfilesize: Optional[int] = None,
+    enableremotelogging: Optional[bool] = None,
     remoteserver: Optional[str] = None,
     remoteserver2: Optional[str] = None,
     remoteserver3: Optional[str] = None,
     sourceip: Optional[str] = None,
-    ipproto: Optional[str] = None,
+    ipprotocol: Optional[str] = None,
     logall: Optional[bool] = None,
     filter: Optional[bool] = None,
     dhcp: Optional[bool] = None,
+    logconfigchanges: Optional[bool] = None,
+    auth: Optional[bool] = None,
+    portalauth: Optional[bool] = None,
+    vpn: Optional[bool] = None,
+    dpinger: Optional[bool] = None,
+    hostapd: Optional[bool] = None,
+    system: Optional[bool] = None,
+    resolver: Optional[bool] = None,
+    ppp: Optional[bool] = None,
+    routing: Optional[bool] = None,
+    ntpd: Optional[bool] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Update the system log settings
 
+    The pfSense REST API field names are mirrored verbatim. Note that to
+    actually enable Remote Syslog you must set ``enableremotelogging=True`` —
+    setting ``remoteserver``/``ipprotocol`` alone leaves the feature off and
+    pfSense will normalise the remote-* fields back to null.
+
     Args:
         format: Log format ('rfc3164' or 'rfc5424')
-        reverse: Whether to display logs in reverse order (newest first)
+        reverseorder: Whether to display logs in reverse order (newest first)
         nentries: Number of log entries to display per page
         logfilesize: Maximum log file size in bytes
+        enableremotelogging: Master toggle for Remote Syslog. Must be True for
+            remoteserver/ipprotocol/per-category toggles to take effect.
         remoteserver: Primary remote syslog server (IP:port)
         remoteserver2: Secondary remote syslog server
         remoteserver3: Tertiary remote syslog server
-        sourceip: Source IP address for syslog messages
-        ipproto: IP protocol for remote syslog ('ipv4' or 'ipv6')
+        sourceip: Source IP address (interface) for syslog messages
+        ipprotocol: IP protocol for remote syslog ('ipv4' or 'ipv6')
         logall: Log all packets (not just those matching rules)
         filter: Log packets matched by firewall rules
         dhcp: Log DHCP events
+        logconfigchanges: Log configuration changes to syslog
+        auth: Send authentication/login events to remote syslog
+        portalauth: Send captive portal auth events to remote syslog
+        vpn: Send VPN (PPTP/IPsec/OpenVPN) events to remote syslog
+        dpinger: Send gateway monitor (dpinger) events to remote syslog
+        hostapd: Send wireless (hostapd) events to remote syslog
+        system: Send general system events to remote syslog
+        resolver: Send DNS resolver (unbound) events to remote syslog
+        ppp: Send PPP events to remote syslog
+        routing: Send routing daemon events to remote syslog
+        ntpd: Send NTP daemon events to remote syslog
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
@@ -402,12 +434,14 @@ async def update_log_settings(
 
         if format is not None:
             updates["format"] = format
-        if reverse is not None:
-            updates["reverse"] = reverse
+        if reverseorder is not None:
+            updates["reverseorder"] = reverseorder
         if nentries is not None:
             updates["nentries"] = nentries
         if logfilesize is not None:
             updates["logfilesize"] = logfilesize
+        if enableremotelogging is not None:
+            updates["enableremotelogging"] = enableremotelogging
         if remoteserver is not None:
             updates["remoteserver"] = remoteserver
         if remoteserver2 is not None:
@@ -416,14 +450,32 @@ async def update_log_settings(
             updates["remoteserver3"] = remoteserver3
         if sourceip is not None:
             updates["sourceip"] = sourceip
-        if ipproto is not None:
-            updates["ipproto"] = ipproto
+        if ipprotocol is not None:
+            updates["ipprotocol"] = ipprotocol
         if logall is not None:
             updates["logall"] = logall
         if filter is not None:
             updates["filter"] = filter
         if dhcp is not None:
             updates["dhcp"] = dhcp
+        if logconfigchanges is not None:
+            updates["logconfigchanges"] = logconfigchanges
+        # Per-category remote-logging content toggles (only effective when
+        # enableremotelogging is true). Field names mirror the pfSense API.
+        for _key, _val in (
+            ("auth", auth),
+            ("portalauth", portalauth),
+            ("vpn", vpn),
+            ("dpinger", dpinger),
+            ("hostapd", hostapd),
+            ("system", system),
+            ("resolver", resolver),
+            ("ppp", ppp),
+            ("routing", routing),
+            ("ntpd", ntpd),
+        ):
+            if _val is not None:
+                updates[_key] = _val
 
         if not updates:
             return {"success": False, "error": "No fields to update - provide at least one field"}

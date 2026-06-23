@@ -15,7 +15,7 @@ from .server import VERSION, get_api_client, logger, mcp, reset_api_client
 _READ_ONLY_MODE = os.getenv("MCP_READ_ONLY", "false").lower() == "true"
 
 # Import tool modules — each registers tools via @mcp.tool() on import
-from .tools import (  # noqa: F401
+from .tools import (  # noqa: F401, E402
     aliases,
     certificates,
     dhcp,
@@ -135,7 +135,15 @@ def main():
 
     connected = asyncio.run(test_conn())
     if not connected:
-        sys.exit(1)
+        # A transient blip at launch (slow TLS handshake, momentary network
+        # hiccup) shouldn't kill the server before it ever opens its stdio
+        # channel — MCP clients would only see an opaque connection/protocol
+        # error. Start anyway; each tool surfaces connectivity errors when
+        # actually invoked. See PR #14.
+        logger.warning(
+            "Preflight connectivity check failed; starting MCP server anyway. "
+            "Tools will surface errors individually if pfSense is actually unreachable."
+        )
 
     if args.transport == "stdio":
         logger.info("Starting MCP server in stdio mode...")
