@@ -251,7 +251,12 @@ class EnhancedPfSenseAPIClient:
         elif method.upper() == "PUT":
             response = await self.client.put(url, headers=headers, json=data)
         elif method.upper() == "DELETE":
-            response = await self.client.delete(url, headers=headers, json=data)
+            # httpx's AsyncClient.delete() has no `json` parameter; use request() so a
+            # DELETE can carry a JSON body (pfSense wants {id, parent_id} on deletes).
+            if data:
+                response = await self.client.request("DELETE", url, headers=headers, json=data)
+            else:
+                response = await self.client.request("DELETE", url, headers=headers)
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
