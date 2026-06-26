@@ -71,7 +71,7 @@ Edit `.env` with your pfSense details. Example using Basic Auth (simplest):
 PFSENSE_URL=https://your-pfsense.local
 PFSENSE_USERNAME=admin
 PFSENSE_PASSWORD=your-password
-PFSENSE_VERSION=PLUS_24_11   # CE_2_8_0, CE_2_8_1, PLUS_24_11, PLUS_25_11
+PFSENSE_VERSION=PLUS_24_11   # CE_2_8_0, CE_2_8_1, CE_26_03, PLUS_24_11, PLUS_25_11
 AUTH_METHOD=basic
 VERIFY_SSL=false              # Set to true if using a trusted SSL certificate
 ```
@@ -103,10 +103,16 @@ Note: JWT auth obtains a token via `POST /api/v2/auth/jwt` using Basic Auth cred
 ## Test Connection
 
 ```bash
-python -m src.main
+python -m src.main          # from a clone
+# or, if installed as a package:
+pfsense-mcp-server
 ```
 
-The server tests the API connection on startup. If it fails, check:
+The server runs a preflight connection check on startup. If it fails, the
+server logs a warning and starts anyway (a transient network blip shouldn't
+prevent the MCP channel from opening) — individual tools then report the
+specific connectivity error when invoked. If tools consistently fail to reach
+pfSense, check:
 1. Is `PFSENSE_URL` correct and reachable from this machine?
 2. Is the REST API package installed and enabled at **System > REST API**?
 3. Is your chosen auth method enabled on the REST API settings page?

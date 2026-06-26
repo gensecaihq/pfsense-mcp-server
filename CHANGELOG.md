@@ -5,6 +5,28 @@ All notable changes to the pfSense MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Post-1.0.0 bug fixes and quality improvements, all merged to `main`. No tool
+count change (still 327); test suite grew from 308 to 323.
+
+### Fixed
+
+- **All `delete_*` tools were non-functional** (#12, PR #9, PR #16). `httpx.AsyncClient.delete()` does not accept a `json=` kwarg, so every delete (firewall rules, NAT, aliases, DHCP mappings, etc.) raised `TypeError` before any HTTP traffic. DELETE now routes through `client.request("DELETE", ...)`, which supports the JSON body pfSense requires.
+- **`update_log_settings` could not enable remote syslog and silently dropped fields** (#13, PR #11). The wire-format keys `ipproto` and `reverse` were ignored by the API; renamed to `ipprotocol` and `reverseorder`. Added `enableremotelogging` (the master toggle), `logconfigchanges`, and the per-category remote-syslog toggles (`auth`, `portalauth`, `vpn`, `dpinger`, `hostapd`, `system`, `resolver`, `ppp`, `routing`, `ntpd`).
+- **`update_webgui_settings` could not change the WebGUI port** (#7). The pfSense REST API requires `port` as a string; the tool now accepts an `int` for ergonomics and coerces it to a string before sending.
+- **Log endpoints could hang until pfSense ran out of memory** (PR #6). Added a 10-second read-phase timeout and classification of read-phase failures (`ReadError`/`RemoteProtocolError`/`ReadTimeout`) into a clear, actionable message (upstream tracking: pfSense-pkg-RESTAPI#806), with docstring warnings on the log tools.
+- **Transient connectivity blip at launch killed the server** (PR #14). A momentary preflight failure before the stdio channel opens now logs a warning and starts anyway; individual tools surface connectivity errors when invoked.
+
+### Added
+
+- **IPv6 / dual-stack firewall rules** (PR #10). `create_firewall_rule_advanced` exposes an `ipprotocol` parameter (`inet`, `inet6`, `inet46`) with validation instead of hardcoding `inet`.
+- **uvx / pipx installation** (#8). Added a `pfsense-mcp-server` console entry point and setuptools package discovery, so the server can run without cloning the repository.
+
+### Changed
+
+- CI is green. The `ruff check src/ tests/` step had been failing on 80 pre-existing lint issues since before the 1.0.0 tag; all are resolved with no behavior change.
+
 ## [1.0.0] - 2026-03-26
 
 ### First Stable Release

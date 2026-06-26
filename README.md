@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![MCP 2025-11-25](https://img.shields.io/badge/MCP-2025--11--25-green.svg)](https://modelcontextprotocol.io)
 [![pfSense REST API](https://img.shields.io/badge/pfSense%20API-v2.7.3-orange.svg)](https://pfrest.org/)
-[![Tests](https://img.shields.io/badge/tests-308%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-323%20passing-brightgreen.svg)](#testing)
 [![Tools](https://img.shields.io/badge/tools-327-blue.svg)](#what-you-can-do)
 
 > Manage your pfSense firewall with natural language. 327 tools. 9 layers of safety. One command to start.
@@ -28,7 +28,15 @@ Managing a pfSense firewall means clicking through web UI tabs, remembering fiel
 
 ## Quick Start
 
-**Prerequisites:** Python 3.10+, pfSense with [REST API v2 package](https://github.com/pfrest/pfSense-pkg-RESTAPI) installed
+**Prerequisites:** Python 3.11+, pfSense with [REST API v2 package](https://github.com/pfrest/pfSense-pkg-RESTAPI) installed
+
+**Option A — run without cloning (uvx):**
+
+```bash
+uvx --from git+https://github.com/gensecaihq/pfsense-mcp-server pfsense-mcp-server
+```
+
+**Option B — clone for development:**
 
 ```bash
 git clone https://github.com/gensecaihq/pfsense-mcp-server.git
@@ -38,7 +46,30 @@ cp .env.example .env
 # Edit .env: set PFSENSE_URL, AUTH_METHOD, and credentials
 ```
 
-**Connect to Claude Desktop** — add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+**Connect to Claude Desktop** — add to `~/Library/Application Support/Claude/claude_desktop_config.json`.
+
+Using the installed entry point (Option A):
+
+```json
+{
+  "mcpServers": {
+    "pfsense": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/gensecaihq/pfsense-mcp-server", "pfsense-mcp-server"],
+      "env": {
+        "PFSENSE_URL": "https://192.168.1.1",
+        "AUTH_METHOD": "basic",
+        "PFSENSE_USERNAME": "admin",
+        "PFSENSE_PASSWORD": "your-password",
+        "PFSENSE_VERSION": "CE_2_8_0",
+        "VERIFY_SSL": "false"
+      }
+    }
+  }
+}
+```
+
+Or running from a clone (Option B):
 
 ```json
 {
@@ -121,7 +152,7 @@ Response includes:
 You can also:
 - Pass `dry_run=True` to preview any destructive operation without executing
 - Pass `verify_descr="Allow HTTPS"` to verify you're deleting the right rule (guards against ID shifts)
-- Set `MCP_READ_ONLY=true` to expose only 118 read-only tools (search, get, diagnose)
+- Set `MCP_READ_ONLY=true` to expose only 130 read-only tools (search, get, diagnose)
 - Set `MCP_ALLOWED_TOOLS=search_firewall_rules,get_firewall_log` to restrict to specific tools
 
 ## Supported pfSense Versions
@@ -149,7 +180,8 @@ Three methods supported (configure in `.env`):
 
 **stdio** (default) — for Claude Desktop and Claude Code:
 ```bash
-python3 -m src.main
+python3 -m src.main          # from a clone
+pfsense-mcp-server           # via the installed console entry point (pip/uvx/pipx)
 ```
 
 **HTTP** — for remote access and multi-client setups:
@@ -202,7 +234,7 @@ Container security: non-root user (`mcp:1000`), read-only filesystem, all capabi
 ## Testing
 
 ```bash
-python3 -m pytest tests/ -v          # 308 tests
+python3 -m pytest tests/ -v          # 323 tests
 python3 -m pytest tests/ --cov=src   # with coverage
 ```
 
@@ -229,7 +261,7 @@ src/
   models.py            Data models
   middleware.py        HTTP auth + Origin validation
   tools/               34 tool modules (327 tools)
-tests/                 308 tests
+tests/                 323 tests
 ```
 
 ## Contributing
@@ -249,7 +281,13 @@ We need real-world testing across diverse pfSense environments. See [CONTRIBUTIN
 ## Acknowledgments
 
 - [jaredhendrickson13](https://github.com/jaredhendrickson13) / [pfrest](https://github.com/pfrest) — pfSense REST API v2 package
-- [JeremiahChurch](https://github.com/JeremiahChurch) — modular rewrite (PR #5)
+- [JeremiahChurch](https://github.com/JeremiahChurch) — modular rewrite (PR #5), log endpoint OOM safeguards (PR #6)
 - [shawnpetersen](https://github.com/shawnpetersen) — API v2 endpoint discovery (PR #3)
+- [aemitic](https://github.com/aemitic) — DELETE-body fix (PR #9), firewall `ipprotocol` for IPv6/dual-stack (PR #10), `logconfigchanges` (PR #11)
+- [hossamnagy](https://github.com/hossamnagy) — resilient startup on transient preflight failure (PR #14)
+- [bill-mccormick-dg](https://github.com/bill-mccormick-dg) — independent DELETE-body fix (PR #16)
+- [w1ld3r](https://github.com/w1ld3r) — DELETE and remote-syslog bug reports (#12, #13)
+- tvlc — WebGUI port type-mismatch report (#7)
+- [renanwilliam](https://github.com/renanwilliam) — uvx/pipx packaging request (#8)
 - [Netgate](https://netgate.com) — pfSense
 - [FastMCP](https://gofastmcp.com) — MCP framework
