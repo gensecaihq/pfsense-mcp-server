@@ -80,6 +80,7 @@ async def create_acme_certificate(
     descr: Optional[str] = None,
     acmeaccount: Optional[str] = None,
     keylength: Optional[str] = None,
+    dnssleep: Optional[int] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Create an ACME certificate entry
@@ -104,6 +105,13 @@ async def create_acme_certificate(
         descr: Optional description
         acmeaccount: ACME account key reference name (from search_acme_account_keys)
         keylength: Key length/type (e.g., '2048', '4096', 'ec-256', 'ec-384')
+        dnssleep: Seconds to sleep after publishing the DNS-01 record instead
+            of acme.sh auto-detecting propagation. Without this, acme.sh polls
+            public DNS-over-HTTPS resolvers (cloudflare-dns.com, dns.google,
+            etc.) to check propagation — on networks that block outbound DoH
+            (common DNS-hardening setups), that check can never succeed and
+            the issuance hangs indefinitely with no error. Set this (e.g. 60-120)
+            to skip the check and just wait a fixed time before validation.
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
@@ -116,6 +124,8 @@ async def create_acme_certificate(
             cert_data["acmeaccount"] = acmeaccount
         if keylength:
             cert_data["keylength"] = keylength
+        if dnssleep is not None:
+            cert_data["dnssleep"] = dnssleep
 
         control = ControlParameters(apply=apply_immediately)
         result = await client.crud_create("/services/acme/certificate", cert_data, control)
@@ -142,6 +152,7 @@ async def update_acme_certificate(
     acmeaccount: Optional[str] = None,
     keylength: Optional[str] = None,
     a_domainlist: Optional[List[Dict]] = None,
+    dnssleep: Optional[int] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Update an existing ACME certificate entry by ID
@@ -156,6 +167,10 @@ async def update_acme_certificate(
             list (same entry shape as create_acme_certificate). To add or
             remove a single domain without resending the whole list, use
             manage_acme_certificate_domain instead.
+        dnssleep: Seconds to sleep after publishing the DNS-01 record instead
+            of acme.sh auto-detecting propagation via public DoH resolvers —
+            set this if issuance hangs indefinitely on a network that blocks
+            outbound DNS-over-HTTPS (see create_acme_certificate for detail).
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
@@ -166,6 +181,7 @@ async def update_acme_certificate(
             "acmeaccount": acmeaccount,
             "keylength": keylength,
             "a_domainlist": a_domainlist,
+            "dnssleep": dnssleep,
         }
 
         updates: Dict = {}
