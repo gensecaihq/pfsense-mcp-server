@@ -484,6 +484,8 @@ async def create_haproxy_frontend(
     status: Optional[str] = None,
     backend: Optional[str] = None,
     bind_addresses: Optional[List[Dict]] = None,
+    ssloffloadcert: Optional[str] = None,
+    ha_certificates: Optional[List[str]] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Create an HAProxy frontend listener
@@ -494,7 +496,17 @@ async def create_haproxy_frontend(
         type: Frontend type (http, https, tcp, ssl, etc.)
         status: Frontend status (active, disabled)
         backend: Default backend name to forward traffic to
-        bind_addresses: List of bind address dicts, e.g. [{"address": "0.0.0.0", "port": "80"}]
+        bind_addresses: List of bind address dicts. Each dict maps to the
+            pfSense API's `a_extaddr` fields: {"extaddr": "custom",
+            "extaddr_custom": "192.168.1.100", "extaddr_port": "443",
+            "extaddr_ssl": true}. Use extaddr="custom" with extaddr_custom
+            for a specific IP/VIP, or extaddr="wan"/"lan"/etc. for an
+            interface's address.
+        ssloffloadcert: The default SSL/TLS certificate refid to use for this
+            frontend when any bind address has extaddr_ssl=true (from
+            search_certificates or search_acme_certificates — use the
+            certificate's `refid`, not its numeric `id`).
+        ha_certificates: Additional SSL/TLS certificate refids for SNI on this frontend
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
@@ -511,6 +523,10 @@ async def create_haproxy_frontend(
             frontend_data["backend_serverpool"] = backend
         if bind_addresses:
             frontend_data["a_extaddr"] = _to_a_extaddr(bind_addresses)
+        if ssloffloadcert:
+            frontend_data["ssloffloadcert"] = ssloffloadcert
+        if ha_certificates:
+            frontend_data["ha_certificates"] = ha_certificates
 
         control = ControlParameters(apply=apply_immediately)
         result = await client.crud_create("/services/haproxy/frontend", frontend_data, control)
@@ -538,6 +554,8 @@ async def update_haproxy_frontend(
     status: Optional[str] = None,
     backend: Optional[str] = None,
     bind_addresses: Optional[List[Dict]] = None,
+    ssloffloadcert: Optional[str] = None,
+    ha_certificates: Optional[List[str]] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Update an existing HAProxy frontend by ID
@@ -549,7 +567,14 @@ async def update_haproxy_frontend(
         type: Frontend type
         status: Frontend status (active, disabled)
         backend: Default backend name
-        bind_addresses: List of bind address dicts
+        bind_addresses: List of bind address dicts. Each dict maps to the
+            pfSense API's `a_extaddr` fields: {"extaddr": "custom",
+            "extaddr_custom": "192.168.1.100", "extaddr_port": "443",
+            "extaddr_ssl": true}. Replaces the frontend's whole address list.
+        ssloffloadcert: The default SSL/TLS certificate refid to use for this
+            frontend when any bind address has extaddr_ssl=true (use the
+            certificate's `refid`, not its numeric `id`).
+        ha_certificates: Additional SSL/TLS certificate refids for SNI on this frontend
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
@@ -561,6 +586,8 @@ async def update_haproxy_frontend(
             "status": status,
             "backend_serverpool": backend,
             "a_extaddr": _to_a_extaddr(bind_addresses) if bind_addresses is not None else None,
+            "ssloffloadcert": ssloffloadcert,
+            "ha_certificates": ha_certificates,
         }
 
         updates: Dict = {}
@@ -625,6 +652,293 @@ async def delete_haproxy_frontend(
         }
     except Exception as e:
         logger.error(f"Failed to delete HAProxy frontend: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Frontend Addresses (bind addresses)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
+async def search_haproxy_frontend_addresses(
+    parent_id: int,
+    page: int = 1,
+    page_size: int = 20,
+) -> Dict:
+    """List the bind addresses configured on an HAProxy frontend
+
+    Args:
+        parent_id: Frontend ID to list addresses for (from search_haproxy_frontends)
+        page: Page number for pagination
+        page_size: Number of results per page
+    """
+    client = get_api_client()
+    try:
+        pagination, page, page_size = create_pagination(page, page_size)
+
+        filters = [QueryFilter("parent_id", str(parent_id))]
+
+        result = await client.crud_list(
+            "/services/haproxy/frontend/addresses",
+            filters=filters,
+            pagination=pagination,
+        )
+
+        addresses = result.get("data") or []
+
+        return {
+            "success": True,
+            "parent_id": parent_id,
+            "page": page,
+            "page_size": page_size,
+            "count": len(addresses),
+            "addresses": addresses,
+            "links": client.extract_links(result),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Failed to search HAProxy frontend addresses: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+async def manage_haproxy_frontend_address(
+    action: str,
+    parent_id: int,
+    extaddr: Optional[str] = None,
+    extaddr_custom: Optional[str] = None,
+    extaddr_port: Optional[str] = None,
+    extaddr_ssl: Optional[bool] = None,
+    address_id: Optional[int] = None,
+    apply_immediately: bool = True,
+    confirm: bool = False,
+) -> Dict:
+    """Add or remove a bind address from an HAProxy frontend
+
+    Args:
+        action: Action to perform ('create' or 'delete')
+        parent_id: Parent frontend ID
+        extaddr: External address to bind to, e.g. 'wan', 'lan', or 'custom'
+            (required for create). Use 'custom' with extaddr_custom for a
+            specific IP or virtual IP.
+        extaddr_custom: Custom IPv4/IPv6 address to bind to (used when extaddr='custom')
+        extaddr_port: Port to bind to for this address (required for create)
+        extaddr_ssl: Enable SSL/TLS for this address — also set ssloffloadcert
+            on the parent frontend via update_haproxy_frontend for this to work
+        address_id: Address entry ID (required for delete)
+        apply_immediately: Whether to apply changes immediately
+        confirm: Must be set to True for delete operations. Safety gate for destructive operations.
+    """
+    client = get_api_client()
+    try:
+        action_lower = action.lower()
+
+        if action_lower == "create":
+            if not extaddr:
+                return {"success": False, "error": "extaddr is required for create action"}
+            if not extaddr_port:
+                return {"success": False, "error": "extaddr_port is required for create action"}
+
+            address_data: Dict = {
+                "parent_id": parent_id,
+                "extaddr": extaddr,
+                "extaddr_port": extaddr_port,
+            }
+            if extaddr_custom:
+                address_data["extaddr_custom"] = extaddr_custom
+            if extaddr_ssl is not None:
+                address_data["extaddr_ssl"] = extaddr_ssl
+
+            control = ControlParameters(apply=apply_immediately)
+            result = await client.crud_create("/services/haproxy/frontend/address", address_data, control)
+
+            return {
+                "success": True,
+                "message": f"Address {extaddr}:{extaddr_port} added to frontend {parent_id}",
+                "address": result.get("data", result),
+                "applied": apply_immediately,
+                "links": client.extract_links(result),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        elif action_lower == "delete":
+            if address_id is None:
+                return {"success": False, "error": "address_id is required for delete action"}
+
+            if not confirm:
+                return {
+                    "success": False,
+                    "error": "This is a destructive operation. Set confirm=True to proceed.",
+                    "details": f"Will permanently delete address {address_id} from frontend {parent_id}.",
+                }
+
+            control = ControlParameters(apply=apply_immediately)
+            result = await client.crud_delete(
+                "/services/haproxy/frontend/address", address_id, control,
+                extra_data={"parent_id": parent_id},
+            )
+
+            return {
+                "success": True,
+                "message": f"Address {address_id} removed from frontend {parent_id}",
+                "address_id": address_id,
+                "parent_id": parent_id,
+                "applied": apply_immediately,
+                "result": result.get("data", result),
+                "links": client.extract_links(result),
+                "note": "Object IDs have shifted after deletion. Re-query addresses before performing further operations by ID.",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        else:
+            return {
+                "success": False,
+                "error": f"Invalid action '{action}'. Must be 'create' or 'delete'.",
+            }
+    except Exception as e:
+        logger.error(f"Failed to manage HAProxy frontend address: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Frontend Certificates (SNI additional certs)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
+async def search_haproxy_frontend_certificates(
+    parent_id: int,
+    page: int = 1,
+    page_size: int = 20,
+) -> Dict:
+    """List the additional SNI SSL certificates bound to an HAProxy frontend
+
+    Note: this lists the frontend's *additional* SNI certificates
+    (`ha_certificates`), not its default certificate. The default certificate
+    is the frontend's `ssloffloadcert` field, set via update_haproxy_frontend
+    and visible in search_haproxy_frontends.
+
+    Args:
+        parent_id: Frontend ID to list certificates for (from search_haproxy_frontends)
+        page: Page number for pagination
+        page_size: Number of results per page
+    """
+    client = get_api_client()
+    try:
+        pagination, page, page_size = create_pagination(page, page_size)
+
+        filters = [QueryFilter("parent_id", str(parent_id))]
+
+        result = await client.crud_list(
+            "/services/haproxy/frontend/certificates",
+            filters=filters,
+            pagination=pagination,
+        )
+
+        certificates = result.get("data") or []
+
+        return {
+            "success": True,
+            "parent_id": parent_id,
+            "page": page,
+            "page_size": page_size,
+            "count": len(certificates),
+            "certificates": certificates,
+            "links": client.extract_links(result),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Failed to search HAProxy frontend certificates: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+async def manage_haproxy_frontend_certificate(
+    action: str,
+    parent_id: int,
+    ssl_certificate: Optional[str] = None,
+    certificate_id: Optional[int] = None,
+    apply_immediately: bool = True,
+    confirm: bool = False,
+) -> Dict:
+    """Add or remove an additional SNI SSL certificate on an HAProxy frontend
+
+    To set the frontend's *default* certificate instead (used whenever SNI
+    doesn't match one of these additional certs), use update_haproxy_frontend's
+    ssloffloadcert parameter.
+
+    Args:
+        action: Action to perform ('create' or 'delete')
+        parent_id: Parent frontend ID
+        ssl_certificate: Certificate refid to add (required for create; from
+            search_certificates or search_acme_certificates — use `refid`,
+            not the numeric `id`)
+        certificate_id: Certificate entry ID (required for delete)
+        apply_immediately: Whether to apply changes immediately
+        confirm: Must be set to True for delete operations. Safety gate for destructive operations.
+    """
+    client = get_api_client()
+    try:
+        action_lower = action.lower()
+
+        if action_lower == "create":
+            if not ssl_certificate:
+                return {"success": False, "error": "ssl_certificate is required for create action"}
+
+            cert_data: Dict = {
+                "parent_id": parent_id,
+                "ssl_certificate": ssl_certificate,
+            }
+
+            control = ControlParameters(apply=apply_immediately)
+            result = await client.crud_create("/services/haproxy/frontend/certificate", cert_data, control)
+
+            return {
+                "success": True,
+                "message": f"Certificate '{ssl_certificate}' added to frontend {parent_id}",
+                "certificate": result.get("data", result),
+                "applied": apply_immediately,
+                "links": client.extract_links(result),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        elif action_lower == "delete":
+            if certificate_id is None:
+                return {"success": False, "error": "certificate_id is required for delete action"}
+
+            if not confirm:
+                return {
+                    "success": False,
+                    "error": "This is a destructive operation. Set confirm=True to proceed.",
+                    "details": f"Will permanently delete certificate {certificate_id} from frontend {parent_id}.",
+                }
+
+            control = ControlParameters(apply=apply_immediately)
+            result = await client.crud_delete(
+                "/services/haproxy/frontend/certificate", certificate_id, control,
+                extra_data={"parent_id": parent_id},
+            )
+
+            return {
+                "success": True,
+                "message": f"Certificate {certificate_id} removed from frontend {parent_id}",
+                "certificate_id": certificate_id,
+                "parent_id": parent_id,
+                "applied": apply_immediately,
+                "result": result.get("data", result),
+                "links": client.extract_links(result),
+                "note": "Object IDs have shifted after deletion. Re-query certificates before performing further operations by ID.",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        else:
+            return {
+                "success": False,
+                "error": f"Invalid action '{action}'. Must be 'create' or 'delete'.",
+            }
+    except Exception as e:
+        logger.error(f"Failed to manage HAProxy frontend certificate: {e}")
         return {"success": False, "error": str(e)}
 
 

@@ -1,7 +1,7 @@
 """ACME / Let's Encrypt package tools for pfSense MCP server."""
 
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from mcp.types import ToolAnnotations
 
@@ -11,10 +11,11 @@ from mcp.types import ToolAnnotations
 from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
+    create_pagination,
     create_search_pagination,
     sanitize_description,
 )
-from ..models import ControlParameters
+from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
 
 
@@ -75,6 +76,7 @@ async def search_acme_certificates(
 @rate_limited
 async def create_acme_certificate(
     name: str,
+    a_domainlist: List[Dict],
     descr: Optional[str] = None,
     acmeaccount: Optional[str] = None,
     keylength: Optional[str] = None,
@@ -82,8 +84,23 @@ async def create_acme_certificate(
 ) -> Dict:
     """Create an ACME certificate entry
 
+    The pfSense API rejects a certificate with no domains ("Field
+    `a_domainlist` is required"), so at least one domain/SAN validation entry
+    must be provided at creation time.
+
     Args:
         name: Certificate name
+        a_domainlist: List of domain (SAN) validation entries. Each dict needs:
+            - name: fully-qualified domain name for this SAN
+            - method: validation method, e.g. 'dns_cf' for Cloudflare DNS-01,
+              'http' for an HTTP-01 challenge, 'webroot', etc. — see the
+              pfSense ACME package for the full provider list.
+            - method-specific credential/config fields, e.g. for method='dns_cf':
+              either {"cf_token": "..."} (scoped API token) or
+              {"cf_email": "...", "cf_key": "..."} (legacy global key).
+            Example: [{"name": "app.example.com", "method": "dns_cf", "cf_token": "..."}]
+            To add/remove a single domain later without resending this whole
+            list, use manage_acme_certificate_domain.
         descr: Optional description
         acmeaccount: ACME account key reference name (from search_acme_account_keys)
         keylength: Key length/type (e.g., '2048', '4096', 'ec-256', 'ec-384')
@@ -91,7 +108,7 @@ async def create_acme_certificate(
     """
     client = get_api_client()
     try:
-        cert_data: Dict = {"name": name}
+        cert_data: Dict = {"name": name, "a_domainlist": a_domainlist}
 
         if descr:
             cert_data["descr"] = sanitize_description(descr)
@@ -124,6 +141,7 @@ async def update_acme_certificate(
     descr: Optional[str] = None,
     acmeaccount: Optional[str] = None,
     keylength: Optional[str] = None,
+    a_domainlist: Optional[List[Dict]] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Update an existing ACME certificate entry by ID
@@ -134,6 +152,10 @@ async def update_acme_certificate(
         descr: Description
         acmeaccount: ACME account key reference name
         keylength: Key length/type
+        a_domainlist: Replace the certificate's full domain (SAN) validation
+            list (same entry shape as create_acme_certificate). To add or
+            remove a single domain without resending the whole list, use
+            manage_acme_certificate_domain instead.
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
@@ -143,6 +165,7 @@ async def update_acme_certificate(
             "descr": descr,
             "acmeaccount": acmeaccount,
             "keylength": keylength,
+            "a_domainlist": a_domainlist,
         }
 
         updates: Dict = {}
@@ -207,6 +230,161 @@ async def delete_acme_certificate(
         }
     except Exception as e:
         logger.error(f"Failed to delete ACME certificate: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Certificate Domains (SAN / validation methods)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
+async def search_acme_certificate_domains(
+    parent_id: int,
+    search_term: Optional[str] = None,
+) -> Dict:
+    """List the domain (SAN) validation entries configured on an ACME certificate
+
+    The pfSense API embeds each certificate's domain list (`a_domainlist`)
+    inline on the certificate object rather than exposing a standalone list
+    endpoint, so this fetches the parent certificate and returns its domains.
+
+    Args:
+        parent_id: ACME certificate ID (from search_acme_certificates)
+        search_term: Search in domain name (client-side filter)
+    """
+    client = get_api_client()
+    try:
+        pagination, _, _ = create_pagination(1, 1)
+
+        result = await client.crud_list(
+            "/services/acme/certificates",
+            filters=[QueryFilter("id", str(parent_id))],
+            pagination=pagination,
+        )
+
+        certs = result.get("data") or []
+        if not certs:
+            return {"success": False, "error": f"ACME certificate {parent_id} not found"}
+
+        domains = certs[0].get("a_domainlist") or []
+
+        if search_term:
+            term_lower = search_term.lower()
+            domains = [d for d in domains if term_lower in d.get("name", "").lower()]
+
+        return {
+            "success": True,
+            "parent_id": parent_id,
+            "count": len(domains),
+            "domains": domains,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Failed to search ACME certificate domains: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+async def manage_acme_certificate_domain(
+    action: str,
+    parent_id: int,
+    name: Optional[str] = None,
+    method: Optional[str] = None,
+    provider_fields: Optional[Dict] = None,
+    domain_id: Optional[int] = None,
+    apply_immediately: bool = True,
+    confirm: bool = False,
+) -> Dict:
+    """Add or remove a domain (SAN) validation entry on an ACME certificate
+
+    Each ACME certificate needs at least one domain entry describing how
+    pfSense proves ownership to Let's Encrypt (HTTP-01, DNS-01 via a provider
+    API, manual DNS, etc.) before a certificate can be issued. This manages
+    entries one at a time instead of replacing the whole a_domainlist array
+    (see update_acme_certificate for a full-replace).
+
+    Args:
+        action: Action to perform ('create' or 'delete')
+        parent_id: ACME certificate ID (from search_acme_certificates)
+        name: Fully-qualified domain name / SAN (required for create)
+        method: Validation method (required for create). Common values:
+            'dns_cf' (Cloudflare DNS-01), 'http' (HTTP-01), 'webroot'.
+            See the pfSense ACME package for the full provider list.
+        provider_fields: Method-specific credential/config fields, merged
+            directly into the request. Example for method='dns_cf' with an
+            API token: {"cf_token": "..."}. With a legacy global key:
+            {"cf_email": "...", "cf_key": "..."}.
+        domain_id: Domain entry ID (required for delete)
+        apply_immediately: Whether to apply changes immediately
+        confirm: Must be set to True for delete operations. Safety gate for destructive operations.
+    """
+    client = get_api_client()
+    try:
+        action_lower = action.lower()
+
+        if action_lower == "create":
+            if not name:
+                return {"success": False, "error": "name is required for create action"}
+            if not method:
+                return {"success": False, "error": "method is required for create action"}
+
+            domain_data: Dict = {
+                "parent_id": parent_id,
+                "name": name,
+                "method": method,
+            }
+            if provider_fields:
+                domain_data.update(provider_fields)
+
+            control = ControlParameters(apply=apply_immediately)
+            result = await client.crud_create("/services/acme/certificate/domain", domain_data, control)
+
+            return {
+                "success": True,
+                "message": f"Domain '{name}' ({method}) added to ACME certificate {parent_id}",
+                "domain": result.get("data", result),
+                "applied": apply_immediately,
+                "links": client.extract_links(result),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        elif action_lower == "delete":
+            if domain_id is None:
+                return {"success": False, "error": "domain_id is required for delete action"}
+
+            if not confirm:
+                return {
+                    "success": False,
+                    "error": "This is a destructive operation. Set confirm=True to proceed.",
+                    "details": f"Will permanently delete domain {domain_id} from ACME certificate {parent_id}.",
+                }
+
+            control = ControlParameters(apply=apply_immediately)
+            result = await client.crud_delete(
+                "/services/acme/certificate/domain", domain_id, control,
+                extra_data={"parent_id": parent_id},
+            )
+
+            return {
+                "success": True,
+                "message": f"Domain {domain_id} removed from ACME certificate {parent_id}",
+                "domain_id": domain_id,
+                "parent_id": parent_id,
+                "applied": apply_immediately,
+                "result": result.get("data", result),
+                "links": client.extract_links(result),
+                "note": "Object IDs have shifted after deletion. Re-query the certificate before performing further operations by ID.",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        else:
+            return {
+                "success": False,
+                "error": f"Invalid action '{action}'. Must be 'create' or 'delete'.",
+            }
+    except Exception as e:
+        logger.error(f"Failed to manage ACME certificate domain: {e}")
         return {"success": False, "error": str(e)}
 
 
