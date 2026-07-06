@@ -2,7 +2,9 @@
 
 from src.tools.pkg_acme import (
     create_acme_certificate,
+    issue_acme_certificate,
     manage_acme_certificate_domain,
+    renew_acme_certificate,
     search_acme_certificate_domains,
     update_acme_certificate,
 )
@@ -11,6 +13,8 @@ _create_acme_certificate = create_acme_certificate.fn
 _update_acme_certificate = update_acme_certificate.fn
 _search_acme_certificate_domains = search_acme_certificate_domains.fn
 _manage_acme_certificate_domain = manage_acme_certificate_domain.fn
+_issue_acme_certificate = issue_acme_certificate.fn
+_renew_acme_certificate = renew_acme_certificate.fn
 
 
 # ---------------------------------------------------------------------------
@@ -173,4 +177,56 @@ class TestManageAcmeCertificateDomain:
         result = await _manage_acme_certificate_domain(
             action="create", parent_id=0, name="ha.example.com", method="http",
         )
+        assert result["success"] is False
+
+
+# ---------------------------------------------------------------------------
+# issue_acme_certificate / renew_acme_certificate
+# Regression: the pfSense API keys these off the certificate's `name`, not
+# its numeric `id` — sending `id` fails with "Field `certificate` is required."
+# ---------------------------------------------------------------------------
+
+class TestIssueAcmeCertificate:
+    async def test_resolves_id_to_name(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = [
+            {"data": [{"id": 0, "name": "ha_nagyfamily_net"}]},  # name lookup
+            {"data": {"status": "pending"}},  # the issue POST
+        ]
+        result = await _issue_acme_certificate(id=0)
+        assert result["success"] is True
+        assert result["certificate_name"] == "ha_nagyfamily_net"
+        issue_call = mock_make_request.call_args_list[1]
+        data = issue_call.kwargs.get("data") or issue_call[1].get("data")
+        assert data["certificate"] == "ha_nagyfamily_net"
+        assert "id" not in data
+
+    async def test_certificate_not_found(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": []}
+        result = await _issue_acme_certificate(id=99)
+        assert result["success"] is False
+        assert "not found" in result["error"]
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("boom")
+        result = await _issue_acme_certificate(id=0)
+        assert result["success"] is False
+
+
+class TestRenewAcmeCertificate:
+    async def test_resolves_id_to_name(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = [
+            {"data": [{"id": 0, "name": "ha_nagyfamily_net"}]},  # name lookup
+            {"data": {"status": "pending"}},  # the renew POST
+        ]
+        result = await _renew_acme_certificate(id=0)
+        assert result["success"] is True
+        assert result["certificate_name"] == "ha_nagyfamily_net"
+        renew_call = mock_make_request.call_args_list[1]
+        data = renew_call.kwargs.get("data") or renew_call[1].get("data")
+        assert data["certificate"] == "ha_nagyfamily_net"
+        assert "id" not in data
+
+    async def test_error(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("boom")
+        result = await _renew_acme_certificate(id=0)
         assert result["success"] is False

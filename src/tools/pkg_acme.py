@@ -393,6 +393,28 @@ async def manage_acme_certificate_domain(
 # ---------------------------------------------------------------------------
 
 
+async def _resolve_acme_certificate_name(client, certificate_id: int) -> str:
+    """Resolve an ACME certificate's numeric id to its `name`.
+
+    The issue/renew endpoints key off the certificate's `name` field, not
+    the array-index `id` used everywhere else in this API — passing `id`
+    fails with "Field `certificate` is required."
+    """
+    pagination, _, _ = create_pagination(1, 1)
+    result = await client.crud_list(
+        "/services/acme/certificates",
+        filters=[QueryFilter("id", str(certificate_id))],
+        pagination=pagination,
+    )
+    certs = result.get("data") or []
+    if not certs:
+        raise ValueError(f"ACME certificate {certificate_id} not found")
+    name = certs[0].get("name")
+    if not name:
+        raise ValueError(f"ACME certificate {certificate_id} has no name")
+    return name
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 @rate_limited
 async def issue_acme_certificate(
@@ -407,14 +429,17 @@ async def issue_acme_certificate(
     """
     client = get_api_client()
     try:
-        issue_data: Dict = {"id": id}
+        name = await _resolve_acme_certificate_name(client, id)
+
+        issue_data: Dict = {"certificate": name}
         control = ControlParameters(apply=True)
         result = await client.crud_create("/services/acme/certificate/issue", issue_data, control)
 
         return {
             "success": True,
-            "message": f"ACME certificate {id} issue requested",
+            "message": f"ACME certificate '{name}' (id {id}) issue requested",
             "certificate_id": id,
+            "certificate_name": name,
             "result": result.get("data", result),
             "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -438,14 +463,17 @@ async def renew_acme_certificate(
     """
     client = get_api_client()
     try:
-        renew_data: Dict = {"id": id}
+        name = await _resolve_acme_certificate_name(client, id)
+
+        renew_data: Dict = {"certificate": name}
         control = ControlParameters(apply=True)
         result = await client.crud_create("/services/acme/certificate/renew", renew_data, control)
 
         return {
             "success": True,
-            "message": f"ACME certificate {id} renewal requested",
+            "message": f"ACME certificate '{name}' (id {id}) renewal requested",
             "certificate_id": id,
+            "certificate_name": name,
             "result": result.get("data", result),
             "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat(),
