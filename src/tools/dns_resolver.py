@@ -61,6 +61,7 @@ async def update_dns_resolver_settings(
     register_dhcp: Optional[bool] = None,
     register_dhcp_static: Optional[bool] = None,
     custom_options: Optional[str] = None,
+    active_interfaces: Optional[List[str]] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Update DNS Resolver (Unbound) settings
@@ -72,6 +73,7 @@ async def update_dns_resolver_settings(
         register_dhcp: Register DHCP leases in the DNS Resolver
         register_dhcp_static: Register DHCP static mappings in the DNS Resolver
         custom_options: Custom Unbound configuration options (advanced)
+        active_interfaces: Interfaces on which Unbound accepts client queries
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
@@ -83,6 +85,7 @@ async def update_dns_resolver_settings(
             "register_dhcp": "register_dhcp",
             "register_dhcp_static": "register_dhcp_static",
             "custom_options": "custom_options",
+            "active_interfaces": "active_interface",
         }
 
         params = {
@@ -92,6 +95,7 @@ async def update_dns_resolver_settings(
             "register_dhcp": register_dhcp,
             "register_dhcp_static": register_dhcp_static,
             "custom_options": custom_options,
+            "active_interfaces": active_interfaces,
         }
 
         updates = {}
