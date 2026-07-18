@@ -83,22 +83,12 @@ async def get_firewall_log(
     """
     client = get_api_client()
     try:
-        # The pfSense firewall log model only has a single 'text' field
-        # containing the raw log line. We can only filter on text__contains
-        # server-side, then do further filtering client-side.
-        filters = []
-
-        # Build a text-based server-side filter from the most specific param
-        text_search = source_ip or destination_ip or destination_port or action_filter
-        if text_search:
-            filters.append(QueryFilter("text", text_search, "contains"))
-
-        # Log endpoints don't support sort_by — logs are returned in
-        # reverse chronological order by pfSense already
+        # Do not use the API's text__contains filter here. On pfSense 2.8.1 it
+        # can return an old, non-chronological log slice instead of filtering
+        # the current stream. Fetch the newest window and filter it locally.
         safe_lines = max(1, min(lines, 50))
         logs = await client.get_firewall_logs(
             lines=safe_lines,
-            filters=filters if filters else None,
         )
 
         # Client-side filtering using parsed filterlog fields for precision.
@@ -185,11 +175,15 @@ async def analyze_blocked_traffic(
     """
     client = get_api_client()
     try:
-        # Get blocked traffic logs (already reverse-chronological)
+        # Do not use the API's text__contains filter: it can return stale
+        # records on this pfSense API version. Filter the newest window here.
         safe_limit = max(1, min(limit, 50))
-        logs = await client.get_blocked_traffic_logs(lines=safe_limit)
-
-        log_data = logs.get("data") or []
+        logs = await client.get_firewall_logs(lines=safe_limit)
+        log_data = []
+        for entry in logs.get("data") or []:
+            parsed = parse_filterlog_entry(entry.get("text", ""))
+            if parsed and parsed.get("action", "").lower() in {"block", "reject"}:
+                log_data.append(entry)
 
         if group_by_source:
             # Parse structured fields from the raw filterlog CSV format.
@@ -282,8 +276,9 @@ async def search_logs_by_ip(
     try:
         safe_lines = max(1, min(lines, 50))
         if log_type == "firewall":
-            # Firewall log model only has 'text' field — use text__contains
-            logs = await client.get_logs_by_ip(ip_address, safe_lines)
+            # Server-side text filtering can return stale records. Filter the
+            # current reverse-chronological window locally instead.
+            logs = await client.get_firewall_logs(lines=safe_lines)
         else:
             # Validate log_type against allowlist to prevent path traversal
             if log_type not in VALID_LOG_TYPES:
@@ -300,6 +295,11 @@ async def search_logs_by_ip(
             )
 
         log_entries = logs.get("data") or []
+        if log_type == "firewall":
+            log_entries = [
+                entry for entry in log_entries
+                if ip_address in entry.get("text", "")
+            ]
 
         # Pattern analysis on raw text lines
         # Firewall log entries are raw text; we search for keywords
