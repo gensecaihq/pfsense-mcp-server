@@ -20,6 +20,7 @@ count change (still 327); test suite grew from 308 to 323.
 
 ### Added
 
+- **Schedule-based firewall rules.** The schedule tools (`create_firewall_schedule`, `create_schedule_time_range`, etc.) could build schedules, but no rule tool could reference one, so schedules were inert. `create_firewall_rule_advanced` and `update_firewall_rule` now expose a `schedule` parameter (sent as the API's `sched` field) to assign an existing schedule to a rule; on update, passing `""` detaches the schedule.
 - **IPv6 / dual-stack firewall rules** (PR #10). `create_firewall_rule_advanced` exposes an `ipprotocol` parameter (`inet`, `inet6`, `inet46`) with validation instead of hardcoding `inet`.
 - **uvx / pipx installation** (#8). Added a `pfsense-mcp-server` console entry point and setuptools package discovery, so the server can run without cloning the repository.
 
