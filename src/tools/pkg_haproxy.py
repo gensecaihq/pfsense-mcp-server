@@ -452,12 +452,18 @@ def _to_a_extaddr(bind_addresses: List[Dict]) -> List[Dict]:
     """
     result = []
     for b in bind_addresses:
+        extaddr = b.get("extaddr", "custom")
+        extaddr_custom = b.get("extaddr_custom", b.get("address"))
         port = b.get("extaddr_port", b.get("port"))
+        if extaddr == "custom" and not extaddr_custom:
+            raise ValueError("bind address entries require address or extaddr_custom")
+        if port is None:
+            raise ValueError("bind address entries require port or extaddr_port")
         result.append(
             {
-                "extaddr": b.get("extaddr", "custom"),
-                "extaddr_custom": b.get("extaddr_custom", b.get("address")),
-                "extaddr_port": str(port) if port is not None else None,
+                "extaddr": extaddr,
+                "extaddr_custom": extaddr_custom,
+                "extaddr_port": str(port),
                 "extaddr_ssl": b.get("extaddr_ssl", b.get("ssl", False)),
             }
         )
