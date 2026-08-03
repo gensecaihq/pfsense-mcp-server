@@ -1,6 +1,14 @@
 # Core FastMCP framework (brings httpx, uvicorn, starlette)
 fastmcp==2.14.0
 
+# fastmcp 2.14.0 imports pydantic_settings without declaring it as a
+# dependency; install explicitly or `import fastmcp` fails outright.
+pydantic-settings>=2.0
+
+# fastmcp 2.14.0 still imports mcp's old McpError name, which mcp>=2.0.0
+# renamed to MCPError; cap below that break until fastmcp catches up.
+mcp<2.0.0
+
 # Environment variable loading
 python-dotenv>=1.0.0,<2.0.0
 
