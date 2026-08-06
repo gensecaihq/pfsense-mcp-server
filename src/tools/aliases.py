@@ -86,6 +86,7 @@ async def search_aliases(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def manage_alias_addresses(
     alias_id: int,
     action: str,

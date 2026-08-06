@@ -246,6 +246,7 @@ async def delete_interface(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_interface_changes() -> Dict:
     """Apply pending interface changes
 

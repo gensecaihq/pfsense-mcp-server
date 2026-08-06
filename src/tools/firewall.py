@@ -284,6 +284,7 @@ async def create_firewall_rule_advanced(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def move_firewall_rule(
     rule_id: int,
     new_position: int,
@@ -572,6 +573,7 @@ async def bulk_block_ips(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_firewall_changes() -> Dict:
     """Force apply pending firewall changes and recompile the pf ruleset.
 

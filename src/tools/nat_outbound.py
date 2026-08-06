@@ -362,6 +362,7 @@ async def update_nat_outbound_mode(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_nat_changes() -> Dict:
     """Apply pending NAT changes (outbound mappings, mode changes)
 

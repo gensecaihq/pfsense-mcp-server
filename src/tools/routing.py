@@ -744,6 +744,7 @@ async def delete_static_route(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_routing_changes() -> Dict:
     """Apply pending routing changes (gateways, static routes, gateway groups)
 

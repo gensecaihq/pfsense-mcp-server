@@ -287,6 +287,7 @@ async def search_haproxy_backend_servers(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_haproxy_backend_server(
     action: str,
     parent_id: int,
@@ -683,6 +684,7 @@ async def search_haproxy_files(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_haproxy_file(
     action: str,
     name: Optional[str] = None,
@@ -842,6 +844,7 @@ async def update_haproxy_settings(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_haproxy_changes() -> Dict:
     """Apply pending HAProxy configuration changes
 

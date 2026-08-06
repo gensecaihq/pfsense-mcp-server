@@ -281,6 +281,7 @@ async def delete_virtual_ip(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_virtual_ip_changes() -> Dict:
     """Apply pending virtual IP changes
 

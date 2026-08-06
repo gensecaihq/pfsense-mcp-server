@@ -267,6 +267,7 @@ async def search_wireguard_tunnel_addresses(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_wireguard_tunnel_address(
     action: str,
     tunnel_id: int,

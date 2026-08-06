@@ -216,6 +216,7 @@ async def delete_acme_certificate(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def issue_acme_certificate(
     id: int,
 ) -> Dict:
@@ -246,6 +247,7 @@ async def issue_acme_certificate(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def renew_acme_certificate(
     id: int,
 ) -> Dict:
@@ -379,6 +381,7 @@ async def create_acme_account_key(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def register_acme_account_key(
     id: int,
 ) -> Dict:

@@ -296,6 +296,7 @@ async def search_bind_zone_records(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_bind_zone_record(
     action: str,
     parent_id: int,
@@ -526,6 +527,7 @@ async def search_bind_access_lists(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_bind_access_list(
     action: str,
     name: Optional[str] = None,
