@@ -702,12 +702,15 @@ class EnhancedPfSenseAPIClient:
 
     async def find_running_services(self) -> Dict:
         """Find only running services"""
-        filters = [QueryFilter("status", "running")]
+        # Service.status is a boolean upstream; the strings "running"/"stopped"
+        # both loose-compare as truthy, so a bare "stopped" returned the running
+        # services. Filter on real booleans (serialized true/false).
+        filters = [QueryFilter("status", True)]
         return await self.get_services(filters=filters)
 
     async def find_stopped_services(self) -> Dict:
         """Find only stopped services"""
-        filters = [QueryFilter("status", "stopped")]
+        filters = [QueryFilter("status", False)]
         return await self.get_services(filters=filters)
 
     async def _lookup_service_id(self, service_name: str) -> int:
