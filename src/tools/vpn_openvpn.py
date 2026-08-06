@@ -19,6 +19,30 @@ from ..helpers import (
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
 
+# The upstream OpenVPN models use different field names/types than the tools
+# historically sent. Verified against pkg-RESTAPI v2.9.0 (see tests/contract):
+#   crypto (single str)  -> data_ciphers (array)
+#   ca / cert            -> caref / certref
+#   descr                -> description
+#   disabled             -> disable (a dropped `disabled` leaves the tunnel LIVE)
+#   local_port/server_port/dh_length -> strings
+#   compression          -> allow_compression (values below)
+#   custom_options        -> array of option lines
+_OVPN_ALLOW_COMPRESSION = {
+    "no": "no", "omit": "no", "stub": "no", "stub-v2": "no",
+    "yes": "yes", "adaptive": "yes", "lz4": "yes", "lz4-v2": "yes", "lzo": "yes",
+    "asym": "asym",
+}
+
+
+def _ovpn_custom_options_to_list(value) -> Optional[List[str]]:
+    """custom_options is an array of option lines upstream, not a blob string."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return value
+    return [line for line in str(value).splitlines() if line.strip()]
+
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_openvpn_servers(
@@ -28,7 +52,7 @@ async def search_openvpn_servers(
     mode: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
-    sort_by: str = "descr",
+    sort_by: str = "description",
 ) -> Dict:
     """Search OpenVPN server instances with filtering and pagination.
 
@@ -36,7 +60,7 @@ async def search_openvpn_servers(
         search_term: Search in server descriptions
         protocol: Filter by protocol (UDP4, TCP4, UDP6, TCP6, etc.)
         interface: Filter by interface (wan, lan, etc.)
-        mode: Filter by server mode (p2p_tls, server_tls, server_user, server_tls_user, p2p_shared_key)
+        mode: Filter by server mode (p2p_tls, server_tls, server_user, server_tls_user)
         page: Page number for pagination
         page_size: Number of results per page
         sort_by: Field to sort by (description, protocol, dev_mode, etc.)
@@ -46,7 +70,7 @@ async def search_openvpn_servers(
         filters: List[QueryFilter] = []
 
         if search_term:
-            filters.append(QueryFilter("descr", search_term, "contains"))
+            filters.append(QueryFilter("description", search_term, "contains"))
         if protocol:
             filters.append(QueryFilter("protocol", protocol))
         if interface:
@@ -120,7 +144,7 @@ async def create_openvpn_server(
     """Create an OpenVPN server instance on pfSense.
 
     Args:
-        mode: Server mode (p2p_tls, server_tls, server_user, server_tls_user, p2p_shared_key)
+        mode: Server mode (p2p_tls, server_tls, server_user, server_tls_user)
         protocol: Protocol (UDP4, TCP4, UDP6, TCP6)
         dev_mode: Device mode (tun or tap)
         interface: Interface to bind to (wan, lan, any, etc.)
@@ -172,33 +196,33 @@ async def create_openvpn_server(
             "protocol": protocol,
             "dev_mode": dev_mode,
             "interface": interface,
-            "local_port": local_port,
-            "disabled": disabled,
+            "local_port": str(local_port),
+            "disable": disabled,
         }
 
         if description:
-            server_data["descr"] = sanitize_description(description)
+            server_data["description"] = sanitize_description(description)
         else:
-            server_data["descr"] = f"OpenVPN server via MCP at {datetime.now(timezone.utc).isoformat()}"
+            server_data["description"] = f"OpenVPN server via MCP at {datetime.now(timezone.utc).isoformat()}"
 
         optional_fields = {
             "tls": tls,
-            "ca": ca,
-            "cert": cert,
-            "dh_length": dh_length,
+            "caref": ca,
+            "certref": cert,
+            "dh_length": str(dh_length) if dh_length is not None else None,
             "tunnel_network": tunnel_network,
             "local_network": local_network,
             "remote_network": remote_network,
-            "crypto": crypto,
+            "data_ciphers": [crypto] if crypto is not None else None,
             "digest": digest,
             "dns_server1": dns_server1,
             "dns_server2": dns_server2,
-            "compression": compression,
+            "allow_compression": _OVPN_ALLOW_COMPRESSION.get(compression) if compression is not None else None,
             "duplicate_cn": duplicate_cn,
             "dynamic_ip": dynamic_ip,
             "topology": topology,
             "maxclients": maxclients,
-            "custom_options": custom_options,
+            "custom_options": _ovpn_custom_options_to_list(custom_options),
         }
 
         for field_name, value in optional_fields.items():
@@ -260,7 +284,7 @@ async def update_openvpn_server(
 
     Args:
         server_id: Server ID (from search_openvpn_servers)
-        mode: Server mode (p2p_tls, server_tls, server_user, server_tls_user, p2p_shared_key)
+        mode: Server mode (p2p_tls, server_tls, server_user, server_tls_user)
         protocol: Protocol (UDP4, TCP4, UDP6, TCP6)
         dev_mode: Device mode (tun or tap)
         interface: Interface to bind to (wan, lan, any, etc.)
@@ -305,31 +329,33 @@ async def update_openvpn_server(
         if dh_length is not None and dh_length not in (1024, 2048, 3072, 4096):
             return {"success": False, "error": f"Invalid dh_length {dh_length}. Must be 1024, 2048, 3072, or 4096."}
 
+        # Keys are the upstream wire field names; values coerced to the wire
+        # types/shapes (see module header).
         params = {
             "mode": mode,
             "protocol": protocol,
             "dev_mode": dev_mode,
             "interface": interface,
-            "local_port": local_port,
-            "descr": description,
+            "local_port": str(local_port) if local_port is not None else None,
+            "description": description,
             "tls": tls,
-            "ca": ca,
-            "cert": cert,
-            "dh_length": dh_length,
+            "caref": ca,
+            "certref": cert,
+            "dh_length": str(dh_length) if dh_length is not None else None,
             "tunnel_network": tunnel_network,
             "local_network": local_network,
             "remote_network": remote_network,
-            "crypto": crypto,
+            "data_ciphers": [crypto] if crypto is not None else None,
             "digest": digest,
             "dns_server1": dns_server1,
             "dns_server2": dns_server2,
-            "compression": compression,
+            "allow_compression": _OVPN_ALLOW_COMPRESSION.get(compression) if compression is not None else None,
             "duplicate_cn": duplicate_cn,
             "dynamic_ip": dynamic_ip,
             "topology": topology,
             "maxclients": maxclients,
-            "custom_options": custom_options,
-            "disabled": disabled,
+            "custom_options": _ovpn_custom_options_to_list(custom_options),
+            "disable": disabled,
         }
 
         updates: Dict = {}
@@ -412,7 +438,7 @@ async def search_openvpn_clients(
     server_addr: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
-    sort_by: str = "descr",
+    sort_by: str = "description",
 ) -> Dict:
     """Search OpenVPN client instances with filtering and pagination.
 
@@ -430,7 +456,7 @@ async def search_openvpn_clients(
         filters: List[QueryFilter] = []
 
         if search_term:
-            filters.append(QueryFilter("descr", search_term, "contains"))
+            filters.append(QueryFilter("description", search_term, "contains"))
         if protocol:
             filters.append(QueryFilter("protocol", protocol))
         if interface:
@@ -541,33 +567,33 @@ async def create_openvpn_client(
 
         client_data: Dict = {
             "server_addr": server_addr,
-            "server_port": server_port,
+            "server_port": str(server_port),
             "protocol": protocol,
             "dev_mode": dev_mode,
             "interface": interface,
-            "disabled": disabled,
+            "disable": disabled,
         }
 
         if description:
-            client_data["descr"] = sanitize_description(description)
+            client_data["description"] = sanitize_description(description)
         else:
-            client_data["descr"] = f"OpenVPN client via MCP at {datetime.now(timezone.utc).isoformat()}"
+            client_data["description"] = f"OpenVPN client via MCP at {datetime.now(timezone.utc).isoformat()}"
 
         optional_fields = {
             "tls": tls,
-            "ca": ca,
-            "cert": cert,
+            "caref": ca,
+            "certref": cert,
             "tunnel_network": tunnel_network,
             "remote_network": remote_network,
-            "crypto": crypto,
+            "data_ciphers": [crypto] if crypto is not None else None,
             "digest": digest,
-            "compression": compression,
+            "allow_compression": _OVPN_ALLOW_COMPRESSION.get(compression) if compression is not None else None,
             "auth_user": auth_user,
             "auth_pass": auth_pass,
             "proxy_addr": proxy_addr,
-            "proxy_port": proxy_port,
+            "proxy_port": str(proxy_port) if proxy_port is not None else None,
             "proxy_authtype": proxy_authtype,
-            "custom_options": custom_options,
+            "custom_options": _ovpn_custom_options_to_list(custom_options),
         }
 
         for field_name, value in optional_fields.items():
@@ -666,26 +692,26 @@ async def update_openvpn_client(
 
         params = {
             "server_addr": server_addr,
-            "server_port": server_port,
+            "server_port": str(server_port) if server_port is not None else None,
             "protocol": protocol,
             "dev_mode": dev_mode,
             "interface": interface,
-            "descr": description,
+            "description": description,
             "tls": tls,
-            "ca": ca,
-            "cert": cert,
+            "caref": ca,
+            "certref": cert,
             "tunnel_network": tunnel_network,
             "remote_network": remote_network,
-            "crypto": crypto,
+            "data_ciphers": [crypto] if crypto is not None else None,
             "digest": digest,
-            "compression": compression,
+            "allow_compression": _OVPN_ALLOW_COMPRESSION.get(compression) if compression is not None else None,
             "auth_user": auth_user,
             "auth_pass": auth_pass,
             "proxy_addr": proxy_addr,
-            "proxy_port": proxy_port,
+            "proxy_port": str(proxy_port) if proxy_port is not None else None,
             "proxy_authtype": proxy_authtype,
-            "custom_options": custom_options,
-            "disabled": disabled,
+            "custom_options": _ovpn_custom_options_to_list(custom_options),
+            "disable": disabled,
         }
 
         updates: Dict = {}
@@ -764,10 +790,10 @@ async def delete_openvpn_client(
 async def search_openvpn_csos(
     search_term: Optional[str] = None,
     common_name: Optional[str] = None,
-    server_id: Optional[int] = None,
+    server: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
-    sort_by: str = "descr",
+    sort_by: str = "description",
 ) -> Dict:
     """Search OpenVPN Client Specific Overrides (CSOs) with filtering and pagination.
 
@@ -777,7 +803,7 @@ async def search_openvpn_csos(
     Args:
         search_term: Search in CSO descriptions
         common_name: Filter by client common name (CN)
-        server_id: Filter by associated OpenVPN server ID
+        server: Filter by associated server interface name (vpnif, e.g. "ovpns1")
         page: Page number for pagination
         page_size: Number of results per page
         sort_by: Field to sort by (description, common_name, etc.)
@@ -787,11 +813,12 @@ async def search_openvpn_csos(
         filters: List[QueryFilter] = []
 
         if search_term:
-            filters.append(QueryFilter("descr", search_term, "contains"))
+            filters.append(QueryFilter("description", search_term, "contains"))
         if common_name:
             filters.append(QueryFilter("common_name", common_name))
-        if server_id is not None:
-            filters.append(QueryFilter("server_id", str(server_id)))
+        if server is not None:
+            # upstream field is server_list (the CSO has no server_id)
+            filters.append(QueryFilter("server_list", server))
 
         pagination, page, page_size = create_pagination(page, page_size)
         sort = create_default_sort(sort_by)
@@ -810,7 +837,7 @@ async def search_openvpn_csos(
             "filters_applied": {
                 "search_term": search_term,
                 "common_name": common_name,
-                "server_id": server_id,
+                "server": server,
             },
             "count": len(result.get("data") or []),
             "openvpn_csos": result.get("data") or [],
@@ -831,7 +858,7 @@ async def manage_openvpn_cso(
     action: str,
     cso_id: Optional[int] = None,
     common_name: Optional[str] = None,
-    server_id: Optional[int] = None,
+    server_list: Optional[List[str]] = None,
     description: Optional[str] = None,
     tunnel_network: Optional[str] = None,
     local_network: Optional[str] = None,
@@ -855,7 +882,8 @@ async def manage_openvpn_cso(
         action: Action to perform: "create", "update", or "delete"
         cso_id: CSO ID (required for update and delete)
         common_name: Client common name (CN) - required for create
-        server_id: Associated OpenVPN server ID
+        server_list: OpenVPN server interface names (vpnif, e.g. ["ovpns1"]) this
+            override applies to. If omitted the override applies to ALL servers.
         description: CSO description
         tunnel_network: Client tunnel network/IP (e.g., 10.0.8.5/32 for static IP)
         local_network: Local network(s) pushed to this client
@@ -906,28 +934,30 @@ async def manage_openvpn_cso(
         # --- BUILD DATA for create/update ---
         cso_data: Dict = {}
 
+        # Keys are the upstream CSO wire field names. server_id -> server_list
+        # (array of interface names) is security-relevant: a dropped server_id
+        # left the override applying to ALL servers. descr -> description,
+        # disabled -> disable, redirect_gateway -> gwredir; the *_network fields
+        # and custom_options are arrays upstream. Verified against v2.9.0.
         field_map = {
             "common_name": common_name,
-            "server_id": server_id,
-            "descr": description,
+            "server_list": server_list,
+            "description": sanitize_description(description) if description is not None else None,
             "tunnel_network": tunnel_network,
-            "local_network": local_network,
-            "remote_network": remote_network,
-            "redirect_gateway": redirect_gateway,
+            "local_network": [local_network] if local_network is not None else None,
+            "remote_network": [remote_network] if remote_network is not None else None,
+            "gwredir": redirect_gateway,
             "dns_server1": dns_server1,
             "dns_server2": dns_server2,
             "push_reset": push_reset,
             "block": block,
-            "custom_options": custom_options,
-            "disabled": disabled,
+            "custom_options": _ovpn_custom_options_to_list(custom_options),
+            "disable": disabled,
         }
 
         for field_name, value in field_map.items():
             if value is not None:
-                if field_name == "descr":
-                    cso_data[field_name] = sanitize_description(str(value))
-                else:
-                    cso_data[field_name] = value
+                cso_data[field_name] = value
 
         if tunnel_network:
             subnet_error = validate_subnet(tunnel_network)
@@ -939,8 +969,8 @@ async def manage_openvpn_cso(
             if not common_name:
                 return {"success": False, "error": "common_name is required for create action."}
 
-            if "descr" not in cso_data:
-                cso_data["descr"] = f"CSO for {common_name} via MCP at {datetime.now(timezone.utc).isoformat()}"
+            if "description" not in cso_data:
+                cso_data["description"] = f"CSO for {common_name} via MCP at {datetime.now(timezone.utc).isoformat()}"
 
             result = await client.crud_create("/vpn/openvpn/cso", cso_data, control)
 
@@ -1057,23 +1087,27 @@ async def export_openvpn_client_config(
     """
     client = get_api_client()
     try:
+        # Upstream OpenVPNClientExport uses `server` (int), `type` (enum),
+        # `usetoken`, `silent`, and proxy* names (proxyport is string-typed).
+        # The pre-fix payload (server_id/export_type/use_token/...) used field
+        # names the model doesn't have, so every call was rejected. Verified
+        # against pkg-RESTAPI v2.9.0 (see tests/contract). NOTE: some export
+        # knobs (per-CN certref selection, useaddr semantics) still need live
+        # validation; the mappable, unambiguous fields are wired here.
         export_data: Dict = {
-            "server_id": server_id,
+            "server": server_id,
         }
 
+        if hostname is not None:
+            export_data["useaddr"] = "other"
+            export_data["useaddr_hostname"] = hostname
+
         optional_fields = {
-            "common_name": common_name,
-            "export_type": export_type,
-            "hostname": hostname,
-            "port": port,
-            "random_local_port": random_local_port,
-            "use_tls": use_tls,
-            "use_token": use_token,
-            "proxy_mode": proxy_mode,
-            "proxy_addr": proxy_addr,
-            "proxy_port": proxy_port,
-            "proxy_authtype": proxy_authtype,
-            "silent_install": silent_install,
+            "type": export_type,
+            "usetoken": use_token,
+            "proxyaddr": proxy_addr,
+            "proxyport": str(proxy_port) if proxy_port is not None else None,
+            "silent": silent_install,
         }
 
         for field_name, value in optional_fields.items():
