@@ -13,6 +13,10 @@ license = { file = "LICENSE" }
 
 dependencies = [
     "fastmcp==2.14.0",
+    # fastmcp 2.14.0 imports pydantic_settings without declaring it.
+    "pydantic-settings>=2.0",
+    # fastmcp 2.14.0 still imports mcp's old McpError name, removed in mcp 2.0.0.
+    "mcp<2.0.0",
     "python-dotenv>=1.0.0",
     "httpx",
 ]
