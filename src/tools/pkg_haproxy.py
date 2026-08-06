@@ -291,6 +291,7 @@ async def manage_haproxy_backend_server(
     port: Optional[int] = None,
     ssl: Optional[bool] = None,
     weight: Optional[int] = None,
+    status: Optional[str] = None,
     server_id: Optional[int] = None,
     apply_immediately: bool = True,
     confirm: bool = False,
@@ -305,6 +306,8 @@ async def manage_haproxy_backend_server(
         port: Server port (required for create)
         ssl: Enable SSL for backend connection (used for create)
         weight: Server weight for load balancing (used for create)
+        status: Eligibility status: 'active', 'backup', 'disabled', or 'inactive'
+            (default 'active'; used for create)
         server_id: Server ID (required for delete)
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True for delete operations. Safety gate for destructive operations.
@@ -325,12 +328,14 @@ async def manage_haproxy_backend_server(
                 "parent_id": parent_id,
                 "name": name,
                 "address": address,
-                "port": port,
+                "port": str(port),
             }
             if ssl is not None:
                 server_data["ssl"] = ssl
             if weight is not None:
                 server_data["weight"] = weight
+            if status is not None:
+                server_data["status"] = status
 
             control = ControlParameters(apply=apply_immediately)
             result = await client.crud_create("/services/haproxy/backend/server", server_data, control)
@@ -439,6 +444,32 @@ async def search_haproxy_frontends(
         return {"success": False, "error": str(e)}
 
 
+def _to_a_extaddr(bind_addresses: List[Dict]) -> List[Dict]:
+    """Translate simple {address, port} dicts into pfSense's a_extaddr schema.
+
+    Also accepts the native {extaddr, extaddr_custom, extaddr_port, extaddr_ssl}
+    shape directly, so either form works.
+    """
+    result = []
+    for b in bind_addresses:
+        extaddr = b.get("extaddr", "custom")
+        extaddr_custom = b.get("extaddr_custom", b.get("address"))
+        port = b.get("extaddr_port", b.get("port"))
+        if extaddr == "custom" and not extaddr_custom:
+            raise ValueError("bind address entries require address or extaddr_custom")
+        if port is None:
+            raise ValueError("bind address entries require port or extaddr_port")
+        result.append(
+            {
+                "extaddr": extaddr,
+                "extaddr_custom": extaddr_custom,
+                "extaddr_port": str(port),
+                "extaddr_ssl": b.get("extaddr_ssl", b.get("ssl", False)),
+            }
+        )
+    return result
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 @rate_limited
 async def create_haproxy_frontend(
@@ -472,9 +503,9 @@ async def create_haproxy_frontend(
         if status:
             frontend_data["status"] = status
         if backend:
-            frontend_data["backend"] = backend
+            frontend_data["backend_serverpool"] = backend
         if bind_addresses:
-            frontend_data["bind_addresses"] = bind_addresses
+            frontend_data["a_extaddr"] = _to_a_extaddr(bind_addresses)
 
         control = ControlParameters(apply=apply_immediately)
         result = await client.crud_create("/services/haproxy/frontend", frontend_data, control)
@@ -523,8 +554,8 @@ async def update_haproxy_frontend(
             "descr": descr,
             "type": type,
             "status": status,
-            "backend": backend,
-            "bind_addresses": bind_addresses,
+            "backend_serverpool": backend,
+            "a_extaddr": _to_a_extaddr(bind_addresses) if bind_addresses is not None else None,
         }
 
         updates: Dict = {}
