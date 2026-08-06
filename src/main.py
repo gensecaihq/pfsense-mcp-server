@@ -52,18 +52,25 @@ from .tools import (  # noqa: F401, E402
     vpn_wireguard,
 )
 
-# In read-only mode, remove all non-read tools after registration
+# In read-only mode, remove all non-read tools after registration.
+# Uses FastMCP's public local-provider API (list_tools / remove_tool). The
+# pre-3.0 code reached into mcp._tool_manager._tools, which FastMCP 3 removed —
+# see test_read_only_mode.py, which boots this path so the break can't recur.
 if _READ_ONLY_MODE:
     from .guardrails import RiskLevel, classify_risk
-    _all_tools = dict(mcp._tool_manager._tools)
-    for name in list(_all_tools.keys()):
-        if classify_risk(name) != RiskLevel.READ:
-            del mcp._tool_manager._tools[name]
-    _removed = len(_all_tools) - len(mcp._tool_manager._tools)
+
+    _provider = mcp.local_provider
+    # list_tools() is async; at import time there is no running loop, so run it.
+    _all_names = [t.name for t in asyncio.run(_provider.list_tools())]
+    _removed = 0
+    for _name in _all_names:
+        if classify_risk(_name) != RiskLevel.READ:
+            _provider.remove_tool(_name)
+            _removed += 1
     import logging as _logging
     _logging.getLogger(__name__).info(
         "READ-ONLY MODE: Removed %d non-read tools. %d read-only tools available.",
-        _removed, len(mcp._tool_manager._tools),
+        _removed, len(_all_names) - _removed,
     )
 
 

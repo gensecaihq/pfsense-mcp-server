@@ -3,8 +3,8 @@
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/gensecaihq/pfsense-mcp-server/releases/tag/v1.0.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![MCP 2025-11-25](https://img.shields.io/badge/MCP-2025--11--25-green.svg)](https://modelcontextprotocol.io)
-[![pfSense REST API](https://img.shields.io/badge/pfSense%20API-v2.7.3-orange.svg)](https://pfrest.org/)
-[![Tests](https://img.shields.io/badge/tests-323%20passing-brightgreen.svg)](#testing)
+[![pfSense REST API](https://img.shields.io/badge/pfSense%20API-v2.9.0-orange.svg)](https://pfrest.org/)
+[![Tests](https://img.shields.io/badge/tests-340%20passing-brightgreen.svg)](#testing)
 [![Tools](https://img.shields.io/badge/tools-327-blue.svg)](#what-you-can-do)
 
 > Manage your pfSense firewall with natural language. 327 tools. 9 layers of safety. One command to start.
@@ -242,7 +242,7 @@ Container security: non-root user (`mcp:1000`), read-only filesystem, all capabi
 ## Testing
 
 ```bash
-python3 -m pytest tests/ -v          # 323 tests
+python3 -m pytest tests/ -v          # 340 tests
 python3 -m pytest tests/ --cov=src   # with coverage
 ```
 
@@ -271,7 +271,7 @@ src/
   models.py            Data models
   middleware.py        HTTP auth + Origin validation
   tools/               34 tool modules (327 tools)
-tests/                 323 tests
+tests/                 340 tests
 ```
 
 ## Contributing

@@ -3,7 +3,6 @@ Enhanced pfSense MCP Server
 Advanced pfSense management via Model Context Protocol
 """
 
-__version__ = "5.0.0"
 __author__ = "pfSense MCP Server Team"
 __description__ = "Advanced pfSense management with filtering, sorting, and HATEOAS support"
 
@@ -16,7 +15,10 @@ from .models import (
     QueryFilter,
     SortOptions,
 )
-from .server import get_api_client, mcp
+from .server import VERSION, get_api_client, mcp
+
+# Single source of truth for the version: server.VERSION.
+__version__ = VERSION
 
 __all__ = [
     "mcp",
