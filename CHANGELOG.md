@@ -8,12 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 Post-1.0.0 bug fixes and quality improvements, all merged to `main`. No tool
-count change (still 327); test suite grew from 308 to 337.
+count change (still 327); test suite grew from 308 to 360.
+
+### Added
+
+- **Wire-contract test layer.** `scripts/generate_contract.py` distills the
+  upstream pfSense REST API OpenAPI spec (a pkg-RESTAPI release asset) into a
+  slim, vendored contract (`tests/contract/contract-v2.9.0.json`) of every
+  writable endpoint's valid fields, JSON types, enum choices, and
+  create-required fields. `tests/contract/schema.py` asserts a tool's actual
+  wire payload against it. This catches the class of bug where pfSense silently
+  drops an unknown field (PATCH) or 400s on a mistyped/missing one (POST) —
+  failures invisible to a mocked unit test. Regenerate with
+  `python scripts/generate_contract.py <openapi.json> tests/contract/contract-<ver>.json --version <ver>`.
 
 ### Fixed
 
 - **Boolean search filters returned inverted results.** `QueryFilter` serialized Python bools with `str()`, yielding `"True"`/`"False"`; the pfSense query engine only coerces the lowercase `true`/`false` to booleans and loose-compares everything else as truthy. So `search_firewall_rules(disabled=False)` — "show enabled rules" — returned exactly the *disabled* rules. `QueryFilter.to_param` now lowercases booleans, fixing the whole class at the root.
 - **`search_services(status_filter="stopped")` returned the running services.** `Service.status` is a boolean upstream, so the string `"stopped"` loose-matched everything; `find_running_services`/`find_stopped_services` now filter on real booleans (`True`/`False`).
+- **DNS Resolver DHCP registration was a silent no-op.** `update_dns_resolver_settings` mapped `register_dhcp`/`register_dhcp_static` to themselves, but the upstream fields are `regdhcp`/`regdhcpstatic`; PATCH silently dropped the unknown keys and reported success. Now mapped correctly (tool parameter names unchanged).
+- **DHCP DNS-server override always failed.** `create_dhcp_static_mapping` and `update_dhcp_server_config` sent `dnsserver` as a bare string, but upstream it is an array of up to 4 strings. The tools now accept one value or a comma/space-separated list, validate each as an IP, and send an array.
+- **DNS Resolver access-list tools could not create or update.** They sent `aclname`/`aclaction`/`descr` (internal-only names) with underscore action values; upstream uses `name`/`action`/`description` with space-separated actions (`allow snoop`, `deny nonlocal`, `refuse nonlocal`). Create 400'd; update silently no-op'd. The tools keep their ergonomic parameter names/spellings and map to the wire values; `search_dns_access_lists` default sort moved from `aclname` to `name`.
 - **`remove_from_alias` failed on aliases with per-entry descriptions** (400 `TOO_MANY_ALIAS_DETAILS`). The API's remove control flag strips only `address` entries, leaving the parallel `detail` list longer than the address list, which the API then rejects. `manage_alias_addresses(action="remove")` now reads the alias and rebuilds both lists in lockstep before PATCHing.
 - **`create_firewall_schedule` could not actually create a schedule.** The pfSense API requires at least one time range at creation ("Field `timerange` is required"), but the tool never sent one. It now takes `hour`/`position`/`month`/`day`/`rangedescr` for the initial time range (further ranges via `create_schedule_time_range`) and validates that either `position` (weekdays) or `month`+`day` is provided. Also corrected `month`/`day`/`position` on `create_schedule_time_range`/`update_schedule_time_range` from `str` to `List[int]` to match the API schema, with docstrings explaining pfSense's semantics (`position` = weekday numbers 1–7). Verified end-to-end against a live pfSense 26.03 instance.
 - **All `delete_*` tools were non-functional** (#12, PR #9, PR #16). `httpx.AsyncClient.delete()` does not accept a `json=` kwarg, so every delete (firewall rules, NAT, aliases, DHCP mappings, etc.) raised `TypeError` before any HTTP traffic. DELETE now routes through `client.request("DELETE", ...)`, which supports the JSON body pfSense requires.

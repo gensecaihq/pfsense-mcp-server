@@ -172,7 +172,8 @@ class TestCreateDhcpStaticMapping:
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
         assert data["hostname"] == "myhost"
         assert data["descr"] == "Test mapping"
-        assert data["dnsserver"] == "8.8.8.8"
+        # dnsserver is an array of strings upstream (see tests/contract)
+        assert data["dnsserver"] == ["8.8.8.8"]
 
 
 # ---------------------------------------------------------------------------
