@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 Post-1.0.0 bug fixes and quality improvements, all merged to `main`. No tool
-count change (still 327); test suite grew from 308 to 323.
+count change (still 327); test suite grew from 308 to 337.
 
 ### Fixed
 
@@ -28,6 +28,8 @@ count change (still 327); test suite grew from 308 to 323.
 
 ### Changed
 
+- **FastMCP upgraded from 2.14.0 to 3.4.6** (`fastmcp>=3.4.6,<4.0`). fastmcp 3 declares its dependencies correctly, so the 2.14.0-era workaround pins for `pydantic-settings` and `mcp` are replaced by a single explicit `mcp>=1.24.0,<2.0.0` (a direct dependency: the tool modules import `mcp.types.ToolAnnotations`). Server behavior is unchanged — same 327 tools, stdio + Streamable HTTP transports, bearer auth, and MCP 2025-11-25 with per-connection negotiation down to older revisions — verified end-to-end (in-memory MCP client: initialize, tools/list, tools/call; HTTP: 401 without token, 403 on bad Origin, protocol negotiation at 2025-06-18 and 2025-11-25). In fastmcp 3, `@mcp.tool` returns the plain function instead of a `FunctionTool` wrapper, so the test suite's `.fn` unwrapping was dropped; `test_enhanced_connection` (a tool whose name matches pytest's collection pattern) is now marked `__test__ = False` so pytest cannot execute the real connection tool as a test.
+- **Forward-compat CI probe for MCP spec 2026-07-28.** A non-blocking CI job runs the full suite against fastmcp 4.0.0b1 (mcp SDK 2.x, sessionless protocol). The suite passes unmodified, so adopting the stateless protocol when fastmcp 4 leaves beta is a pin change; fastmcp 4 negotiates the protocol era per connection, preserving backward compatibility with handshake-era clients.
 - CI is green. The `ruff check src/ tests/` step had been failing on 80 pre-existing lint issues since before the 1.0.0 tag; all are resolved with no behavior change.
 
 ## [1.0.0] - 2026-03-26

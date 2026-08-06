@@ -240,7 +240,7 @@ python3 -m pytest tests/ --cov=src   # with coverage
 
 ## MCP Specification Compliance
 
-Compliant with [MCP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25) (latest):
+Compliant with [MCP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25) — the newest revision with stable SDK support — and negotiates down to older revisions per connection, so existing clients keep working:
 
 - `ToolAnnotations` on all 327 tools (readOnlyHint, destructiveHint, idempotentHint)
 - `serverInfo.version` and `instructions` provided
@@ -248,6 +248,8 @@ Compliant with [MCP 2025-11-25](https://modelcontextprotocol.io/specification/20
 - Bearer token auth with timing-safe comparison
 - Default bind to localhost per spec SHOULD
 - stdio and Streamable HTTP transports
+
+The newest revision, [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/changelog), makes the protocol stateless; SDK support ships in fastmcp 4, currently in beta. This codebase already passes its full test suite on the fastmcp 4 beta (checked continuously by a non-blocking CI job), and uses none of the features 2026-07-28 deprecates (Roots, Sampling, MCP Logging), so adopting the sessionless protocol when fastmcp 4 is stable is a dependency-pin change. fastmcp 4 servers negotiate the protocol era per connection, keeping today's handshake-era clients fully supported.
 
 ## Project Structure
 

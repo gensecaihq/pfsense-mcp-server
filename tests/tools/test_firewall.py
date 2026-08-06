@@ -12,15 +12,15 @@ from src.tools.firewall import (
     update_firewall_rule,
 )
 
-_search_firewall_rules = search_firewall_rules.fn
-_create_firewall_rule_advanced = create_firewall_rule_advanced.fn
-_update_firewall_rule = update_firewall_rule.fn
-_delete_firewall_rule = delete_firewall_rule.fn
-_find_blocked_rules = find_blocked_rules.fn
-_move_firewall_rule = move_firewall_rule.fn
-_bulk_block_ips = bulk_block_ips.fn
-_apply_firewall_changes = apply_firewall_changes.fn
-_get_pf_rules = get_pf_rules.fn
+_search_firewall_rules = search_firewall_rules
+_create_firewall_rule_advanced = create_firewall_rule_advanced
+_update_firewall_rule = update_firewall_rule
+_delete_firewall_rule = delete_firewall_rule
+_find_blocked_rules = find_blocked_rules
+_move_firewall_rule = move_firewall_rule
+_bulk_block_ips = bulk_block_ips
+_apply_firewall_changes = apply_firewall_changes
+_get_pf_rules = get_pf_rules
 
 
 # ---------------------------------------------------------------------------
