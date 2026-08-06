@@ -19,7 +19,7 @@ async def search_ipsec_phase2_encryptions(
     parent_id: Optional[int] = None,
     page: int = 1,
     page_size: int = 20,
-    sort_by: str = "encryption_algorithm_name",
+    sort_by: str = "name",
 ) -> Dict:
     """Search IPsec Phase 2 encryption entries with filtering and pagination
 
@@ -79,26 +79,28 @@ async def create_ipsec_phase2_encryption(
         parent_id: Parent Phase 2 ID
         encryption_algorithm_name: Encryption algorithm name (e.g., 'aes', 'aes128gcm', 'aes256gcm', 'chacha20poly1305')
         encryption_algorithm_keylen: Key length for the encryption algorithm (e.g., 128, 192, 256)
-        hash_algorithm: Hash algorithm (e.g., 'hmac_sha256', 'hmac_sha384', 'hmac_sha512', 'aesxcbc')
-        dhgroup: DH group number (e.g., 14, 15, 16, 19, 20, 21)
-        prf_algorithm: PRF algorithm (e.g., 'prfsha256', 'prfsha384', 'prfsha512')
+        hash_algorithm: NOT part of a Phase 2 encryption entry (hashes live on the
+            Phase 2 object as hash_algorithm_option) — accepted for compatibility
+            but not sent.
+        dhgroup: NOT part of a Phase 2 encryption entry (belongs to Phase 1) —
+            accepted for compatibility but not sent.
+        prf_algorithm: NOT part of a Phase 2 encryption entry — accepted for
+            compatibility but not sent.
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
     try:
+        # The IPsecPhase2Encryption model has only `name` and `keylen` (plus
+        # parent_id). The pre-fix code sent encryption_algorithm_name/keylen and
+        # phase1-only fields (hash/dhgroup/prf), so create 400'd on the missing
+        # `name`. Verified against pkg-RESTAPI v2.9.0 (see tests/contract).
         enc_data: Dict = {
             "parent_id": parent_id,
-            "encryption_algorithm_name": encryption_algorithm_name,
+            "name": encryption_algorithm_name,
         }
 
         if encryption_algorithm_keylen is not None:
-            enc_data["encryption_algorithm_keylen"] = encryption_algorithm_keylen
-        if hash_algorithm is not None:
-            enc_data["hash_algorithm"] = hash_algorithm
-        if dhgroup is not None:
-            enc_data["dhgroup"] = dhgroup
-        if prf_algorithm is not None:
-            enc_data["prf_algorithm"] = prf_algorithm
+            enc_data["keylen"] = encryption_algorithm_keylen
 
         control = ControlParameters(apply=apply_immediately)
         result = await client.crud_create(
@@ -142,18 +144,13 @@ async def update_ipsec_phase2_encryption(
     """
     client = get_api_client()
     try:
+        # The IPsecPhase2Encryption model has only name + keylen (see create).
         updates: Dict = {}
 
         if encryption_algorithm_name is not None:
-            updates["encryption_algorithm_name"] = encryption_algorithm_name
+            updates["name"] = encryption_algorithm_name
         if encryption_algorithm_keylen is not None:
-            updates["encryption_algorithm_keylen"] = encryption_algorithm_keylen
-        if hash_algorithm is not None:
-            updates["hash_algorithm"] = hash_algorithm
-        if dhgroup is not None:
-            updates["dhgroup"] = dhgroup
-        if prf_algorithm is not None:
-            updates["prf_algorithm"] = prf_algorithm
+            updates["keylen"] = encryption_algorithm_keylen
 
         if not updates:
             return {"success": False, "error": "No fields to update - provide at least one field"}
