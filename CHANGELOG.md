@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 Post-1.0.0 bug fixes and quality improvements, all merged to `main`. No tool
-count change (still 327); test suite grew from 308 to 363.
+count change (still 327); test suite grew from 308 to 375.
 
 ### Added
 
@@ -24,6 +24,7 @@ count change (still 327); test suite grew from 308 to 363.
 
 ### Fixed
 
+- **Certificate & CA import, renewal, and PKCS#12 export were all non-functional.** Import sent `cert` (upstream field is `crt`) plus an unknown `method` key, so `create_certificate`/`create_certificate_authority` 400'd; internal generation was POSTed to the *import* endpoint, where its key/DN fields were silently dropped. `create_certificate`/`create_certificate_authority` now route `method="import"` to the import endpoint (`crt`/`prv`) and `method="internal"` to `/generate` (with a new `ecname` parameter, required for ECDSA); `update_certificate`/`update_certificate_authority` send `crt`; `generate_certificate` drops the bogus `method` and sends `ecname` for ECDSA keys. `renew_certificate` and `export_certificate_pkcs12` sent the non-persistent array index as `id`, but both endpoints key on `certref` (the certificate's stable refid) — they now resolve the refid first. Verified field-by-field against the pkg-RESTAPI v2.9.0 contract.
 - **Boolean search filters returned inverted results.** `QueryFilter` serialized Python bools with `str()`, yielding `"True"`/`"False"`; the pfSense query engine only coerces the lowercase `true`/`false` to booleans and loose-compares everything else as truthy. So `search_firewall_rules(disabled=False)` — "show enabled rules" — returned exactly the *disabled* rules. `QueryFilter.to_param` now lowercases booleans, fixing the whole class at the root.
 - **`search_services(status_filter="stopped")` returned the running services.** `Service.status` is a boolean upstream, so the string `"stopped"` loose-matched everything; `find_running_services`/`find_stopped_services` now filter on real booleans (`True`/`False`).
 - **`MCP_READ_ONLY=true` crashed the server at startup** (regression from the FastMCP 3.4.6 upgrade). The read-only tool reduction reached into FastMCP 2's private `mcp._tool_manager._tools`, which FastMCP 3 removed, so the documented least-privilege mode raised `AttributeError` and would not start. It now uses FastMCP's public `mcp.local_provider` API (`list_tools` / `remove_tool`), producing the same 130 read-only tools. The reduction also moved out of module-import scope into `main()` (as `apply_read_only_filter()`): doing async work while the module was still importing could deadlock against Python 3.11's import lock. Added `tests/test_read_only_mode.py`, which runs the filter in isolated subprocesses (hard timeout, hermetic env) so neither the crash nor the hang can regress silently.

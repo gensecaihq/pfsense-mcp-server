@@ -14,6 +14,26 @@ from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
 
 
+async def _cert_refid(client, certificate_id: int) -> str:
+    """Resolve a certificate's stable ``refid`` from its array-index id.
+
+    The renew and PKCS#12-export endpoints key on ``certref`` (the refid), not
+    the non-persistent array index the pre-fix tools sent as ``id``.
+    ``search_certificates`` returns both.
+    """
+    result = await client._make_request(
+        "GET", "/system/certificates",
+        filters=[QueryFilter("id", certificate_id)],
+    )
+    for cert in (result.get("data") or []):
+        if str(cert.get("id")) == str(certificate_id):
+            refid = cert.get("refid")
+            if refid:
+                return refid
+            raise ValueError(f"Certificate {certificate_id} has no refid")
+    raise ValueError(f"Certificate {certificate_id} not found")
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_certificates(
     search_term: Optional[str] = None,
@@ -67,6 +87,7 @@ async def create_certificate(
     prv: Optional[str] = None,
     keytype: Optional[str] = None,
     keylen: Optional[int] = None,
+    ecname: Optional[str] = None,
     digest_alg: Optional[str] = None,
     lifetime: Optional[int] = None,
     dn_commonname: Optional[str] = None,
@@ -79,16 +100,20 @@ async def create_certificate(
 ) -> Dict:
     """Create or import a certificate on pfSense
 
+    Import and internal generation use different API endpoints with different
+    required fields, so this routes on ``method``.
+
     Args:
         method: Creation method — "import" to import existing, "internal" to generate internally
         descr: Descriptive name for the certificate
         cert: PEM-encoded certificate data (required for import)
         prv: PEM-encoded private key (required for import)
-        keytype: Key type — "RSA" or "ECDSA" (for internal generation)
-        keylen: Key length in bits, e.g. 2048, 4096 (for RSA) or 256, 384 (for ECDSA)
-        digest_alg: Digest algorithm — sha256, sha384, sha512
+        keytype: Key type — "RSA" or "ECDSA" (required for internal generation)
+        keylen: Key length in bits, e.g. 2048, 4096 (required for RSA generation)
+        ecname: Elliptic curve name, e.g. "prime256v1" (required for ECDSA generation)
+        digest_alg: Digest algorithm — sha256, sha384, sha512 (required for generation)
         lifetime: Certificate lifetime in days
-        dn_commonname: Distinguished name — Common Name
+        dn_commonname: Distinguished name — Common Name (required for generation)
         dn_country: Distinguished name — Country code (2 letter)
         dn_state: Distinguished name — State or Province
         dn_city: Distinguished name — City or Locality
@@ -98,39 +123,51 @@ async def create_certificate(
     """
     client = get_api_client()
     try:
-        cert_data: Dict = {
-            "method": method,
-            "descr": sanitize_description(descr),
-        }
+        # Import and internal generation are distinct endpoints upstream; the
+        # import model has no method/keytype/dn_* fields and the generate model
+        # has no crt/prv. The pre-fix code sent everything (incl. an unknown
+        # `method` key and `cert` instead of `crt`) to the import endpoint, so
+        # imports 400'd and internal generation silently produced nothing.
+        # Verified against pkg-RESTAPI v2.9.0 (see tests/contract).
+        if method == "import":
+            if not cert or not prv:
+                return {
+                    "success": False,
+                    "error": "Import requires both 'cert' (PEM) and 'prv' (private key).",
+                }
+            cert_data: Dict = {
+                "crt": cert,
+                "prv": prv,
+                "descr": sanitize_description(descr),
+            }
+            if caref is not None:
+                cert_data["caref"] = caref
+            if type is not None:
+                cert_data["type"] = type
+            endpoint = "/system/certificate"
+        else:
+            # Internal generation -> /system/certificate/generate
+            cert_data = {"descr": sanitize_description(descr)}
+            gen_fields = {
+                "keytype": keytype,
+                "keylen": keylen,
+                "ecname": ecname,
+                "digest_alg": digest_alg,
+                "lifetime": lifetime,
+                "dn_commonname": dn_commonname,
+                "dn_country": dn_country,
+                "dn_state": dn_state,
+                "dn_city": dn_city,
+                "dn_organization": dn_organization,
+                "type": type,
+                "caref": caref,
+            }
+            for field_name, value in gen_fields.items():
+                if value is not None:
+                    cert_data[field_name] = value
+            endpoint = "/system/certificate/generate"
 
-        # Import fields
-        if cert:
-            cert_data["cert"] = cert
-        if prv:
-            cert_data["prv"] = prv
-
-        # Generation fields
-        optional_fields = {
-            "keytype": keytype,
-            "keylen": keylen,
-            "digest_alg": digest_alg,
-            "lifetime": lifetime,
-            "dn_commonname": dn_commonname,
-            "dn_country": dn_country,
-            "dn_state": dn_state,
-            "dn_city": dn_city,
-            "dn_organization": dn_organization,
-            "type": type,
-            "caref": caref,
-        }
-        for field_name, value in optional_fields.items():
-            if value is not None:
-                cert_data[field_name] = value
-
-        result = await client._make_request(
-            "POST", "/system/certificate",
-            data=cert_data,
-        )
+        result = await client._make_request("POST", endpoint, data=cert_data)
 
         return {
             "success": True,
@@ -167,7 +204,7 @@ async def update_certificate(
         if descr is not None:
             updates["descr"] = sanitize_description(descr)
         if cert is not None:
-            updates["cert"] = cert
+            updates["crt"] = cert  # upstream field is crt, not cert
         if prv is not None:
             updates["prv"] = prv
 
@@ -233,9 +270,9 @@ async def generate_certificate(
     descr: str,
     caref: str,
     dn_commonname: str,
-    method: str = "internal",
     keytype: str = "RSA",
     keylen: int = 2048,
+    ecname: str = "prime256v1",
     digest_alg: str = "sha256",
     lifetime: int = 3650,
     type: str = "server",
@@ -246,26 +283,31 @@ async def generate_certificate(
         descr: Descriptive name for the certificate
         caref: Reference ID of the signing Certificate Authority
         dn_commonname: Common Name for the certificate (e.g., "vpn.example.com")
-        method: Generation method (default: "internal")
         keytype: Key type — "RSA" or "ECDSA"
-        keylen: Key length in bits (2048, 4096 for RSA; 256, 384 for ECDSA)
+        keylen: Key length in bits (2048, 4096 for RSA)
+        ecname: Elliptic curve name for ECDSA (e.g., "prime256v1", "secp384r1")
         digest_alg: Digest algorithm — sha256, sha384, sha512
         lifetime: Certificate lifetime in days (default: 3650 = ~10 years)
         type: Certificate type — "server" or "user"
     """
     client = get_api_client()
     try:
+        # The /generate model has no `method` field (the pre-fix code sent it and
+        # it was silently dropped) and requires ecname for ECDSA keys. Verified
+        # against pkg-RESTAPI v2.9.0 (see tests/contract).
         gen_data = {
-            "method": method,
             "descr": sanitize_description(descr),
             "caref": caref,
             "keytype": keytype,
-            "keylen": keylen,
             "digest_alg": digest_alg,
             "lifetime": lifetime,
             "dn_commonname": dn_commonname,
             "type": type,
         }
+        if keytype == "ECDSA":
+            gen_data["ecname"] = ecname
+        else:
+            gen_data["keylen"] = keylen
 
         result = await client._make_request(
             "POST", "/system/certificate/generate",
@@ -295,9 +337,11 @@ async def renew_certificate(
     """
     client = get_api_client()
     try:
+        # The renew endpoint keys on certref (the refid), not the array index.
+        certref = await _cert_refid(client, certificate_id)
         result = await client._make_request(
             "POST", "/system/certificate/renew",
-            data={"id": certificate_id},
+            data={"certref": certref},
         )
 
         return {
@@ -326,7 +370,9 @@ async def export_certificate_pkcs12(
     """
     client = get_api_client()
     try:
-        export_data: Dict = {"id": certificate_id}
+        # The export endpoint keys on certref (the refid), not the array index.
+        certref = await _cert_refid(client, certificate_id)
+        export_data: Dict = {"certref": certref}
         if passphrase is not None:
             export_data["passphrase"] = passphrase
 
@@ -406,6 +452,7 @@ async def create_certificate_authority(
     prv: Optional[str] = None,
     keytype: Optional[str] = None,
     keylen: Optional[int] = None,
+    ecname: Optional[str] = None,
     digest_alg: Optional[str] = None,
     lifetime: Optional[int] = None,
     dn_commonname: Optional[str] = None,
@@ -416,14 +463,18 @@ async def create_certificate_authority(
 ) -> Dict:
     """Create or import a Certificate Authority on pfSense
 
+    Import and internal generation use different API endpoints; this routes on
+    ``method``.
+
     Args:
         method: Creation method — "import" to import existing, "internal" to generate internally
         descr: Descriptive name for the CA
         cert: PEM-encoded CA certificate data (required for import)
         prv: PEM-encoded CA private key (required for import)
-        keytype: Key type — "RSA" or "ECDSA" (for internal generation)
-        keylen: Key length in bits, e.g. 2048, 4096 (for RSA) or 256, 384 (for ECDSA)
-        digest_alg: Digest algorithm — sha256, sha384, sha512
+        keytype: Key type — "RSA" or "ECDSA" (required for internal generation)
+        keylen: Key length in bits, e.g. 2048, 4096 (required for RSA generation)
+        ecname: Elliptic curve name, e.g. "prime256v1" (required for ECDSA generation)
+        digest_alg: Digest algorithm — sha256, sha384, sha512 (required for generation)
         lifetime: CA certificate lifetime in days
         dn_commonname: Distinguished name — Common Name
         dn_country: Distinguished name — Country code (2 letter)
@@ -433,37 +484,39 @@ async def create_certificate_authority(
     """
     client = get_api_client()
     try:
-        ca_data: Dict = {
-            "method": method,
-            "descr": sanitize_description(descr),
-        }
+        # Import vs internal generation are distinct endpoints upstream (same
+        # crt-not-cert / no-method rules as create_certificate). Verified
+        # against pkg-RESTAPI v2.9.0 (see tests/contract).
+        if method == "import":
+            if not cert:
+                return {"success": False, "error": "Import requires 'cert' (PEM CA certificate)."}
+            ca_data: Dict = {
+                "crt": cert,
+                "descr": sanitize_description(descr),
+            }
+            if prv is not None:
+                ca_data["prv"] = prv
+            endpoint = "/system/certificate_authority"
+        else:
+            ca_data = {"descr": sanitize_description(descr)}
+            gen_fields = {
+                "keytype": keytype,
+                "keylen": keylen,
+                "ecname": ecname,
+                "digest_alg": digest_alg,
+                "lifetime": lifetime,
+                "dn_commonname": dn_commonname,
+                "dn_country": dn_country,
+                "dn_state": dn_state,
+                "dn_city": dn_city,
+                "dn_organization": dn_organization,
+            }
+            for field_name, value in gen_fields.items():
+                if value is not None:
+                    ca_data[field_name] = value
+            endpoint = "/system/certificate_authority/generate"
 
-        # Import fields
-        if cert:
-            ca_data["cert"] = cert
-        if prv:
-            ca_data["prv"] = prv
-
-        # Generation fields
-        optional_fields = {
-            "keytype": keytype,
-            "keylen": keylen,
-            "digest_alg": digest_alg,
-            "lifetime": lifetime,
-            "dn_commonname": dn_commonname,
-            "dn_country": dn_country,
-            "dn_state": dn_state,
-            "dn_city": dn_city,
-            "dn_organization": dn_organization,
-        }
-        for field_name, value in optional_fields.items():
-            if value is not None:
-                ca_data[field_name] = value
-
-        result = await client._make_request(
-            "POST", "/system/certificate_authority",
-            data=ca_data,
-        )
+        result = await client._make_request("POST", endpoint, data=ca_data)
 
         return {
             "success": True,
@@ -500,7 +553,7 @@ async def update_certificate_authority(
         if descr is not None:
             updates["descr"] = sanitize_description(descr)
         if cert is not None:
-            updates["cert"] = cert
+            updates["crt"] = cert  # upstream field is crt, not cert
         if prv is not None:
             updates["prv"] = prv
 
