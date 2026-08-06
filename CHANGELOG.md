@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 Post-1.0.0 bug fixes and quality improvements, all merged to `main`. No tool
-count change (still 327); test suite grew from 308 to 353.
+count change (still 327); test suite grew from 308 to 365.
 
 ### Added
 
@@ -24,6 +24,7 @@ count change (still 327); test suite grew from 308 to 353.
 
 ### Fixed
 
+- **Certificate & CA import, renewal, and PKCS#12 export were all non-functional.** Import sent `cert` (upstream field is `crt`) plus an unknown `method` key, so `create_certificate`/`create_certificate_authority` 400'd; internal generation was POSTed to the *import* endpoint, where its key/DN fields were silently dropped. `create_certificate`/`create_certificate_authority` now route `method="import"` to the import endpoint (`crt`/`prv`) and `method="internal"` to `/generate` (with a new `ecname` parameter, required for ECDSA); `update_certificate`/`update_certificate_authority` send `crt`; `generate_certificate` drops the bogus `method` and sends `ecname` for ECDSA keys. `renew_certificate` and `export_certificate_pkcs12` sent the non-persistent array index as `id`, but both endpoints key on `certref` (the certificate's stable refid) — they now resolve the refid first. Verified field-by-field against the pkg-RESTAPI v2.9.0 contract.
 - **DNS Resolver DHCP registration was a silent no-op.** `update_dns_resolver_settings` mapped `register_dhcp`/`register_dhcp_static` to themselves, but the upstream fields are `regdhcp`/`regdhcpstatic`; PATCH silently dropped the unknown keys and reported success. Now mapped correctly (tool parameter names unchanged).
 - **DHCP DNS-server override always failed.** `create_dhcp_static_mapping` and `update_dhcp_server_config` sent `dnsserver` as a bare string, but upstream it is an array of up to 4 strings. The tools now accept one value or a comma/space-separated list, validate each as an IP, and send an array.
 - **DNS Resolver access-list tools could not create or update.** They sent `aclname`/`aclaction`/`descr` (internal-only names) with underscore action values; upstream uses `name`/`action`/`description` with space-separated actions (`allow snoop`, `deny nonlocal`, `refuse nonlocal`). Create 400'd; update silently no-op'd. The tools keep their ergonomic parameter names/spellings and map to the wire values; `search_dns_access_lists` default sort moved from `aclname` to `name`.
