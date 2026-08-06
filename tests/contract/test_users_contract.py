@@ -38,14 +38,12 @@ class TestGroups:
 class TestLdapAuthServer:
     async def test_create_uses_ldap_field_names_and_urltype(self, mock_client, mock_make_request):
         mock_make_request.return_value = {"data": {}}
-        # NB: a single-container DN here; the naive denylist sanitizer still
-        # rejects the semicolon in multi-container LDAP authcn values — a known
-        # guardrail false-positive tracked for the v1.2 safety pass, unrelated
-        # to this wire-format fix.
+        # Multi-container LDAP authcn (semicolon-separated) — must NOT trip the
+        # sanitizer any more (the command-chaining rule was removed in v1.2).
         result = await create_auth_server(
             name="ad", type="ldap", host="dc.example.com", port=636,
             transport="ssl", scope="subtree", basedn="dc=example,dc=com",
-            authcn="CN=Users,DC=example,DC=com", ldap_bindpw="secret",
+            authcn="CN=Users;DC=example,DC=com", ldap_bindpw="secret",
         )
         assert result["success"] is True
         assert_payload_valid(mock_make_request)
@@ -55,7 +53,7 @@ class TestLdapAuthServer:
         assert data["ldap_urltype"] == "SSL/TLS Encrypted"
         assert data["ldap_scope"] == "subtree"
         assert data["ldap_basedn"] == "dc=example,dc=com"
-        assert data["ldap_authcn"] == "CN=Users,DC=example,DC=com"
+        assert data["ldap_authcn"] == "CN=Users;DC=example,DC=com"
         for stale in ("transport", "scope", "basedn", "authcn", "port"):
             assert stale not in data
 
