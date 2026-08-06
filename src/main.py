@@ -52,19 +52,38 @@ from .tools import (  # noqa: F401, E402
     vpn_wireguard,
 )
 
-# In read-only mode, remove all non-read tools after registration
-if _READ_ONLY_MODE:
+
+def apply_read_only_filter() -> int:
+    """In read-only mode, remove every non-read tool. Returns the count removed.
+
+    Called from ``main()`` — deliberately NOT at import time. Doing this at
+    module scope means running ``asyncio.run()`` while ``src.main`` is still
+    being imported; on Python 3.11 (coarser import lock than 3.12+) any lazy
+    import triggered by that coroutine can deadlock. Running it from ``main()``,
+    after all imports complete, avoids that entirely.
+
+    Uses FastMCP's public local-provider API (``list_tools`` / ``remove_tool``);
+    the pre-3.0 code reached into ``mcp._tool_manager._tools``, which FastMCP 3
+    removed. ``tests/test_read_only_mode.py`` exercises this so neither the crash
+    nor the import-time hang can recur.
+    """
+    if not _READ_ONLY_MODE:
+        return 0
+
     from .guardrails import RiskLevel, classify_risk
-    _all_tools = dict(mcp._tool_manager._tools)
-    for name in list(_all_tools.keys()):
+
+    provider = mcp.local_provider
+    names = [t.name for t in asyncio.run(provider.list_tools())]
+    removed = 0
+    for name in names:
         if classify_risk(name) != RiskLevel.READ:
-            del mcp._tool_manager._tools[name]
-    _removed = len(_all_tools) - len(mcp._tool_manager._tools)
-    import logging as _logging
-    _logging.getLogger(__name__).info(
-        "READ-ONLY MODE: Removed %d non-read tools. %d read-only tools available.",
-        _removed, len(mcp._tool_manager._tools),
+            provider.remove_tool(name)
+            removed += 1
+    logger.info(
+        "READ-ONLY MODE: removed %d non-read tools; %d read-only tools available.",
+        removed, len(names) - removed,
     )
+    return removed
 
 
 # Main execution
@@ -109,6 +128,10 @@ def main():
             "Ensure TLS is terminated by a reverse proxy (nginx, Caddy) in production.",
             args.host,
         )
+
+    # Apply the read-only tool filter (no-op unless MCP_READ_ONLY=true) before
+    # the server begins serving.
+    apply_read_only_filter()
 
     # Test connection before starting server
     async def test_conn():
