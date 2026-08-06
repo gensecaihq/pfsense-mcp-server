@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 Post-1.0.0 bug fixes and quality improvements, all merged to `main`. No tool
-count change (still 327); test suite grew from 308 to 381.
+count change (still 327); test suite grew from 308 to 385.
 
 ### Added
 
@@ -27,6 +27,7 @@ count change (still 327); test suite grew from 308 to 381.
 
 ### Fixed
 
+- **WireGuard peers and tunnels were misconfigured or rejected.** Peers sent `keepalive` (upstream field is `persistentkeepalive`), referenced their tunnel by array-index `id` instead of by name (`tun` is a name reference upstream), and sent `port`/`listenport` as integers where the upstream PortField is string-typed. New peers were also created without `enabled`, which defaults to *false* upstream — so an MCP-created peer was inert until separately enabled. `create`/`update_wireguard_peer` and `create`/`update_wireguard_tunnel` now send `persistentkeepalive`, tunnel names, string ports, and an explicit `enabled` (default True). Verified against the pkg-RESTAPI v2.9.0 contract.
 - **User groups and LDAP auth servers could not be configured.** Groups sent `descr` (upstream field is `description`) and `member` as array-index user IDs (upstream references users by **name**), so descriptions and membership never took. LDAP auth-server tools sent generic `port`/`transport`/`scope`/`basedn`/`authcn` with a `tcp`/`ssl`/`starttls` transport vocabulary; upstream uses `ldap_port`/`ldap_urltype`/`ldap_scope`/`ldap_basedn`/`ldap_authcn` with url-type values `Standard TCP`/`STARTTLS Encrypt`/`SSL/TLS Encrypted`, and the port fields are string-typed — so LDAP servers could never be created. All corrected (tool parameter names unchanged); RADIUS auth-server ports are likewise coerced to strings.
 - **Certificate & CA import, renewal, and PKCS#12 export were all non-functional.** Import sent `cert` (upstream field is `crt`) plus an unknown `method` key, so `create_certificate`/`create_certificate_authority` 400'd; internal generation was POSTed to the *import* endpoint, where its key/DN fields were silently dropped. `create_certificate`/`create_certificate_authority` now route `method="import"` to the import endpoint (`crt`/`prv`) and `method="internal"` to `/generate` (with a new `ecname` parameter, required for ECDSA); `update_certificate`/`update_certificate_authority` send `crt`; `generate_certificate` drops the bogus `method` and sends `ecname` for ECDSA keys. `renew_certificate` and `export_certificate_pkcs12` sent the non-persistent array index as `id`, but both endpoints key on `certref` (the certificate's stable refid) — they now resolve the refid first. Verified field-by-field against the pkg-RESTAPI v2.9.0 contract.
 - **Boolean search filters returned inverted results.** `QueryFilter` serialized Python bools with `str()`, yielding `"True"`/`"False"`; the pfSense query engine only coerces the lowercase `true`/`false` to booleans and loose-compares everything else as truthy. So `search_firewall_rules(disabled=False)` — "show enabled rules" — returned exactly the *disabled* rules. `QueryFilter.to_param` now lowercases booleans, fixing the whole class at the root.
