@@ -28,10 +28,11 @@ class TestSearchServices:
         result = await _search_services(status_filter="running")
         assert result["success"] is True
         mock_make_request.assert_called_once()
-        # Verify it called find_running_services path (GET /status/services with running filter)
+        # Service.status is boolean upstream: running must filter status=True
+        # (the old string "running" loose-matched everything).
         call_kwargs = mock_make_request.call_args
         filters = call_kwargs.kwargs.get("filters") or call_kwargs[1].get("filters")
-        assert any(f.field == "status" and f.value == "running" for f in filters)
+        assert any(f.field == "status" and f.value is True for f in filters)
 
     async def test_stopped_filter(self, mock_client, mock_make_request, services_response):
         mock_make_request.return_value = services_response
@@ -39,7 +40,8 @@ class TestSearchServices:
         assert result["success"] is True
         call_kwargs = mock_make_request.call_args
         filters = call_kwargs.kwargs.get("filters") or call_kwargs[1].get("filters")
-        assert any(f.field == "status" and f.value == "stopped" for f in filters)
+        # stopped must filter status=False (the old "stopped" returned running services)
+        assert any(f.field == "status" and f.value is False for f in filters)
 
     async def test_search_term_with_status(self, mock_client, mock_make_request):
         mock_make_request.return_value = {
