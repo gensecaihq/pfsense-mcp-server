@@ -1050,7 +1050,8 @@ async def get_openvpn_status() -> Dict:
 # 12. export_openvpn_client_config
 # ---------------------------------------------------------------------------
 
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def export_openvpn_client_config(
     server_id: int,
     common_name: Optional[str] = None,
