@@ -215,7 +215,7 @@ async def get_api_capabilities() -> Dict:
             "success": True,
             "api_version": "v2",
             "package": "jaredhendrickson13/pfsense-api",
-            "pfsense_version": os.getenv("PFSENSE_VERSION", "CE_2_8_0"),
+            "pfsense_version": os.getenv("PFSENSE_VERSION", "CE_2_8_1"),
             "capabilities": capabilities.get("data", capabilities),
             "features": {
                 "object_ids": "Dynamic, non-persistent",

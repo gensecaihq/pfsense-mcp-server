@@ -36,7 +36,7 @@ class EnhancedPfSenseAPIClient:
         api_key: Optional[str] = None,
         verify_ssl: bool = True,
         timeout: int = 30,
-        version: PfSenseVersion = PfSenseVersion.CE_2_8_0,
+        version: PfSenseVersion = PfSenseVersion.CE_2_8_1,
         enable_hateoas: bool = False
     ):
         self.host = host.rstrip('/')
