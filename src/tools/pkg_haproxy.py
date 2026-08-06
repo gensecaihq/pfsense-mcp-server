@@ -11,6 +11,7 @@ from mcp.types import ToolAnnotations
 from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
+    create_pagination,
     create_search_pagination,
     sanitize_description,
 )
@@ -703,6 +704,7 @@ async def search_haproxy_frontend_addresses(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_haproxy_frontend_address(
     action: str,
     parent_id: int,
@@ -854,6 +856,7 @@ async def search_haproxy_frontend_certificates(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_haproxy_frontend_certificate(
     action: str,
     parent_id: int,

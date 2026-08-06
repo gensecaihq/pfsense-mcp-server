@@ -302,6 +302,7 @@ async def search_acme_certificate_domains(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_acme_certificate_domain(
     action: str,
     parent_id: int,

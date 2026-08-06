@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Post-1.0.0 bug fixes and quality improvements, all merged to `main`. Tool count grew from 327 to 333; test suite grew from 308 to 425.
+Post-1.0.0 bug fixes and quality improvements, all merged to `main`. Tool count grew from 327 to 333; test suite grew from 308 to 467.
 
 ### Added
 

@@ -9,12 +9,12 @@ from src.tools.pkg_haproxy import (
     update_haproxy_frontend,
 )
 
-_create_haproxy_frontend = create_haproxy_frontend.fn
-_update_haproxy_frontend = update_haproxy_frontend.fn
-_search_haproxy_frontend_addresses = search_haproxy_frontend_addresses.fn
-_manage_haproxy_frontend_address = manage_haproxy_frontend_address.fn
-_search_haproxy_frontend_certificates = search_haproxy_frontend_certificates.fn
-_manage_haproxy_frontend_certificate = manage_haproxy_frontend_certificate.fn
+_create_haproxy_frontend = create_haproxy_frontend
+_update_haproxy_frontend = update_haproxy_frontend
+_search_haproxy_frontend_addresses = search_haproxy_frontend_addresses
+_manage_haproxy_frontend_address = manage_haproxy_frontend_address
+_search_haproxy_frontend_certificates = search_haproxy_frontend_certificates
+_manage_haproxy_frontend_certificate = manage_haproxy_frontend_certificate
 
 
 # ---------------------------------------------------------------------------

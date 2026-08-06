@@ -9,12 +9,12 @@ from src.tools.pkg_acme import (
     update_acme_certificate,
 )
 
-_create_acme_certificate = create_acme_certificate.fn
-_update_acme_certificate = update_acme_certificate.fn
-_search_acme_certificate_domains = search_acme_certificate_domains.fn
-_manage_acme_certificate_domain = manage_acme_certificate_domain.fn
-_issue_acme_certificate = issue_acme_certificate.fn
-_renew_acme_certificate = renew_acme_certificate.fn
+_create_acme_certificate = create_acme_certificate
+_update_acme_certificate = update_acme_certificate
+_search_acme_certificate_domains = search_acme_certificate_domains
+_manage_acme_certificate_domain = manage_acme_certificate_domain
+_issue_acme_certificate = issue_acme_certificate
+_renew_acme_certificate = renew_acme_certificate
 
 
 # ---------------------------------------------------------------------------
