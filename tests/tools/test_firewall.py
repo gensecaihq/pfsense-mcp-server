@@ -42,6 +42,21 @@ class TestSearchFirewallRules:
         filters = call_kwargs.kwargs.get("filters") or call_kwargs[1].get("filters")
         assert any(f.field == "interface" and f.value == "lan" for f in filters)
 
+    async def test_disabled_false_serializes_lowercase(
+        self, mock_client, mock_make_request, firewall_rules_response
+    ):
+        """disabled=False must reach the wire as "false", not "False".
+
+        Upstream loose-compares "False" as truthy, so the old value inverted the
+        query — asking for enabled rules returned the disabled ones.
+        """
+        mock_make_request.return_value = firewall_rules_response
+        await _search_firewall_rules(disabled=False)
+        call_kwargs = mock_make_request.call_args
+        filters = call_kwargs.kwargs.get("filters") or call_kwargs[1].get("filters")
+        disabled_filter = next(f for f in filters if f.field == "disabled")
+        assert disabled_filter.to_param() == ("disabled", "false")
+
     async def test_multiple_filters(self, mock_client, mock_make_request, firewall_rules_response):
         mock_make_request.return_value = firewall_rules_response
         result = await _search_firewall_rules(

@@ -48,12 +48,27 @@ class QueryFilter:
                 f"Must be one of: {', '.join(sorted(self.VALID_OPERATORS))}"
             )
 
+    @staticmethod
+    def _wire_value(value: Any) -> str:
+        """Serialize a filter value the way the pfSense query engine parses it.
+
+        The API's ``infer_type`` only coerces the lowercase strings ``true`` /
+        ``false`` to booleans; Python's ``str(True)`` yields ``"True"``, which
+        stays a (truthy) string and, under the engine's loose ``==``, makes a
+        ``disabled=False`` query match the *disabled* rules — a silent inversion.
+        Lowercasing bools fixes the whole class at the root.
+        """
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)
+
     def to_param(self) -> Tuple[str, str]:
         """Convert filter to a (key, value) tuple for URL parameters."""
+        wire = self._wire_value(self.value)
         if self.operator == "exact":
-            return (self.field, str(self.value))
+            return (self.field, wire)
         else:
-            return (f"{self.field}__{self.operator}", str(self.value))
+            return (f"{self.field}__{self.operator}", wire)
 
 
 @dataclass
