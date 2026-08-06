@@ -9,6 +9,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_pagination,
+    create_search_pagination,
     normalize_mac_address,
     validate_ip_address,
 )
@@ -88,7 +89,7 @@ async def search_dhcp_leases(
             # DHCP uses 'active_status' field, not 'state'
             filters.append(QueryFilter("active_status", state))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by, descending=True)
 
         leases = await client.get_dhcp_leases(

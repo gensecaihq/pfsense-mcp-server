@@ -11,7 +11,7 @@ from mcp.types import ToolAnnotations
 from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
-    create_pagination,
+    create_search_pagination,
     sanitize_description,
     validate_port_value,
     validate_subnet,
@@ -78,7 +78,7 @@ async def search_openvpn_servers(
         if mode:
             filters.append(QueryFilter("mode", mode))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -464,7 +464,7 @@ async def search_openvpn_clients(
         if server_addr:
             filters.append(QueryFilter("server_addr", server_addr, "contains"))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -820,7 +820,7 @@ async def search_openvpn_csos(
             # upstream field is server_list (the CSO has no server_id)
             filters.append(QueryFilter("server_list", server))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(

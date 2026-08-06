@@ -9,7 +9,11 @@ from mcp.types import ToolAnnotations
 # Users
 # ------------------------------------------------------------------ #
 from ..guardrails import guarded, rate_limited
-from ..helpers import create_default_sort, create_pagination, sanitize_description
+from ..helpers import (
+    create_default_sort,
+    create_search_pagination,
+    sanitize_description,
+)
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
 
@@ -45,7 +49,7 @@ async def search_users(
         if search_term:
             filters.append(QueryFilter("name", search_term, "contains"))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.get_users(
@@ -276,7 +280,7 @@ async def search_groups(
         if search_term:
             filters.append(QueryFilter("name", search_term, "contains"))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.get_groups(
@@ -490,7 +494,7 @@ async def search_auth_servers(
         if search_term:
             filters.append(QueryFilter("name", search_term, "contains"))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.get_auth_servers(

@@ -108,6 +108,23 @@ def create_pagination(page: int, page_size: int = 50) -> tuple:
     return PaginationOptions(limit=safe_size, offset=offset), page, safe_size
 
 
+def create_search_pagination(page: int, page_size: int, search_term=None) -> tuple:
+    """Pagination for a tool that filters ``search_term`` client-side.
+
+    When a search term is active, the client-side filter runs *after* the server
+    returns a page — so a normal per-page window silently hides matches beyond
+    that page. To fix this class of bug, this returns a full-window fetch
+    (offset 0, limit = the ``MAX_PAGE_SIZE`` cap) whenever ``search_term`` is set,
+    so the filter sees every object (up to the cap). With no search term it
+    behaves exactly like :func:`create_pagination`.
+
+    Returns ``(PaginationOptions, normalized_page, normalized_page_size)``.
+    """
+    if search_term:
+        return PaginationOptions(limit=MAX_PAGE_SIZE, offset=0), 1, MAX_PAGE_SIZE
+    return create_pagination(page, page_size)
+
+
 def create_default_sort(field: str, descending: bool = False) -> SortOptions:
     """Create default sort options"""
     return SortOptions(

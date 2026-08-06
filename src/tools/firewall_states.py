@@ -9,7 +9,7 @@ from mcp.types import ToolAnnotations
 # Firewall States
 # ---------------------------------------------------------------------------
 from ..guardrails import guarded
-from ..helpers import create_default_sort, create_pagination
+from ..helpers import create_default_sort, create_search_pagination
 from ..models import ControlParameters
 from ..server import get_api_client, logger, mcp
 
@@ -31,7 +31,7 @@ async def search_firewall_states(
     """
     client = get_api_client()
     try:
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(

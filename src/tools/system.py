@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 
 from mcp.types import ToolAnnotations
 
-from ..helpers import create_default_sort, create_pagination
+from ..helpers import create_default_sort, create_pagination, create_search_pagination
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
 
@@ -58,7 +58,7 @@ async def search_interfaces(
         if status_filter:
             filters.append(QueryFilter("status", status_filter))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         interfaces = await client.get_interfaces(
