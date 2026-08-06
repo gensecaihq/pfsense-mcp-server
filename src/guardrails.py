@@ -235,18 +235,38 @@ def _build_impact_summary(tool_name: str, params: Dict) -> str:
     return f"Will execute {tool_name.replace('_', ' ')} on the live pfSense appliance."
 
 
+# Exact field names that hold secrets but don't contain an obvious secret word.
+_SECRET_EXACT_KEYS = {
+    "prv", "pwd", "passwd", "key", "api_key", "token", "jwt_token",
+    "bearer_token", "ipsecpsk", "radius_secret", "ldap_bindpw", "cert",
+    "certificate", "do_pw", "do_letoken",
+}
+# Substrings that reliably indicate a secret regardless of the exact field name.
+# Deliberately excludes bare "key" (would hit publickey/keylen/keytype) — the
+# private-key fields are matched by "privatekey"/"prv"/"secret"/"psk" instead.
+_SECRET_SUBSTRINGS = (
+    "password", "passwd", "passphrase", "secret", "psk", "bindpw",
+    "authorizedkey", "privatekey", "private_key", "pre_shared_key",
+    "presharedkey", "apitoken", "auth_pass", "_pw",
+)
+
+
+def _is_secret_key(key: str) -> bool:
+    k = key.lower()
+    return k in _SECRET_EXACT_KEYS or any(sub in k for sub in _SECRET_SUBSTRINGS)
+
+
 def _redact_sensitive(params: Dict) -> Dict:
     """Redact sensitive values from parameters for display.
 
-    Passwords, keys, and secrets are replaced with '***REDACTED***'.
+    Passwords, keys, and secrets are replaced with '***REDACTED***'. Field names
+    are matched by an exact-name set plus secret-indicating substrings so
+    provider-specific fields (radius_secret, ldap_bindpw, ipsecpsk,
+    webrootftppassword, cpanel_apitoken, dnsexit_auth_pass, ...) are caught too.
     """
-    sensitive_keys = {"password", "pre_shared_key", "presharedkey", "privatekey",
-                      "secret", "passphrase", "api_key", "prv", "key",
-                      "pwd", "passwd", "token", "jwt_token", "bearer_token",
-                      "cert", "certificate"}
     redacted = {}
     for k, v in params.items():
-        if k.lower() in sensitive_keys:
+        if _is_secret_key(k):
             redacted[k] = "***REDACTED***"
         elif isinstance(v, dict):
             redacted[k] = _redact_sensitive(v)

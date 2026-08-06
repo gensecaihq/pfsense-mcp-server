@@ -10,6 +10,7 @@ from urllib.parse import urlencode, urlparse
 
 import httpx
 
+from .guardrails import _redact_sensitive
 from .models import (
     AuthMethod,
     ControlParameters,
@@ -269,14 +270,16 @@ class EnhancedPfSenseAPIClient:
 
         # Enhanced error handling
         if response.status_code >= 400:
-            error_body = response.text
             try:
                 error_json = response.json()
                 error_message = error_json.get('message', 'Unknown error')
-                error_detail = json.dumps(error_json, indent=2)
+                # pfSense error bodies echo the offending field values, which can
+                # include submitted secrets (password/pre_shared_key/ldap_bindpw/
+                # radius_secret/...). Redact before it reaches tool output or logs.
+                error_detail = json.dumps(_redact_sensitive(error_json), indent=2)
             except Exception:
-                error_message = error_body
-                error_detail = error_body
+                error_message = "Unknown error"
+                error_detail = "(non-JSON error body withheld to avoid leaking secrets)"
 
             # Log error info at DEBUG level (endpoint only, no sensitive data)
             logger.debug(

@@ -86,6 +86,38 @@ def apply_read_only_filter() -> int:
     return removed
 
 
+_MIN_API_KEY_LEN = 16
+_PLACEHOLDER_KEYS = {"changeme", "change-me", "your-token-here", "secret", "token"}
+
+
+def mcp_api_key_error(api_key):
+    """Return an error string if MCP_API_KEY is unusable, else None.
+
+    Rejects an unset key, the documented ``CHANGE-ME`` placeholder, and tokens
+    too short to be a real secret — so an HTTP deployment can't boot with a
+    publicly-known or trivially-guessable bearer token. Supports the
+    comma-separated multi-key form; every key must be valid.
+    """
+    if not api_key or not api_key.strip():
+        return (
+            "MCP_API_KEY must be set for streamable-http transport. "
+            "Set MCP_API_KEY or use --transport stdio."
+        )
+    for key in (k.strip() for k in api_key.split(",") if k.strip()):
+        low = key.lower()
+        if low in _PLACEHOLDER_KEYS or low.startswith("change-me") or low.startswith("changeme"):
+            return (
+                "MCP_API_KEY is set to a placeholder value. Generate a real token, "
+                "e.g. `python -c \"import secrets; print(secrets.token_urlsafe(32))\"`."
+            )
+        if len(key) < _MIN_API_KEY_LEN:
+            return (
+                f"MCP_API_KEY token is too short ({len(key)} chars); "
+                f"use at least {_MIN_API_KEY_LEN} characters of entropy."
+            )
+    return None
+
+
 # Main execution
 def main():
     """Main entry point for the Enhanced pfSense MCP Server"""
@@ -178,13 +210,12 @@ def main():
 
         app = mcp.http_app()
 
-        # Require bearer auth for HTTP transport — fail closed
+        # Require a real bearer token for HTTP transport — fail closed on unset,
+        # placeholder, or weak keys.
         api_key = os.getenv("MCP_API_KEY")
-        if not api_key:
-            logger.error(
-                "MCP_API_KEY must be set for streamable-http transport. "
-                "Set MCP_API_KEY or use --transport stdio."
-            )
+        key_error = mcp_api_key_error(api_key)
+        if key_error:
+            logger.error(key_error)
             sys.exit(1)
         # Parse allowed origins from env (comma-separated) or use defaults
         allowed_origins_str = os.getenv("MCP_ALLOWED_ORIGINS", "")

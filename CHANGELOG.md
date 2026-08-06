@@ -8,10 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 Post-1.0.0 bug fixes and quality improvements, all merged to `main`. No tool
-count change (still 327); test suite grew from 308 to 400.
+count change (still 327); test suite grew from 308 to 408.
 
 ### Added
 
+- **`SECURITY.md`** — private vulnerability-disclosure policy and deployment-hardening guidance for a firewall-management tool.
 - **Wire-contract test layer.** `scripts/generate_contract.py` distills the
   upstream pfSense REST API OpenAPI spec (a pkg-RESTAPI release asset) into a
   slim, vendored contract (`tests/contract/contract-v2.9.0.json`) of every
@@ -27,6 +28,8 @@ count change (still 327); test suite grew from 308 to 400.
 
 ### Fixed
 
+- **Secrets could leak through echoed API error bodies.** On a 4xx, pfSense echoes the offending field values (which can include a submitted `password`/`pre_shared_key`/`ldap_bindpw`/`radius_secret`/…), and the full body was surfaced in the tool's error and logs. Error bodies are now run through the secret redactor before display, and a non-JSON error body is withheld entirely. The redactor's field list was widened from exact-match to include secret-indicating substrings, so provider-specific fields (`radius_secret`, `ldap_bindpw`, `ipsecpsk`, `authorizedkeys`, `webrootftppassword`, `cpanel_apitoken`, …) are caught without over-redacting public fields like `publickey`/`keylen`.
+- **HTTP transport could boot with a publicly-known bearer token.** Startup previously rejected only an *empty* `MCP_API_KEY`, so a deployment left on the documented `CHANGE-ME` placeholder would run with a guessable token. It now also rejects placeholder values and tokens shorter than 16 characters (per key, for the comma-separated multi-key form).
 - **33 mutating tools shipped with no guardrails at all** — no rate limiting, input sanitization, allowlist check, or audit trail. These included every `apply_*_changes` tool and `control_service` (which can stop `sshd`/`dhcpd`/`unbound`). All 33 now carry `@rate_limited`. A new registration-time meta-test (`tests/test_guardrail_coverage.py`) fails if any non-READ tool is undecorated or any HIGH/CRITICAL tool lacks the full `@guarded` confirm gate, so a forgotten decorator can no longer ship a silently-ungated tool. (The `@guarded`/`@rate_limited` decorators now carry a `_guardrail` marker for this check.)
 - **Search tools missed matches beyond the first page.** 45 `search_*` tools filter their `search_term` client-side, but did so *after* server-side pagination — so a match on page 2+ was silently invisible and the returned `count` was wrong. A new `create_search_pagination` helper fetches the full window (up to the 200-object `MAX_PAGE_SIZE` cap) whenever a search term is active, so the filter sees every object; non-search listing is unchanged. (Configs larger than 200 objects of one type still only search the top 200 — the API's memory-safety cap.)
 - **IPsec Phase 2 encryption entries could not be created.** The `IPsecPhase2Encryption` model has only `name` and `keylen`, but `create`/`update_ipsec_phase2_encryption` sent `encryption_algorithm_name`/`encryption_algorithm_keylen` plus phase1-only fields (`hash_algorithm`/`dhgroup`/`prf_algorithm`), so create 400'd on the missing required `name` and the extras were silently dropped. Now sends `name`/`keylen`; the phase1-only params are accepted for compatibility but no longer sent, and the search default sort moved to `name`. (The Phase 1/Phase 2 *create* tools require nested `encryption`/`hash_algorithm_option` proposal models that still need live validation before rebuild — tracked as a follow-up.) Verified against the pkg-RESTAPI v2.9.0 contract.
