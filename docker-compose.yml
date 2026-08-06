@@ -9,7 +9,7 @@ services:
     environment:
       # pfSense connection
       PFSENSE_URL: ${PFSENSE_URL}
-      PFSENSE_VERSION: ${PFSENSE_VERSION:-CE_2_8_0}
+      PFSENSE_VERSION: ${PFSENSE_VERSION:-CE_2_8_1}
       AUTH_METHOD: ${AUTH_METHOD:-api_key}
       PFSENSE_API_KEY: ${PFSENSE_API_KEY:-}
       PFSENSE_USERNAME: ${PFSENSE_USERNAME:-}

@@ -157,14 +157,22 @@ You can also:
 
 ## Supported pfSense Versions
 
-| Version | REST API | Status |
+| Version | REST API package | Status |
 |---|---|---|
-| pfSense CE 2.8.1 | [v2.7.3](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases) | Verified |
-| pfSense Plus 25.11 | [v2.7.3](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases) | Verified |
-| pfSense CE 2.8.0 | v2.6.0+ | Supported |
-| pfSense Plus 24.11 | v2.6.0+ | Supported |
+| pfSense CE 2.8.1 | [v2.9.0](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/tag/v2.9.0) (latest) | Verified |
+| pfSense Plus 26.03.1 | [v2.9.0](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/tag/v2.9.0) (latest) | Supported |
+| pfSense Plus 26.03 | [v2.9.0](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/tag/v2.9.0) (latest) | Verified |
+| pfSense Plus 25.11.1 | [v2.9.0](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/tag/v2.9.0) (latest) | Supported |
+| pfSense Plus 25.11 | [v2.7.3](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/tag/v2.7.3) (legacy) | Verified |
+| pfSense CE 2.8.0 | [v2.7.3](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/tag/v2.7.3) (legacy) | Supported |
+| pfSense Plus 24.11 | [v2.7.3](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/tag/v2.7.3) (legacy) | Supported |
 
-Requires the [pfSense REST API v2 package](https://github.com/pfrest/pfSense-pkg-RESTAPI) by [jaredhendrickson13](https://github.com/jaredhendrickson13).
+Requires the [pfSense REST API v2 package](https://github.com/pfrest/pfSense-pkg-RESTAPI) by [jaredhendrickson13](https://github.com/jaredhendrickson13). Package v2.8.x+ ships builds only for CE 2.8.1 and Plus 25.11.1/26.03/26.03.1; v2.7.3 is the last release with builds for CE 2.8.0 and Plus 24.11/25.11.
+
+> **Security note:** REST API package releases before v2.9.0 are affected by
+> [GHSA-8q8g-9f77-8g8g](https://github.com/pfrest/pfSense-pkg-RESTAPI/security/advisories/GHSA-8q8g-9f77-8g8g)
+> (privilege escalation via the settings-sync endpoint). Upgrade the package to
+> v2.9.0+ where a build exists for your pfSense version.
 
 ## Authentication
 

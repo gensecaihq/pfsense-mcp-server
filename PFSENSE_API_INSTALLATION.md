@@ -4,12 +4,21 @@
 
 | pfSense Version | REST API Package | Install Command |
 |---|---|---|
-| pfSense CE 2.8.1 | v2.7.3 | `pkg-static add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/latest/download/pfSense-2.8.1-pkg-RESTAPI.pkg` |
-| pfSense Plus 25.11 | v2.7.3 | `pkg-static -C /dev/null add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/latest/download/pfSense-25.11-pkg-RESTAPI.pkg` |
-| pfSense CE 2.8.0 | v2.6.0+ | Use the 2.8.0 package from [releases](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases) |
-| pfSense Plus 24.11 | v2.6.0+ | Use the 24.11 package from [releases](https://github.com/pfrest/pfSense-pkg-RESTAPI/releases) |
+| pfSense CE 2.8.1 | v2.9.0 (latest) | `pkg-static add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/latest/download/pfSense-2.8.1-pkg-RESTAPI.pkg` |
+| pfSense Plus 26.03.1 | v2.9.0 (latest) | `pkg-static -C /dev/null add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/latest/download/pfSense-26.03.1-pkg-RESTAPI.pkg` |
+| pfSense Plus 26.03 | v2.9.0 (latest) | `pkg-static -C /dev/null add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/latest/download/pfSense-26.03-pkg-RESTAPI.pkg` |
+| pfSense Plus 25.11.1 | v2.9.0 (latest) | `pkg-static -C /dev/null add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/latest/download/pfSense-25.11.1-pkg-RESTAPI.pkg` |
+| pfSense Plus 25.11 | v2.7.3 (legacy) | `pkg-static -C /dev/null add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/download/v2.7.3/pfSense-25.11-pkg-RESTAPI.pkg` |
+| pfSense CE 2.8.0 | v2.7.3 (legacy) | `pkg-static add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/download/v2.7.3/pfSense-2.8.0-pkg-RESTAPI.pkg` |
+| pfSense Plus 24.11 | v2.7.3 (legacy) | `pkg-static -C /dev/null add https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/download/v2.7.3/pfSense-24.11-pkg-RESTAPI.pkg` |
 
 Only amd64 (64-bit) builds are supported. Check https://github.com/pfrest/pfSense-pkg-RESTAPI/releases for the correct package matching your exact pfSense version.
+
+> **Security note:** package releases before v2.9.0 are affected by
+> [GHSA-8q8g-9f77-8g8g](https://github.com/pfrest/pfSense-pkg-RESTAPI/security/advisories/GHSA-8q8g-9f77-8g8g)
+> (privilege escalation via `/api/v2/system/restapi/settings/sync`). Use v2.9.0+
+> where a build exists for your pfSense version; on legacy versions stuck on
+> v2.7.3, keep the REST API settings-sync (HA sync) feature disabled unless needed.
 
 ## Installation
 

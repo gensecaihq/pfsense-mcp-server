@@ -55,20 +55,14 @@ def get_api_client() -> EnhancedPfSenseAPIClient:
     """Get or create enhanced API client"""
     global api_client
     if api_client is None:
-        # Determine version
-        pf_version = os.getenv("PFSENSE_VERSION", "CE_2_8_0")
-        version_map = {
-            "CE_2_8_0": PfSenseVersion.CE_2_8_0,
-            "CE_2_8_1": PfSenseVersion.CE_2_8_1,
-            "CE_26_03": PfSenseVersion.CE_26_03,
-            "PLUS_24_11": PfSenseVersion.PLUS_24_11,
-            "PLUS_25_11": PfSenseVersion.PLUS_25_11,
-        }
-        version = version_map.get(pf_version)
+        # Determine version. __members__ includes aliases (e.g. the
+        # historical CE_26_03 name for Plus 26.03), so old configs keep working.
+        pf_version = os.getenv("PFSENSE_VERSION", "CE_2_8_1")
+        version = PfSenseVersion.__members__.get(pf_version)
         if version is None:
             raise ValueError(
                 f"PFSENSE_VERSION='{pf_version}' is not recognized. "
-                f"Valid options: {', '.join(version_map.keys())}"
+                f"Valid options: {', '.join(PfSenseVersion.__members__.keys())}"
             )
 
         # Determine auth method
