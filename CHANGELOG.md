@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 Post-1.0.0 bug fixes and quality improvements, all merged to `main`. No tool
-count change (still 327); test suite grew from 308 to 353.
+count change (still 327); test suite grew from 308 to 356.
 
 ### Added
 
@@ -24,6 +24,8 @@ count change (still 327); test suite grew from 308 to 353.
 
 ### Fixed
 
+- **`MCP_READ_ONLY=true` crashed the server at startup** (regression from the FastMCP 3.4.6 upgrade). The read-only tool reduction reached into FastMCP 2's private `mcp._tool_manager._tools`, which FastMCP 3 removed, so the documented least-privilege mode raised `AttributeError` and would not start. It now uses FastMCP's public `mcp.local_provider` API (`list_tools` / `remove_tool`), producing the same 130 read-only tools. The reduction also moved out of module-import scope into `main()` (as `apply_read_only_filter()`): doing async work while the module was still importing could deadlock against Python 3.11's import lock. Added `tests/test_read_only_mode.py`, which runs the filter in isolated subprocesses (hard timeout, hermetic env) so neither the crash nor the hang can regress silently.
+- **`src.__version__` reported `5.0.0`** while every other version string (`pyproject.toml`, `server.py`, `Dockerfile`) said `1.0.0`. `src/__init__.py` now derives `__version__` from `server.VERSION`, single-sourcing the two.
 - **DNS Resolver DHCP registration was a silent no-op.** `update_dns_resolver_settings` mapped `register_dhcp`/`register_dhcp_static` to themselves, but the upstream fields are `regdhcp`/`regdhcpstatic`; PATCH silently dropped the unknown keys and reported success. Now mapped correctly (tool parameter names unchanged).
 - **DHCP DNS-server override always failed.** `create_dhcp_static_mapping` and `update_dhcp_server_config` sent `dnsserver` as a bare string, but upstream it is an array of up to 4 strings. The tools now accept one value or a comma/space-separated list, validate each as an IP, and send an array.
 - **DNS Resolver access-list tools could not create or update.** They sent `aclname`/`aclaction`/`descr` (internal-only names) with underscore action values; upstream uses `name`/`action`/`description` with space-separated actions (`allow snoop`, `deny nonlocal`, `refuse nonlocal`). Create 400'd; update silently no-op'd. The tools keep their ergonomic parameter names/spellings and map to the wire values; `search_dns_access_lists` default sort moved from `aclname` to `name`.
