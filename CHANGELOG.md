@@ -13,6 +13,7 @@ count change (still 327); test suite grew from 308 to 323.
 ### Fixed
 
 - **`remove_from_alias` failed on aliases with per-entry descriptions** (400 `TOO_MANY_ALIAS_DETAILS`). The API's remove control flag strips only `address` entries, leaving the parallel `detail` list longer than the address list, which the API then rejects. `manage_alias_addresses(action="remove")` now reads the alias and rebuilds both lists in lockstep before PATCHing.
+- **`create_firewall_schedule` could not actually create a schedule.** The pfSense API requires at least one time range at creation ("Field `timerange` is required"), but the tool never sent one. It now takes `hour`/`position`/`month`/`day`/`rangedescr` for the initial time range (further ranges via `create_schedule_time_range`) and validates that either `position` (weekdays) or `month`+`day` is provided. Also corrected `month`/`day`/`position` on `create_schedule_time_range`/`update_schedule_time_range` from `str` to `List[int]` to match the API schema, with docstrings explaining pfSense's semantics (`position` = weekday numbers 1–7). Verified end-to-end against a live pfSense 26.03 instance.
 - **All `delete_*` tools were non-functional** (#12, PR #9, PR #16). `httpx.AsyncClient.delete()` does not accept a `json=` kwarg, so every delete (firewall rules, NAT, aliases, DHCP mappings, etc.) raised `TypeError` before any HTTP traffic. DELETE now routes through `client.request("DELETE", ...)`, which supports the JSON body pfSense requires.
 - **`update_log_settings` could not enable remote syslog and silently dropped fields** (#13, PR #11). The wire-format keys `ipproto` and `reverse` were ignored by the API; renamed to `ipprotocol` and `reverseorder`. Added `enableremotelogging` (the master toggle), `logconfigchanges`, and the per-category remote-syslog toggles (`auth`, `portalauth`, `vpn`, `dpinger`, `hostapd`, `system`, `resolver`, `ppp`, `routing`, `ntpd`).
 - **`update_webgui_settings` could not change the WebGUI port** (#7). The pfSense REST API requires `port` as a string; the tool now accepts an `int` for ergonomics and coerces it to a string before sending.
@@ -21,6 +22,7 @@ count change (still 327); test suite grew from 308 to 323.
 
 ### Added
 
+- **Schedule-based firewall rules.** The schedule tools (`create_firewall_schedule`, `create_schedule_time_range`, etc.) could build schedules, but no rule tool could reference one, so schedules were inert. `create_firewall_rule_advanced` and `update_firewall_rule` now expose a `schedule` parameter (sent as the API's `sched` field) to assign an existing schedule to a rule; on update, passing `""` detaches the schedule.
 - **IPv6 / dual-stack firewall rules** (PR #10). `create_firewall_rule_advanced` exposes an `ipprotocol` parameter (`inet`, `inet6`, `inet46`) with validation instead of hardcoding `inet`.
 - **uvx / pipx installation** (#8). Added a `pfsense-mcp-server` console entry point and setuptools package discovery, so the server can run without cloning the repository.
 

@@ -195,6 +195,24 @@ class TestCreateFirewallRuleAdvanced:
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[0][2]
         assert data["ipprotocol"] == "inet6"
 
+    async def test_schedule_threaded_through(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 11}}
+        await _create_firewall_rule_advanced(
+            interface="lan", rule_type="pass", protocol="tcp",
+            source="any", destination="any", schedule="BusinessHours",
+        )
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[0][2]
+        assert data["sched"] == "BusinessHours"
+
+    async def test_no_schedule_omits_sched(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 12}}
+        await _create_firewall_rule_advanced(
+            interface="lan", rule_type="pass", protocol="tcp",
+            source="any", destination="any",
+        )
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[0][2]
+        assert "sched" not in data
+
     async def test_ipprotocol_invalid_rejected(self, mock_client, mock_make_request):
         result = await _create_firewall_rule_advanced(
             interface="lan", rule_type="pass", protocol="tcp",
@@ -244,6 +262,22 @@ class TestUpdateFirewallRule:
         assert result["success"] is False
         assert "Invalid source_port" in result["error"]
         mock_make_request.assert_not_called()
+
+    async def test_schedule_field_mapping(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 3}}
+        result = await _update_firewall_rule(rule_id=3, schedule="BusinessHours")
+        assert result["success"] is True
+        assert "sched" in result["fields_updated"]
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["sched"] == "BusinessHours"
+
+    async def test_schedule_empty_string_clears(self, mock_client, mock_make_request):
+        """Passing schedule='' must send sched=null to detach the schedule."""
+        mock_make_request.return_value = {"data": {"id": 3}}
+        result = await _update_firewall_rule(rule_id=3, schedule="")
+        assert result["success"] is True
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["sched"] is None
 
 
 # ---------------------------------------------------------------------------
