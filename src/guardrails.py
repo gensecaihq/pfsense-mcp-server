@@ -681,6 +681,8 @@ def rate_limited(fn):
 
         return result
 
+    # Marker so a registration-time meta-test can verify guardrail coverage.
+    wrapper._guardrail = "rate_limited"
     return wrapper
 
 
@@ -782,4 +784,6 @@ def guarded(fn):
 
         return result
 
+    # Marker so a registration-time meta-test can verify guardrail coverage.
+    wrapper._guardrail = "guarded"
     return wrapper

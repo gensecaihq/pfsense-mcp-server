@@ -537,6 +537,7 @@ async def search_wireguard_peer_allowed_ips(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_wireguard_peer_allowed_ip(
     action: str,
     peer_id: int,
@@ -704,6 +705,7 @@ async def update_wireguard_settings(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_wireguard_changes() -> Dict:
     """Apply pending WireGuard configuration changes
 

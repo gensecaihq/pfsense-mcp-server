@@ -747,6 +747,7 @@ async def create_dns_access_list(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_dns_resolver_changes() -> Dict:
     """Apply pending DNS Resolver configuration changes
 

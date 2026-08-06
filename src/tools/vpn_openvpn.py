@@ -854,6 +854,7 @@ async def search_openvpn_csos(
 # ---------------------------------------------------------------------------
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@rate_limited
 async def manage_openvpn_cso(
     action: str,
     cso_id: Optional[int] = None,

@@ -135,6 +135,7 @@ async def search_ntp_time_servers(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_ntp_time_server(
     action: str,
     timeserver: Optional[str] = None,
@@ -417,6 +418,7 @@ async def search_service_watchdogs(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_service_watchdog(
     action: str,
     name: Optional[str] = None,
@@ -579,6 +581,7 @@ async def update_ssh_settings(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def send_wake_on_lan(
     interface: str,
     mac: str,

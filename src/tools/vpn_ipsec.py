@@ -739,6 +739,7 @@ async def delete_ipsec_phase1_encryption(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_ipsec_changes() -> Dict:
     """Apply pending IPsec configuration changes to the live system.
 

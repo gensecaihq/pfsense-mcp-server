@@ -270,6 +270,7 @@ async def delete_certificate(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def generate_certificate(
     descr: str,
     caref: str,
@@ -331,6 +332,7 @@ async def generate_certificate(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def renew_certificate(
     certificate_id: int,
 ) -> Dict:

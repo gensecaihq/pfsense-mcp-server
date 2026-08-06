@@ -287,6 +287,7 @@ async def search_dns_forwarder_host_override_aliases(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_dns_forwarder_host_override_alias(
     action: str,
     parent_id: int,
@@ -389,6 +390,7 @@ async def manage_dns_forwarder_host_override_alias(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_dns_forwarder_changes() -> Dict:
     """Apply pending DNS Forwarder changes
 

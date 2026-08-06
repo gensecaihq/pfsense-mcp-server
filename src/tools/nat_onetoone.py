@@ -258,6 +258,7 @@ async def delete_nat_onetoone_mapping(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_nat_onetoone_changes() -> Dict:
     """Apply pending 1:1 NAT changes
 

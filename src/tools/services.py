@@ -5,6 +5,7 @@ from typing import Dict, Optional
 
 from mcp.types import ToolAnnotations
 
+from ..guardrails import rate_limited
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
 
@@ -61,6 +62,7 @@ async def search_services(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def control_service(
     service_name: str,
     action: str
