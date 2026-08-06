@@ -527,12 +527,34 @@ class EnhancedPfSenseAPIClient:
         alias_id: int,
         addresses: List[str]
     ) -> Dict:
-        """Remove addresses from existing alias"""
-        control = ControlParameters(remove=True, apply=True)
+        """Remove addresses from existing alias.
 
+        Rebuilds the address and detail lists in lockstep rather than using
+        the API's remove flag: that flag strips only address entries, and the
+        API then rejects the alias because the parallel detail list has more
+        items than addresses (TOO_MANY_ALIAS_DETAILS).
+        """
+        current = await self._make_request(
+            "GET", "/firewall/alias",
+            extra_params={"id": str(alias_id)},
+        )
+        alias = current.get("data") or {}
+        cur_addresses = alias.get("address") or []
+        cur_details = alias.get("detail") or []
+        # Pad details to address length so indices stay aligned while filtering
+        cur_details = cur_details + [""] * (len(cur_addresses) - len(cur_details))
+
+        to_remove = set(addresses)
+        kept = [(a, d) for a, d in zip(cur_addresses, cur_details) if a not in to_remove]
+
+        control = ControlParameters(apply=True)
         return await self._make_request(
             "PATCH", "/firewall/alias",
-            data={"id": alias_id, "address": addresses},
+            data={
+                "id": alias_id,
+                "address": [a for a, _ in kept],
+                "detail": [d for _, d in kept],
+            },
             control=control
         )
 
