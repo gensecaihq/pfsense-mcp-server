@@ -68,6 +68,16 @@ class BearerAuthMiddleware:
             await self.app(scope, receive, send)
             return
 
+        # Unauthenticated liveness probe. Container/orchestrator health checks
+        # can't present a bearer token, so an authenticated /mcp probe would 401
+        # and mark the container permanently unhealthy. /health is a static,
+        # no-secret 200 handled here (never reaches the MCP app).
+        if scope["type"] == "http" and scope.get("path") == "/health":
+            from starlette.responses import JSONResponse
+            response = JSONResponse({"status": "ok"})
+            await response(scope, receive, send)
+            return
+
         # All other scope types (http, websocket) require auth
         headers = dict(scope.get("headers", []))
 

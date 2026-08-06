@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 Post-1.0.0 bug fixes and quality improvements, all merged to `main`. No tool
-count change (still 327); test suite grew from 308 to 408.
+count change (still 327); test suite grew from 308 to 411.
 
 ### Added
 
@@ -28,6 +28,7 @@ count change (still 327); test suite grew from 308 to 408.
 
 ### Fixed
 
+- **The Docker HTTP-mode health check could never pass.** The Dockerfile and compose health checks probed `/mcp` unauthenticated, but the bearer-auth middleware 401s every request without a token — so a `streamable-http` container reported unhealthy forever. The middleware now answers an unauthenticated, secret-free `/health` (200), and the health checks point at it; `/mcp` still requires a valid bearer token.
 - **Secrets could leak through echoed API error bodies.** On a 4xx, pfSense echoes the offending field values (which can include a submitted `password`/`pre_shared_key`/`ldap_bindpw`/`radius_secret`/…), and the full body was surfaced in the tool's error and logs. Error bodies are now run through the secret redactor before display, and a non-JSON error body is withheld entirely. The redactor's field list was widened from exact-match to include secret-indicating substrings, so provider-specific fields (`radius_secret`, `ldap_bindpw`, `ipsecpsk`, `authorizedkeys`, `webrootftppassword`, `cpanel_apitoken`, …) are caught without over-redacting public fields like `publickey`/`keylen`.
 - **HTTP transport could boot with a publicly-known bearer token.** Startup previously rejected only an *empty* `MCP_API_KEY`, so a deployment left on the documented `CHANGE-ME` placeholder would run with a guessable token. It now also rejects placeholder values and tokens shorter than 16 characters (per key, for the comma-separated multi-key form).
 - **33 mutating tools shipped with no guardrails at all** — no rate limiting, input sanitization, allowlist check, or audit trail. These included every `apply_*_changes` tool and `control_service` (which can stop `sshd`/`dhcpd`/`unbound`). All 33 now carry `@rate_limited`. A new registration-time meta-test (`tests/test_guardrail_coverage.py`) fails if any non-READ tool is undecorated or any HIGH/CRITICAL tool lacks the full `@guarded` confirm gate, so a forgotten decorator can no longer ship a silently-ungated tool. (The `@guarded`/`@rate_limited` decorators now carry a `_guardrail` marker for this check.)
