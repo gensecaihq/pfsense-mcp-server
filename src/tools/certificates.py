@@ -363,7 +363,8 @@ async def renew_certificate(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def export_certificate_pkcs12(
     certificate_id: int,
     passphrase: Optional[str] = None,

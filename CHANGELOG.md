@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 Post-1.0.0 bug fixes and quality improvements, all merged to `main`. No tool
-count change (still 327); test suite grew from 308 to 411.
+count change (still 327); test suite grew from 308 to 415.
 
 ### Added
 
@@ -28,6 +28,8 @@ count change (still 327); test suite grew from 308 to 411.
 
 ### Fixed
 
+- **A failed rollback-point capture was silently swallowed.** For HIGH/CRITICAL operations the `@guarded` gate captures the pre-change config revision so the change can be undone, but a capture failure was `except: pass` — the operation proceeded with no rollback pointer and no warning, contradicting the "always backs up" docs. The tool result now carries a `config_backup_warning` when no rollback point could be captured.
+- **`export_*` tools bypassed write-safety.** `export_certificate_pkcs12` (a private-key bundle) and `export_openvpn_client_config` were classified READ via the `export_` prefix and annotated `readOnlyHint=True`, so they were retained in `MCP_READ_ONLY` mode and skipped rate-limiting/audit despite issuing POSTs that extract secrets. They are now classified MEDIUM, `@rate_limited`, and annotated `readOnlyHint=False`.
 - **The Docker HTTP-mode health check could never pass.** The Dockerfile and compose health checks probed `/mcp` unauthenticated, but the bearer-auth middleware 401s every request without a token — so a `streamable-http` container reported unhealthy forever. The middleware now answers an unauthenticated, secret-free `/health` (200), and the health checks point at it; `/mcp` still requires a valid bearer token.
 - **Secrets could leak through echoed API error bodies.** On a 4xx, pfSense echoes the offending field values (which can include a submitted `password`/`pre_shared_key`/`ldap_bindpw`/`radius_secret`/…), and the full body was surfaced in the tool's error and logs. Error bodies are now run through the secret redactor before display, and a non-JSON error body is withheld entirely. The redactor's field list was widened from exact-match to include secret-indicating substrings, so provider-specific fields (`radius_secret`, `ldap_bindpw`, `ipsecpsk`, `authorizedkeys`, `webrootftppassword`, `cpanel_apitoken`, …) are caught without over-redacting public fields like `publickey`/`keylen`.
 - **HTTP transport could boot with a publicly-known bearer token.** Startup previously rejected only an *empty* `MCP_API_KEY`, so a deployment left on the documented `CHANGE-ME` placeholder would run with a guessable token. It now also rejects placeholder values and tokens shorter than 16 characters (per key, for the comma-separated multi-key form).

@@ -81,7 +81,11 @@ _RISK_CLASSIFICATION = {
     "check_": RiskLevel.READ,
     "diagnose_": RiskLevel.READ,
     "compare_": RiskLevel.READ,
-    "export_": RiskLevel.READ,
+    # export_* tools issue POSTs and can extract sensitive material (a PKCS#12
+    # private-key bundle, an OpenVPN client profile). They are NOT read-only:
+    # classify MEDIUM so they are rate-limited, audited, and excluded from
+    # MCP_READ_ONLY mode.
+    "export_": RiskLevel.MEDIUM,
     "system_status": RiskLevel.READ,
     "refresh_": RiskLevel.READ,
     "run_ping": RiskLevel.READ,
@@ -751,6 +755,7 @@ def guarded(fn):
 
         # Capture pre-change config revision for rollback
         pre_change_revision = None
+        rollback_capture_error = None
         risk = classify_risk(tool_name)
         if risk in (RiskLevel.HIGH, RiskLevel.CRITICAL):
             try:
@@ -767,11 +772,33 @@ def guarded(fn):
                         "time": _revisions[0].get("time"),
                         "description": _revisions[0].get("description", ""),
                     }
-            except Exception:
-                pass  # Non-critical — don't block the operation
+                else:
+                    rollback_capture_error = "no config-history revisions returned"
+            except Exception as e:
+                # Don't block the operation, but do NOT hide it: the caller is
+                # told (below) that no rollback point exists for this change.
+                rollback_capture_error = str(e)
+                logger.warning(
+                    "Rollback point capture failed for %s: %s", tool_name, e
+                )
 
         # Guardrails passed — execute the tool
         result = await fn(*args, **kwargs)
+
+        # Honesty: if a rollback point could not be captured for a HIGH/CRITICAL
+        # change, tell the caller rather than silently omitting the backup.
+        if (
+            isinstance(result, dict)
+            and result.get("success")
+            and pre_change_revision is None
+            and risk in (RiskLevel.HIGH, RiskLevel.CRITICAL)
+        ):
+            result["config_backup_warning"] = (
+                "No pre-change rollback point was captured for this operation"
+                + (f" ({rollback_capture_error})" if rollback_capture_error else "")
+                + ". If you need to undo it, restore manually from Diagnostics > "
+                "Config History."
+            )
 
         # Post-execution: attach pre-change revision for rollback
         if isinstance(result, dict) and pre_change_revision and result.get("success"):
