@@ -7,8 +7,8 @@ the exact field names the API expects, otherwise values are silently dropped
 
 from src.tools.system_advanced import update_log_settings, update_webgui_settings
 
-_update_log_settings = update_log_settings.fn
-_update_webgui_settings = update_webgui_settings.fn
+_update_log_settings = update_log_settings
+_update_webgui_settings = update_webgui_settings
 
 
 def _sent_data(mock_make_request):

@@ -2,7 +2,7 @@
 
 from src.tools.dns_resolver import update_dns_resolver_settings
 
-_update_dns_resolver_settings = update_dns_resolver_settings.fn
+_update_dns_resolver_settings = update_dns_resolver_settings
 
 
 def _sent_data(mock_make_request):

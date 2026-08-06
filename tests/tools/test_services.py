@@ -2,8 +2,8 @@
 
 from src.tools.services import control_service, search_services
 
-_search_services = search_services.fn
-_control_service = control_service.fn
+_search_services = search_services
+_control_service = control_service
 
 
 # ---------------------------------------------------------------------------

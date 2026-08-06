@@ -7,10 +7,10 @@ from src.tools.system import (
     system_status,
 )
 
-_system_status = system_status.fn
-_find_interfaces_by_status = find_interfaces_by_status.fn
-_search_interfaces = search_interfaces.fn
-_get_arp_table = get_arp_table.fn
+_system_status = system_status
+_find_interfaces_by_status = find_interfaces_by_status
+_search_interfaces = search_interfaces
+_get_arp_table = get_arp_table
 
 
 # ---------------------------------------------------------------------------

@@ -8,11 +8,11 @@ from src.tools.aliases import (
     update_alias,
 )
 
-_search_aliases = search_aliases.fn
-_create_alias = create_alias.fn
-_manage_alias_addresses = manage_alias_addresses.fn
-_update_alias = update_alias.fn
-_delete_alias = delete_alias.fn
+_search_aliases = search_aliases
+_create_alias = create_alias
+_manage_alias_addresses = manage_alias_addresses
+_update_alias = update_alias
+_delete_alias = delete_alias
 
 
 # ---------------------------------------------------------------------------

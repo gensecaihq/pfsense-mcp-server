@@ -35,3 +35,33 @@ jobs:
 
       - name: Lint with ruff
         run: ruff check src/ tests/
+
+  # Forward-compat probe: fastmcp 4 (MCP spec 2026-07-28, mcp SDK 2.x) is in
+  # beta. This job proves the codebase already runs on it, so moving to the
+  # sessionless protocol when 4.0 goes stable is only a pin change. Failures
+  # signal upstream churn to investigate — they do not block merges.
+  test-fastmcp-4-beta:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    env:
+      PFSENSE_URL: "https://192.0.2.1"
+      PFSENSE_API_KEY: "test-key"
+      AUTH_METHOD: "api_key"
+      VERIFY_SSL: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (fastmcp 4 beta)
+        run: |
+          python -m pip install --upgrade pip
+          pip install "fastmcp==4.0.0b1" python-dotenv "httpx>=0.27" "pytest>=8.0" "pytest-asyncio>=0.23" "pytest-cov>=5.0"
+
+      - name: Run tests on fastmcp 4 beta
+        run: pytest -q

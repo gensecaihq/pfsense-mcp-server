@@ -1,13 +1,15 @@
-# Core FastMCP framework (brings httpx, uvicorn, starlette)
-fastmcp==2.14.0
+# Core FastMCP framework (brings httpx, uvicorn, starlette).
+# 3.x declares its dependencies correctly (pydantic-settings, mcp<2.0),
+# so the 2.14.0-era workaround pins are gone. Capped below 4.0: fastmcp 4
+# (MCP spec 2026-07-28, mcp SDK 2.x) is still in beta — flip the cap when
+# 4.0 is stable to gain the sessionless protocol with per-connection
+# fallback for older clients.
+fastmcp>=3.4.6,<4.0
 
-# fastmcp 2.14.0 imports pydantic_settings without declaring it as a
-# dependency; install explicitly or `import fastmcp` fails outright.
-pydantic-settings>=2.0
-
-# fastmcp 2.14.0 still imports mcp's old McpError name, which mcp>=2.0.0
-# renamed to MCPError; cap below that break until fastmcp catches up.
-mcp<2.0.0
+# Direct dependency: src/tools/* import mcp.types.ToolAnnotations.
+# mcp 2.0.0 restructured the package (types moved to mcp-types); stay on
+# 1.x until we move to fastmcp 4.
+mcp>=1.24.0,<2.0.0
 
 # Environment variable loading
 python-dotenv>=1.0.0,<2.0.0

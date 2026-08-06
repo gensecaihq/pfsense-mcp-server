@@ -6,9 +6,9 @@ from src.tools.firewall_schedules import (
     update_schedule_time_range,
 )
 
-_create_firewall_schedule = create_firewall_schedule.fn
-_create_schedule_time_range = create_schedule_time_range.fn
-_update_schedule_time_range = update_schedule_time_range.fn
+_create_firewall_schedule = create_firewall_schedule
+_create_schedule_time_range = create_schedule_time_range
+_update_schedule_time_range = update_schedule_time_range
 
 
 # ---------------------------------------------------------------------------

@@ -299,6 +299,11 @@ async def test_enhanced_connection() -> Dict:
         return {"success": False, "error": str(e)}
 
 
+# The tool name matches pytest's test_* pattern; without this, importing it in
+# a test module makes pytest execute the real connection tool as a "test".
+test_enhanced_connection.__test__ = False
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def get_guardrail_status() -> Dict:
     """Get the current guardrail configuration and recent action history.
