@@ -9,7 +9,11 @@ from mcp.types import ToolAnnotations
 # Backends
 # ---------------------------------------------------------------------------
 from ..guardrails import guarded, rate_limited
-from ..helpers import create_default_sort, create_pagination, sanitize_description
+from ..helpers import (
+    create_default_sort,
+    create_search_pagination,
+    sanitize_description,
+)
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
 
@@ -33,7 +37,7 @@ async def search_haproxy_backends(
     """
     client = get_api_client()
     try:
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -244,7 +248,7 @@ async def search_haproxy_backend_servers(
     """
     client = get_api_client()
     try:
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         filters = [QueryFilter("parent_id", str(parent_id))]
@@ -410,7 +414,7 @@ async def search_haproxy_frontends(
     """
     client = get_api_client()
     try:
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -645,7 +649,7 @@ async def search_haproxy_files(
     """
     client = get_api_client()
     try:
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(

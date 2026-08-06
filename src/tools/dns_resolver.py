@@ -10,6 +10,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_pagination,
+    create_search_pagination,
     sanitize_description,
     validate_fqdn,
 )
@@ -159,7 +160,7 @@ async def search_dns_host_overrides(
         if host:
             filters.append(QueryFilter("host", host))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
