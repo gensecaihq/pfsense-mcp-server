@@ -512,14 +512,19 @@ def is_tool_allowed(tool_name: str) -> bool:
 # ---------------------------------------------------------------------------
 
 # Patterns that should never appear in user-supplied string parameters
+# Tool parameters are sent to the pfSense API as JSON *data*, not into a shell
+# or an HTML sink, so shell-injection screening here is a false sense of security
+# (the one real command sink, /diagnostics/command_prompt, is hard-allowlisted
+# separately in the client). The old command-chaining (`;\s*\w`) and pipe
+# (`|\s*\w`) rules also false-positived on legitimate values — LDAP DNs like
+# `CN=Users;DC=example,DC=com`, regex/description fields, etc. Scope the denylist
+# to patterns that remain meaningful for *stored* config data: path traversal
+# (path-like fields) and a `<script` tag (descriptions may be rendered in the
+# pfSense web UI). Field-level positive validation (IP/port/MAC/etc.) does the
+# real input checking.
 _INJECTION_PATTERNS = [
-    re.compile(r"\.\./"),                    # Directory traversal
-    re.compile(r";\s*\w"),                   # Command chaining
-    re.compile(r"\|\s*\w"),                  # Pipe injection
-    re.compile(r"`[^`]+`"),                  # Backtick execution
-    re.compile(r"\$\("),                     # Command substitution
-    re.compile(r"\$\{"),                     # Variable expansion
-    re.compile(r"<script", re.IGNORECASE),   # XSS
+    re.compile(r"\.\./"),                    # Directory traversal (path fields)
+    re.compile(r"<script", re.IGNORECASE),   # Stored XSS (rendered descriptions)
 ]
 
 

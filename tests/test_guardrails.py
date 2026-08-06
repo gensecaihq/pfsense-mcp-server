@@ -116,22 +116,24 @@ class TestInputSanitization:
         assert result is not None
         assert "unsafe" in result.lower()
 
-    def test_command_injection(self):
-        assert sanitize_input("rule; rm -rf /") is not None
-        assert sanitize_input("rule | cat /etc/passwd") is not None
-        assert sanitize_input("$(whoami)") is not None
-        assert sanitize_input("`id`") is not None
+    def test_shell_metachars_are_allowed(self):
+        # Values go to the pfSense API as JSON data, not into a shell, and shell
+        # screening false-positived on legit config (LDAP DNs, OpenVPN options).
+        # These are no longer rejected; field-level validation does real checking.
+        assert sanitize_input("rule; rm -rf /") is None
+        assert sanitize_input("a | b") is None
+        assert sanitize_input("CN=Users;DC=example,DC=com") is None
 
     def test_xss(self):
         assert sanitize_input("<script>alert(1)</script>") is not None
 
     def test_parameter_scanning(self):
         assert sanitize_parameters({"name": "good", "descr": "safe"}) is None
-        result = sanitize_parameters({"name": "good", "descr": "$(whoami)"})
+        result = sanitize_parameters({"name": "good", "descr": "<script>x</script>"})
         assert result is not None
 
     def test_list_parameter_scanning(self):
-        result = sanitize_parameters({"addresses": ["10.0.0.1", "$(rm -rf /)"]})
+        result = sanitize_parameters({"addresses": ["10.0.0.1", "../../etc/passwd"]})
         assert result is not None
 
 
@@ -212,7 +214,7 @@ class TestCheckGuardrails:
     def test_injection_blocked(self):
         result = check_guardrails(
             "create_alias",
-            {"name": "test", "descr": "$(rm -rf /)"},
+            {"name": "test", "descr": "<script>alert(1)</script>"},
         )
         assert result is not None
         assert "unsafe" in result["error"].lower()
