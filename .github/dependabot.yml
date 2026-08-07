@@ -9,6 +9,16 @@ updates:
     groups:
       python-deps:
         patterns: ["*"]
+    ignore:
+      # These caps are intentional and are lifted by hand as part of the
+      # fastmcp 4 migration, not by an automated bump:
+      #   * fastmcp is pinned <4.0 (4.x = MCP spec 2026-07-28, still beta)
+      #   * mcp is pinned <2.0 because fastmcp 3.4.x requires it and mcp 2.0
+      #     moved mcp.types (breaks `from mcp.types import ToolAnnotations`)
+      - dependency-name: "fastmcp"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "mcp"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions used in the CI workflow.
   - package-ecosystem: "github-actions"
