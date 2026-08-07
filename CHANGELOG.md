@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 Post-1.0.0 bug fixes and quality improvements, all merged to `main`. No tool
-count change (still 327); test suite grew from 308 to 425.
+count change (still 327); test suite grew from 308 to 433.
 
 ### Added
 
@@ -28,6 +28,7 @@ count change (still 327); test suite grew from 308 to 425.
 
 ### Fixed
 
+- **A momentary network blip or `503`/`429` failed the whole tool call.** The API client now retries transient failures with exponential backoff (capped): connection errors and `429`/`503` are retried for any method (a `Retry-After` header is honored, bounded); read-timeouts and `502`/`504` are retried only for idempotent `GET`s. Non-idempotent writes (POST/PATCH/DELETE) are never retried on an ambiguous read-timeout or gateway error, so a change can't be silently applied twice, and the fast-fail log endpoints (which set a short read timeout) opt out entirely. Also bounded the httpx connection pool (`max_connections=10`) so a burst of tool calls can't overwhelm pfSense's PHP-FPM workers.
 - **The input sanitizer rejected legitimate values** (e.g. multi-container LDAP DNs like `CN=Users;DC=example,DC=com`, OpenVPN custom options, pipes in descriptions). Its shell-injection rules (`;\s*\w`, `|\s*\w`, backtick, `$(`, `${`) were security theater for this codebase — tool values are sent to the pfSense API as JSON *data*, never into a shell (the one real command sink is hard-allowlisted separately) — while false-positiving on real config. The denylist is now scoped to threats meaningful for stored data: path traversal and a `<script>` tag; field-level positive validation (IP/port/MAC/…) does the real input checking.
 - **A failed rollback-point capture was silently swallowed.** For HIGH/CRITICAL operations the `@guarded` gate captures the pre-change config revision so the change can be undone, but a capture failure was `except: pass` — the operation proceeded with no rollback pointer and no warning, contradicting the "always backs up" docs. The tool result now carries a `config_backup_warning` when no rollback point could be captured.
 - **`export_*` tools bypassed write-safety.** `export_certificate_pkcs12` (a private-key bundle) and `export_openvpn_client_config` were classified READ via the `export_` prefix and annotated `readOnlyHint=True`, so they were retained in `MCP_READ_ONLY` mode and skipped rate-limiting/audit despite issuing POSTs that extract secrets. They are now classified MEDIUM, `@rate_limited`, and annotated `readOnlyHint=False`.
