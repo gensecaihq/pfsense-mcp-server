@@ -91,7 +91,7 @@ def test_filter_keeps_read_tools_and_drops_destructive():
     removed, remaining = (int(x) for x in result.stdout.strip().splitlines()[-1].split())
     assert removed > 0
     # Read-only exposes the read subset only: fewer than the full set, non-empty.
-    assert 0 < remaining < 327
+    assert 0 < remaining < 333
 
 
 def test_filter_is_noop_and_full_set_registered_without_read_only():
@@ -107,4 +107,4 @@ def test_filter_is_noop_and_full_set_registered_without_read_only():
     assert result.returncode == 0, result.stderr
     removed, total = (int(x) for x in result.stdout.strip().splitlines()[-1].split())
     assert removed == 0
-    assert total == 327
+    assert total == 333

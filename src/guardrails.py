@@ -253,11 +253,22 @@ _SECRET_SUBSTRINGS = (
     "authorizedkey", "privatekey", "private_key", "pre_shared_key",
     "presharedkey", "apitoken", "auth_pass", "_pw",
 )
+# Some tools (e.g. manage_acme_certificate_domain's provider_fields, or
+# a_domainlist entries) accept an open-ended dict of DNS-provider credential
+# fields we can't enumerate exactly — pfSense's ACME package alone has ~250 of
+# them (cf_token, cf_key, aws_secret_access_key, ...). Catch those by suffix;
+# suffixes are deliberately narrow so identifiers like certificate_id,
+# keylength, or cf_zone_id are NOT redacted.
+_SECRET_SUFFIXES = ("_key", "_token", "_secret", "_password", "_passwd", "_pwd")
 
 
 def _is_secret_key(key: str) -> bool:
     k = key.lower()
-    return k in _SECRET_EXACT_KEYS or any(sub in k for sub in _SECRET_SUBSTRINGS)
+    return (
+        k in _SECRET_EXACT_KEYS
+        or any(sub in k for sub in _SECRET_SUBSTRINGS)
+        or k.endswith(_SECRET_SUFFIXES)
+    )
 
 
 def _redact_sensitive(params: Dict) -> Dict:
