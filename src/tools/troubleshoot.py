@@ -85,11 +85,14 @@ async def diagnose_connectivity(
 
     # --- Gateway status ---
     try:
-        gw_result = await client.crud_list("/routing/gateways")
+        # Live status endpoint: the /routing/gateways config endpoint has no
+        # runtime `status` field, so it classified every gateway as "unknown"
+        # and appended a false issue on every run.
+        gw_result = await client.crud_get_settings("/status/gateways")
         gateways = gw_result.get("data") or []
         gw_summary = []
         for gw in gateways:
-            status = gw.get("status", "unknown")
+            status = str(gw.get("status") or "unknown")
             gw_summary.append({
                 "name": gw.get("name"),
                 "interface": gw.get("interface"),
@@ -97,7 +100,7 @@ async def diagnose_connectivity(
                 "status": status,
                 "monitor": gw.get("monitor"),
             })
-            if status and status.lower() not in ("online", "none", ""):
+            if status.lower() not in ("online", "none", "", "unknown"):
                 results["issues"].append(
                     f"Gateway {gw.get('name')} is {status}"
                 )
@@ -374,21 +377,22 @@ async def diagnose_interface_issues(
 
     # --- Gateway status for this interface ---
     try:
-        gw_result = await client.crud_list("/routing/gateways")
+        # Live status endpoint (see diagnose_connectivity): the config endpoint
+        # has no runtime `status` field.
+        gw_result = await client.crud_get_settings("/status/gateways")
         gateways = gw_result.get("data") or []
         iface_gateways = []
         for gw in gateways:
             gw_iface = gw.get("interface", "")
             if gw_iface.lower() == interface.lower():
-                gw_info = {
+                status = str(gw.get("status") or "unknown")
+                iface_gateways.append({
                     "name": gw.get("name"),
                     "gateway": gw.get("gateway"),
-                    "status": gw.get("status", "unknown"),
+                    "status": status,
                     "monitor": gw.get("monitor"),
-                }
-                iface_gateways.append(gw_info)
-                status = gw.get("status", "")
-                if status and status.lower() not in ("online", "none", ""):
+                })
+                if status.lower() not in ("online", "none", "", "unknown"):
                     results["issues"].append(
                         f"Gateway {gw.get('name')} on {interface} is {status}"
                     )
