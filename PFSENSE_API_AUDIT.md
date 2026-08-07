@@ -5,6 +5,12 @@
 **Audit Date**: March 2026
 **Method**: Verified against the pfSense REST API v2 PHP source code (Endpoint.inc, ContentHandler, model files)
 
+> **Note (2026-08):** the compatibility target is now pkg-RESTAPI **v2.9.0**
+> (see README). A subsequent contract-driven audit (`RELEASE_AUDIT.md`) found
+> and fixed a number of wire-format issues this document predates — the
+> corrected field names/types are tracked in `CHANGELOG.md` and enforced by the
+> vendored contract in `tests/contract/`.
+
 ## Endpoint Coverage
 
 ### Implemented (Full CRUD)
