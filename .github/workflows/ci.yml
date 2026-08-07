@@ -9,6 +9,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
 
     env:
       PFSENSE_URL: "https://192.0.2.1"
@@ -19,10 +23,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
@@ -31,10 +35,26 @@ jobs:
           pip install "pytest>=8.0" "pytest-asyncio>=0.23" "pytest-cov>=5.0" "ruff>=0.4"
 
       - name: Run tests with coverage
-        run: pytest --cov=src --cov-report=term-missing -v
+        # Coverage floor ratchets: raise it as suites are added, never lower it.
+        run: pytest --cov=src --cov-report=term-missing --cov-fail-under=40 -v
 
       - name: Lint with ruff
         run: ruff check src/ tests/
+
+  security:
+    # Dependency vulnerability scan. Informational for now (continue-on-error)
+    # so a freshly-disclosed advisory surfaces without blocking unrelated merges.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Audit dependencies
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          pip-audit -r requirements.txt --strict --desc
 
   # Forward-compat probe: fastmcp 4 (MCP spec 2026-07-28, mcp SDK 2.x) is in
   # beta. This job proves the codebase already runs on it, so moving to the
