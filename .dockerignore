@@ -18,3 +18,13 @@ pyproject.toml
 __pycache__
 *.pyc
 *.pyo
+# Build/venv artifacts that otherwise bloat the build context.
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
