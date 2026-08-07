@@ -9,10 +9,10 @@ fastmcp>=3.4.6,<4.0
 # Direct dependency: src/tools/* import mcp.types.ToolAnnotations.
 # mcp 2.0.0 restructured the package (types moved to mcp-types); stay on
 # 1.x until we move to fastmcp 4.
-mcp>=1.24.0,<2.0.0
+mcp>=1.24.0,<3.0.0
 
 # Environment variable loading
 python-dotenv>=1.0.0,<2.0.0
 
 # Async HTTP client (also a transitive dep of fastmcp, pinned for clarity)
-httpx>=0.27,<1.0
+httpx>=0.28.1,<1.0
