@@ -1,20 +1,36 @@
-# pfSense MCP Server
+<div align="center">
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/gensecaihq/pfsense-mcp-server/releases/tag/v1.0.0)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![MCP 2025-11-25](https://img.shields.io/badge/MCP-2025--11--25-green.svg)](https://modelcontextprotocol.io)
-[![pfSense REST API](https://img.shields.io/badge/pfSense%20API-v2.9.0-orange.svg)](https://pfrest.org/)
-[![Tests](https://img.shields.io/badge/tests-340%20passing-brightgreen.svg)](#testing)
-[![Tools](https://img.shields.io/badge/tools-327-blue.svg)](#what-you-can-do)
+# 🛡️ pfSense MCP Server
 
-> Manage your pfSense firewall with natural language. 327 tools. 9 layers of safety. One command to start.
+### Manage your pfSense firewall in plain English — from Claude Desktop, Claude Code, or any MCP client.
 
+**327 tools** across every subsystem · **wire-format verified** against the pfSense REST API · **safety guardrails** on every change
+
+<br>
+
+[![CI](https://github.com/gensecaihq/pfsense-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/gensecaihq/pfsense-mcp-server/actions/workflows/ci.yml)
+[![MCP 2025-11-25](https://img.shields.io/badge/MCP-2025--11--25-6E56CF.svg)](https://modelcontextprotocol.io)
+[![pfSense API v2.9.0](https://img.shields.io/badge/pfSense%20API-v2.9.0-orange.svg)](https://pfrest.org/)
+[![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-3776AB.svg)](https://www.python.org/)
+[![Tests](https://img.shields.io/badge/tests-433%20passing-brightgreen.svg)](#testing)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+</div>
+
+---
+
+```text
+You:    "Block all traffic from 203.0.113.5 on WAN"
+Claude:  ✓ created block rule  →  ✓ applied changes  →  rollback: restore_config_backup(revision_id=42)
 ```
-You: "Block all traffic from 203.0.113.5 on WAN"
-Claude: Creates block rule → applies changes → confirms with rollback instructions
-```
 
-pfSense MCP Server connects [Claude Desktop](https://claude.ai/download), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and other [MCP](https://modelcontextprotocol.io)-compatible AI clients to your pfSense firewall. Ask questions, diagnose issues, and manage your firewall — all through conversation.
+**pfSense MCP Server** connects [Claude Desktop](https://claude.ai/download), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and other [MCP](https://modelcontextprotocol.io)-compatible AI clients to your pfSense firewall. Ask questions, diagnose issues, and change configuration — all through conversation, with confirmation gates and rollback on every destructive action.
+
+> [!TIP]
+> New here? Jump to the [Quick Start](#quick-start) — you can be running in about two minutes with `uvx`, no clone required.
+
+If this project is useful to you, please consider giving it a ⭐ — it helps others find it.
 
 ## Why This Exists
 
@@ -22,9 +38,10 @@ Managing a pfSense firewall means clicking through web UI tabs, remembering fiel
 
 **What makes it different:**
 - Every destructive operation requires explicit confirmation and shows you exactly what will happen
-- Automatic config backup before every delete/reboot — with a one-line rollback command
-- Rate limiting prevents runaway AI loops from flooding your firewall with rules
-- Input sanitization blocks command injection, path traversal, and XSS in every parameter
+- Config backup before every delete/reboot — with a one-line rollback command (and an explicit warning if a backup point can't be captured)
+- Rate limiting on every mutating tool prevents runaway AI loops from flooding your firewall
+- Positive input validation (IP/port/MAC/CIDR) plus path-traversal/XSS screening, and secrets redacted from logs *and* API error responses
+- Wire-format verified against the pfSense REST API v2.9.0 schema by a contract-test layer, so tools send exactly what the API expects
 
 ## Quick Start
 
@@ -61,7 +78,7 @@ Using the installed entry point (Option A):
         "AUTH_METHOD": "basic",
         "PFSENSE_USERNAME": "admin",
         "PFSENSE_PASSWORD": "your-password",
-        "PFSENSE_VERSION": "CE_2_8_0",
+        "PFSENSE_VERSION": "CE_2_8_1",
         "VERIFY_SSL": "false"
       }
     }
@@ -75,7 +92,7 @@ Or running from a clone (Option B):
 {
   "mcpServers": {
     "pfsense": {
-      "command": "python3",
+      "command": "python3.11",
       "args": ["-m", "src.main"],
       "cwd": "/path/to/pfsense-mcp-server",
       "env": {
@@ -83,7 +100,7 @@ Or running from a clone (Option B):
         "AUTH_METHOD": "basic",
         "PFSENSE_USERNAME": "admin",
         "PFSENSE_PASSWORD": "your-password",
-        "PFSENSE_VERSION": "CE_2_8_0",
+        "PFSENSE_VERSION": "CE_2_8_1",
         "VERIFY_SSL": "false"
       }
     }
@@ -147,13 +164,15 @@ Response includes:
   }
 ```
 
-**Every** destructive operation (52 delete/reboot/halt tools) requires `confirm=True`. **Every** create and update operation (112 tools) is rate-limited and sanitized. **Every** sensitive parameter (passwords, keys, tokens) is redacted in logs and outputs.
+Every one of the 199 mutating tools carries a guardrail, enforced at registration by a meta-test so a new tool can't ship ungated: the 52 destructive (delete/reboot/halt) tools require `confirm=True`, and the other 147 (create/update/apply/manage/export/service-control) are rate-limited, audited, and allowlist-checked. Sensitive parameters (passwords, keys, PSKs, bind passwords, tokens) are redacted in the audit log **and** in echoed API error responses.
 
 You can also:
 - Pass `dry_run=True` to preview any destructive operation without executing
 - Pass `verify_descr="Allow HTTPS"` to verify you're deleting the right rule (guards against ID shifts)
-- Set `MCP_READ_ONLY=true` to expose only 130 read-only tools (search, get, diagnose)
+- Set `MCP_READ_ONLY=true` to expose only the 128 read-only tools (search, get, diagnose)
 - Set `MCP_ALLOWED_TOOLS=search_firewall_rules,get_firewall_log` to restrict to specific tools
+
+See [SECURITY.md](SECURITY.md) for the vulnerability-disclosure policy and deployment-hardening guidance.
 
 ## Supported pfSense Versions
 
@@ -202,7 +221,7 @@ python3 -m src.main -t streamable-http --port 3000
 docker compose up
 ```
 
-Container security: non-root user (`mcp:1000`), read-only filesystem, all capabilities dropped, `noexec` tmpfs, `no-new-privileges`.
+Container security: non-root user (`mcp:1000`), read-only filesystem, all capabilities dropped, `noexec` tmpfs, `no-new-privileges`. In HTTP mode the container health check probes an unauthenticated `/health` endpoint (the `/mcp` endpoint requires a bearer token).
 
 ## Configuration
 
@@ -213,7 +232,7 @@ Container security: non-root user (`mcp:1000`), read-only filesystem, all capabi
 | `PFSENSE_API_KEY` | * | — | REST API key |
 | `PFSENSE_USERNAME` | * | — | pfSense username (for basic/jwt) |
 | `PFSENSE_PASSWORD` | * | — | pfSense password (for basic/jwt) |
-| `PFSENSE_VERSION` | | `CE_2_8_0` | `CE_2_8_0`, `CE_2_8_1`, `CE_26_03`, `PLUS_24_11`, `PLUS_25_11` |
+| `PFSENSE_VERSION` | | `CE_2_8_1` | Current: `CE_2_8_1`, `PLUS_25_11_1`, `PLUS_26_03`, `PLUS_26_03_1`. Legacy (still accepted): `CE_2_8_0`, `PLUS_24_11`, `PLUS_25_11`, `CE_26_03` |
 | `VERIFY_SSL` | | `true` | `false` for self-signed certificates |
 | `API_TIMEOUT` | | `30` | Request timeout in seconds |
 | `MCP_READ_ONLY` | | `false` | Only expose read-only tools |
@@ -242,9 +261,11 @@ Container security: non-root user (`mcp:1000`), read-only filesystem, all capabi
 ## Testing
 
 ```bash
-python3 -m pytest tests/ -v          # 340 tests
-python3 -m pytest tests/ --cov=src   # with coverage
+python3 -m pytest tests/ -v          # 433 tests
+python3 -m pytest tests/ --cov=src   # with coverage (~42%)
 ```
+
+The suite includes a **wire-contract layer** (`tests/contract/`) that asserts every tool's payload against the real pfSense REST API v2.9.0 schema (distilled from the upstream OpenAPI spec), so a wrong field name or type is a failing test rather than a silent misconfiguration. CI runs on Python 3.11/3.12/3.13 with `pip-audit` dependency scanning.
 
 ## MCP Specification Compliance
 
@@ -263,16 +284,22 @@ The newest revision, [MCP 2026-07-28](https://modelcontextprotocol.io/specificat
 
 ```
 src/
-  main.py              Entry point
+  main.py              Entry point (transports, read-only filter, key validation)
   server.py            FastMCP instance + API client
-  client.py            pfSense REST API v2 HTTP client
-  guardrails.py        9-layer defense-in-depth system
-  helpers.py           Validation, parsing, safety guards
+  client.py            pfSense REST API v2 HTTP client (retry/backoff, pooling)
+  guardrails.py        Risk classification, confirm gate, rate limit, audit, redaction
+  helpers.py           Validation, parsing, pagination, safety guards
   models.py            Data models
-  middleware.py        HTTP auth + Origin validation
+  middleware.py        HTTP bearer auth + Origin validation + /health
   tools/               34 tool modules (327 tools)
-tests/                 340 tests
+scripts/
+  generate_contract.py Regenerate the wire contract from an OpenAPI spec
+tests/                 433 tests (incl. tests/contract/ wire-contract suite)
 ```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the request lifecycle, guardrail
+model, and wire-contract layer; [SECURITY.md](SECURITY.md) for disclosure and
+hardening; and [RELEASE_AUDIT.md](RELEASE_AUDIT.md) for the audit and roadmap.
 
 ## Contributing
 
