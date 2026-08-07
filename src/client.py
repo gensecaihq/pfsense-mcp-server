@@ -57,6 +57,46 @@ class EnhancedPfSenseAPIClient:
         # API base URL
         self.api_base = f"{self.host}/api/v2"
 
+    # Transient-failure retry policy.
+    _MAX_RETRIES = 3
+    _BACKOFF_BASE = 0.5   # seconds; delay = base * 2**attempt
+    _BACKOFF_CAP = 8.0    # seconds; ceiling per wait
+
+    def _backoff_delay(self, attempt: int) -> float:
+        return min(self._BACKOFF_BASE * (2 ** attempt), self._BACKOFF_CAP)
+
+    @staticmethod
+    def _retry_after_delay(response) -> Optional[float]:
+        """Parse a Retry-After header (delta-seconds) into a bounded delay."""
+        value = response.headers.get("Retry-After")
+        if not value:
+            return None
+        try:
+            return max(0.0, min(float(value), 30.0))
+        except (ValueError, TypeError):
+            return None  # HTTP-date form not honored; fall back to backoff
+
+    async def _send(self, method, url, headers, data, req_timeout):
+        """Issue a single HTTP request (no retry)."""
+        verb = method.upper()
+        if verb == "GET":
+            return await self.client.get(url, headers=headers, timeout=req_timeout)
+        if verb == "POST":
+            return await self.client.post(url, headers=headers, json=data, timeout=req_timeout)
+        if verb == "PATCH":
+            return await self.client.patch(url, headers=headers, json=data, timeout=req_timeout)
+        if verb == "PUT":
+            return await self.client.put(url, headers=headers, json=data, timeout=req_timeout)
+        if verb == "DELETE":
+            # httpx.AsyncClient.delete() does NOT accept a json= kwarg; only
+            # request()/post()/patch()/put() do. Some pfSense DELETEs carry a
+            # body (bulk operations), so route DELETE through request(). See
+            # issue #12 / PR #9.
+            return await self.client.request(
+                "DELETE", url, headers=headers, json=data, timeout=req_timeout
+            )
+        raise ValueError(f"Unsupported HTTP method: {method}")
+
     def _ensure_client(self):
         """Ensure HTTP client is created for current event loop.
 
@@ -77,7 +117,10 @@ class EnhancedPfSenseAPIClient:
             self.client = httpx.AsyncClient(
                 verify=self.verify_ssl,
                 timeout=self.timeout,
-                follow_redirects=True
+                follow_redirects=True,
+                # Bound concurrency so a burst of tool calls can't overwhelm
+                # pfSense's modest PHP-FPM worker pool.
+                limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
             )
             self._client_loop = current_loop
 
@@ -248,25 +291,44 @@ class EnhancedPfSenseAPIClient:
         # keep using the client defaults and don't cause false positives.
         req_timeout = httpx.Timeout(self.timeout, read=timeout) if timeout else None
 
-        # Make request
-        if method.upper() == "GET":
-            response = await self.client.get(url, headers=headers, timeout=req_timeout)
-        elif method.upper() == "POST":
-            response = await self.client.post(url, headers=headers, json=data, timeout=req_timeout)
-        elif method.upper() == "PATCH":
-            response = await self.client.patch(url, headers=headers, json=data, timeout=req_timeout)
-        elif method.upper() == "PUT":
-            response = await self.client.put(url, headers=headers, json=data, timeout=req_timeout)
-        elif method.upper() == "DELETE":
-            # httpx.AsyncClient.delete() does NOT accept a json= kwarg; only
-            # request()/post()/patch()/put() do. Some pfSense DELETEs carry a
-            # body (bulk operations), so route DELETE through request(). See
-            # issue #12 / PR #9.
-            response = await self.client.request(
-                "DELETE", url, headers=headers, json=data, timeout=req_timeout
-            )
-        else:
-            raise ValueError(f"Unsupported HTTP method: {method}")
+        # Make request, retrying transient failures with exponential backoff.
+        # Retry is skipped when a per-request read timeout is set (log endpoints
+        # deliberately fail fast). Non-idempotent methods (POST/PATCH/DELETE) are
+        # retried ONLY when the request provably did not reach or was not
+        # processed by the server — connection errors and 429/503 — never on an
+        # ambiguous read timeout or gateway error, so a write can't be applied
+        # twice. GETs additionally retry read-timeouts and 502/504.
+        idempotent = method.upper() == "GET"
+        allow_retry = timeout is None
+        attempt = 0
+        while True:
+            try:
+                response = await self._send(method, url, headers, data, req_timeout)
+            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout):
+                if allow_retry and attempt < self._MAX_RETRIES:
+                    await asyncio.sleep(self._backoff_delay(attempt))
+                    attempt += 1
+                    continue
+                raise
+            except httpx.ReadTimeout:
+                if allow_retry and idempotent and attempt < self._MAX_RETRIES:
+                    await asyncio.sleep(self._backoff_delay(attempt))
+                    attempt += 1
+                    continue
+                raise
+
+            retry_any_method = response.status_code in (429, 503)
+            retry_idempotent = response.status_code in (502, 504)
+            if (
+                allow_retry
+                and attempt < self._MAX_RETRIES
+                and (retry_any_method or (idempotent and retry_idempotent))
+            ):
+                delay = self._retry_after_delay(response)
+                await asyncio.sleep(delay if delay is not None else self._backoff_delay(attempt))
+                attempt += 1
+                continue
+            break
 
         # Enhanced error handling
         if response.status_code >= 400:
