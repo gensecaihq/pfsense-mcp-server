@@ -1,7 +1,7 @@
 {
  "_meta": {
   "endpoint_count": 233,
-  "pkg_restapi_version": "v2.9.0",
+  "pkg_restapi_version": "v2.10.0",
   "source": "pfrest/pfSense-pkg-RESTAPI openapi.json"
  },
  "endpoints": {

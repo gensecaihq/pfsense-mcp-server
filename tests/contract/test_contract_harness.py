@@ -16,8 +16,8 @@ OVPN_SERVER = "/vpn/openvpn/server"
 
 def test_contract_loads_and_is_pinned():
     contract = load_contract()
-    assert len(contract) > 100  # 233 endpoints in v2.9.0
-    assert CONTRACT_VERSION == "v2.9.0"
+    assert len(contract) > 100  # 233 endpoints in v2.10.0
+    assert CONTRACT_VERSION == "v2.10.0"
     # The OpenVPN server model is present and rich.
     spec = contract_for("POST", OVPN_SERVER)
     assert "caref" in spec["properties"]

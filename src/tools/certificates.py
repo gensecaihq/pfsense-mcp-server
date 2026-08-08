@@ -132,7 +132,7 @@ async def create_certificate(
         # has no crt/prv. The pre-fix code sent everything (incl. an unknown
         # `method` key and `cert` instead of `crt`) to the import endpoint, so
         # imports 400'd and internal generation silently produced nothing.
-        # Verified against pkg-RESTAPI v2.9.0 (see tests/contract).
+        # Verified against pkg-RESTAPI v2.10.0 (see tests/contract).
         if method == "import":
             if not cert or not prv:
                 return {
@@ -299,7 +299,7 @@ async def generate_certificate(
     try:
         # The /generate model has no `method` field (the pre-fix code sent it and
         # it was silently dropped) and requires ecname for ECDSA keys. Verified
-        # against pkg-RESTAPI v2.9.0 (see tests/contract).
+        # against pkg-RESTAPI v2.10.0 (see tests/contract).
         gen_data = {
             "descr": sanitize_description(descr),
             "caref": caref,
@@ -493,7 +493,7 @@ async def create_certificate_authority(
     try:
         # Import vs internal generation are distinct endpoints upstream (same
         # crt-not-cert / no-method rules as create_certificate). Verified
-        # against pkg-RESTAPI v2.9.0 (see tests/contract).
+        # against pkg-RESTAPI v2.10.0 (see tests/contract).
         if method == "import":
             if not cert:
                 return {"success": False, "error": "Import requires 'cert' (PEM CA certificate)."}

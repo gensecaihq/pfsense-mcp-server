@@ -93,7 +93,7 @@ async def create_ipsec_phase2_encryption(
         # The IPsecPhase2Encryption model has only `name` and `keylen` (plus
         # parent_id). The pre-fix code sent encryption_algorithm_name/keylen and
         # phase1-only fields (hash/dhgroup/prf), so create 400'd on the missing
-        # `name`. Verified against pkg-RESTAPI v2.9.0 (see tests/contract).
+        # `name`. Verified against pkg-RESTAPI v2.10.0 (see tests/contract).
         enc_data: Dict = {
             "parent_id": parent_id,
             "name": encryption_algorithm_name,
