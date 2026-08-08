@@ -4,7 +4,7 @@
 
 ### Manage your pfSense firewall in plain English — from Claude Desktop, Claude Code, or any MCP client.
 
-**327 tools** across every subsystem · **wire-format verified** against the pfSense REST API · **safety guardrails** on every change
+**333 tools** across every subsystem · **wire-format verified** against the pfSense REST API · **safety guardrails** on every change
 
 <br>
 
@@ -12,7 +12,7 @@
 [![MCP 2025-11-25](https://img.shields.io/badge/MCP-2025--11--25-6E56CF.svg)](https://modelcontextprotocol.io)
 [![pfSense API v2.10.0](https://img.shields.io/badge/pfSense%20API-v2.10.0-orange.svg)](https://pfrest.org/)
 [![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-3776AB.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-433%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-481%20passing-brightgreen.svg)](#testing)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -21,16 +21,37 @@
 ---
 
 ```text
-You:    "Block all traffic from 203.0.113.5 on WAN"
+You:     Block all traffic from 203.0.113.5 on WAN
 Claude:  ✓ created block rule  →  ✓ applied changes  →  rollback: restore_config_backup(revision_id=42)
+
+You:     Why can't 192.168.1.50 reach the internet?
+Claude:  ran diagnostics → gateway WAN_DHCP is down, and a block rule on LAN matches this host
+
+You:     Add a WireGuard peer for my laptop and show me the config
+Claude:  ✓ created peer on tun_wg0  →  here's the client config to import
 ```
 
-**pfSense MCP Server** connects [Claude Desktop](https://claude.ai/download), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and other [MCP](https://modelcontextprotocol.io)-compatible AI clients to your pfSense firewall. Ask questions, diagnose issues, and change configuration — all through conversation, with confirmation gates and rollback on every destructive action.
+**pfSense MCP Server** connects [Claude Desktop](https://claude.ai/download), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and any other [MCP](https://modelcontextprotocol.io) client to your pfSense firewall. Ask questions, diagnose issues, and change configuration through conversation — with a confirmation gate, config backup, and rollback on every destructive action.
+
+Letting an AI touch a production firewall is only safe if the plumbing is right, so that's where the work went: every tool's wire format is verified against the pfSense REST API schema by a contract-test layer, and every change runs through a guardrail pipeline. 481 tests, CI on Python 3.11–3.13.
 
 > [!TIP]
-> New here? Jump to the [Quick Start](#quick-start) — you can be running in about two minutes with `uvx`, no clone required.
+> Jump to the [Quick Start](#quick-start) — about two minutes with `uvx`, no clone required. And if this saves you a trip through the pfSense web UI, a ⭐ helps others find it.
 
-If this project is useful to you, please consider giving it a ⭐ — it helps others find it.
+## Contents
+
+[Why this exists](#why-this-exists) ·
+[Quick start](#quick-start) ·
+[What you can do](#what-you-can-do) ·
+[Safety](#safety-first) ·
+[Supported versions](#supported-pfsense-versions) ·
+[Authentication](#authentication) ·
+[Deployment](#deployment-options) ·
+[Configuration](#configuration) ·
+[Testing](#testing) ·
+[MCP compliance](#mcp-specification-compliance) ·
+[Architecture](ARCHITECTURE.md) ·
+[Contributing](CONTRIBUTING.md)
 
 ## Why This Exists
 
@@ -116,7 +137,7 @@ Or running from a clone (Option B):
 
 ## What You Can Do
 
-327 tools across every major pfSense subsystem:
+333 tools across every major pfSense subsystem:
 
 | Domain | Tools | What You Can Do |
 |---|:---:|---|
@@ -137,7 +158,7 @@ Or running from a clone (Option B):
 | **Schedules** | 8 | Time-based firewall rule scheduling. |
 | **Virtual IPs** | 5 | CARP, ProxyARP, and IP Alias management. |
 | **Troubleshooting** | 10 | Diagnose connectivity, blocked traffic, VPN, DHCP, DNS, HA. Full health report. |
-| **Packages** | 43 | HAProxy, ACME/Let's Encrypt, BIND DNS, FreeRADIUS. |
+| **Packages** | 49 | HAProxy, ACME/Let's Encrypt, BIND DNS, FreeRADIUS. |
 | **Utility** | 9 | HATEOAS navigation, object ID management, guardrail status. |
 
 ## Safety First
@@ -164,12 +185,12 @@ Response includes:
   }
 ```
 
-Every one of the 199 mutating tools carries a guardrail, enforced at registration by a meta-test so a new tool can't ship ungated: the 52 destructive (delete/reboot/halt) tools require `confirm=True`, and the other 147 (create/update/apply/manage/export/service-control) are rate-limited, audited, and allowlist-checked. Sensitive parameters (passwords, keys, PSKs, bind passwords, tokens) are redacted in the audit log **and** in echoed API error responses.
+Every one of the 202 mutating tools carries a guardrail, enforced at registration by a meta-test so a new tool can't ship ungated: the 52 destructive (delete/reboot/halt) tools require `confirm=True`, and the other 150 (create/update/apply/manage/export/service-control) are rate-limited, audited, and allowlist-checked. Sensitive parameters (passwords, keys, PSKs, bind passwords, tokens) are redacted in the audit log **and** in echoed API error responses.
 
 You can also:
 - Pass `dry_run=True` to preview any destructive operation without executing
 - Pass `verify_descr="Allow HTTPS"` to verify you're deleting the right rule (guards against ID shifts)
-- Set `MCP_READ_ONLY=true` to expose only the 128 read-only tools (search, get, diagnose)
+- Set `MCP_READ_ONLY=true` to expose only the 131 read-only tools (search, get, diagnose)
 - Set `MCP_ALLOWED_TOOLS=search_firewall_rules,get_firewall_log` to restrict to specific tools
 
 See [SECURITY.md](SECURITY.md) for the vulnerability-disclosure policy and deployment-hardening guidance.
@@ -267,7 +288,7 @@ Container security: non-root user (`mcp:1000`), read-only filesystem, all capabi
 ## Testing
 
 ```bash
-python3 -m pytest tests/ -v          # 433 tests
+python3 -m pytest tests/ -v          # 481 tests
 python3 -m pytest tests/ --cov=src   # with coverage (~42%)
 ```
 
@@ -277,7 +298,7 @@ The suite includes a **wire-contract layer** (`tests/contract/`) that asserts ev
 
 Compliant with [MCP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25) — the newest revision with stable SDK support — and negotiates down to older revisions per connection, so existing clients keep working:
 
-- `ToolAnnotations` on all 327 tools (readOnlyHint, destructiveHint, idempotentHint)
+- `ToolAnnotations` on all 333 tools (readOnlyHint, destructiveHint, idempotentHint)
 - `serverInfo.version` and `instructions` provided
 - Origin header validation (MUST requirement)
 - Bearer token auth with timing-safe comparison
@@ -297,10 +318,10 @@ src/
   helpers.py           Validation, parsing, pagination, safety guards
   models.py            Data models
   middleware.py        HTTP bearer auth + Origin validation + /health
-  tools/               34 tool modules (327 tools)
+  tools/               34 tool modules (333 tools)
 scripts/
   generate_contract.py Regenerate the wire contract from an OpenAPI spec
-tests/                 433 tests (incl. tests/contract/ wire-contract suite)
+tests/                 481 tests (incl. tests/contract/ wire-contract suite)
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the request lifecycle, guardrail
