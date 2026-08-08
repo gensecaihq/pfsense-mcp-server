@@ -41,7 +41,7 @@ the tool sends — match that pattern.
   The wire contract in `tests/contract/` (distilled from the upstream OpenAPI
   spec, see `scripts/generate_contract.py`) catches these: use
   `assert_payload_valid()` to check your tool's payload against the real
-  v2.9.0 model. See `ARCHITECTURE.md` and the existing `tests/contract/test_*`.
+  v2.10.0 model. See `ARCHITECTURE.md` and the existing `tests/contract/test_*`.
 - **Respect the guardrail model.** Every non-read tool must carry a guardrail
   decorator — `@guarded` for destructive tools (which also take `confirm`/
   `dry_run`) or `@rate_limited` for other mutating tools — and the right

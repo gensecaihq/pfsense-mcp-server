@@ -82,7 +82,9 @@ Edit `.env` with your pfSense details. Example using Basic Auth (simplest):
 PFSENSE_URL=https://your-pfsense.local
 PFSENSE_USERNAME=admin
 PFSENSE_PASSWORD=your-password
-PFSENSE_VERSION=PLUS_24_11   # CE_2_8_0, CE_2_8_1, CE_26_03, PLUS_24_11, PLUS_25_11
+# Current: CE_2_8_1, PLUS_25_11_1, PLUS_26_03, PLUS_26_03_1
+# Legacy (still accepted): CE_2_8_0, PLUS_24_11, PLUS_25_11, CE_26_03
+PFSENSE_VERSION=CE_2_8_1
 AUTH_METHOD=basic
 VERIFY_SSL=false              # Set to true if using a trusted SSL certificate
 ```

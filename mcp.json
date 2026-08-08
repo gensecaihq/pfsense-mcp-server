@@ -1,8 +1,11 @@
 {
   "mcpServers": {
-    "pfsense-enhanced": {
+    "pfsense": {
       "command": "python3.11",
-      "args": ["-m", "src.main"],
+      "args": [
+        "-m",
+        "src.main"
+      ],
       "cwd": "/path/to/pfsense-mcp-server",
       "env": {
         "PFSENSE_URL": "https://your-pfsense.local",

@@ -1,5 +1,17 @@
 # Deep System Audit & Next-Release Plan (v2)
 
+> **Status (2026-08-08):** this is a **point-in-time audit** of `main` @ 8a27acd;
+> most of its P0/P1 items have since landed on `main` — the W-0 contract-test
+> layer, the `MCP_READ_ONLY` hotfix, the OpenVPN/certificates/users/LDAP/DNS-ACL
+> wire rebuilds, the query-inversion and search-pagination fixes, guardrail
+> coverage enforcement (meta-test), Docker `/health`, SECURITY.md, error-body
+> redaction, retry/backoff, and the CI matrix + coverage gate (see
+> [CHANGELOG](CHANGELOG.md) *Unreleased*). Still open: the IPsec Phase 1/2
+> nested-proposal create rebuild, a typed exception hierarchy, annotation-driven
+> risk classification, and the v2.0 package rename / PyPI / multi-instance work.
+> Section-level findings below describe the state **at the audited revision**,
+> not necessarily current `main`.
+
 **Subject:** pfSense MCP Server
 **Audit date:** 2026-08-06 — supersedes the 2026-06-26 audit (see git history for v1)
 **Audited revision:** `main` @ 8a27acd (post PRs #19–#28: HAProxy/alias/DNS/schedule wire fixes, fastmcp 2.14.0→3.4.6, pfSense version matrix for Plus 26.03.1 / pkg-RESTAPI v2.9.0)

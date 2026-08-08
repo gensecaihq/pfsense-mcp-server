@@ -151,7 +151,7 @@ Or running from a clone (Option B):
 | **Certificates** | 15 | Certs, CAs, CRLs — generate, renew, export PKCS12. |
 | **Users** | 12 | User accounts, groups, LDAP/RADIUS auth server config. |
 | **Interfaces** | 14 | Interface config, VLANs, bridges, groups. |
-| **System** | 44 | Status, settings, diagnostics, config history, reboot, ping. |
+| **System** | 44 | Status, settings, diagnostics, state table, config history, reboot, ping. |
 | **Services** | 14 | Start/stop/restart services. NTP, cron, SSH, service watchdog. |
 | **Logs** | 3 | Firewall log analysis with parsed IPv4/IPv6 filterlog data. |
 | **Traffic Shaping** | 12 | Shapers, queues, and limiters for bandwidth management. |
@@ -289,7 +289,7 @@ Container security: non-root user (`mcp:1000`), read-only filesystem, all capabi
 
 ```bash
 python3 -m pytest tests/ -v          # 481 tests
-python3 -m pytest tests/ --cov=src   # with coverage (~42%)
+python3 -m pytest tests/ --cov=src   # with coverage (~46%)
 ```
 
 The suite includes a **wire-contract layer** (`tests/contract/`) that asserts every tool's payload against the real pfSense REST API v2.10.0 schema (distilled from the upstream OpenAPI spec), so a wrong field name or type is a failing test rather than a silent misconfiguration. CI runs on Python 3.11/3.12/3.13 with `pip-audit` dependency scanning.
@@ -321,6 +321,7 @@ src/
   tools/               34 tool modules (333 tools)
 scripts/
   generate_contract.py Regenerate the wire contract from an OpenAPI spec
+  generate_token.py    Generate a secure MCP_API_KEY bearer token
 tests/                 481 tests (incl. tests/contract/ wire-contract suite)
 ```
 
