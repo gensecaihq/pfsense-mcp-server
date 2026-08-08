@@ -5,11 +5,12 @@
 **Audit Date**: March 2026
 **Method**: Verified against the pfSense REST API v2 PHP source code (Endpoint.inc, ContentHandler, model files)
 
-> **Note (2026-08):** the compatibility target is now pkg-RESTAPI **v2.9.0**
-> (see README). A subsequent contract-driven audit (`RELEASE_AUDIT.md`) found
-> and fixed a number of wire-format issues this document predates — the
-> corrected field names/types are tracked in `CHANGELOG.md` and enforced by the
-> vendored contract in `tests/contract/`.
+> **Note (2026-08):** this document is a **v1.0.0 audit snapshot**. The
+> compatibility target is now pkg-RESTAPI **v2.10.0** (see README). A
+> subsequent contract-driven audit (`RELEASE_AUDIT.md`) found and fixed a
+> number of wire-format issues this document predates — the corrected field
+> names/types are tracked in `CHANGELOG.md` and enforced by the vendored
+> contract in `tests/contract/`.
 
 ## Endpoint Coverage
 
@@ -173,6 +174,6 @@ pfSense uses non-persistent array indices as object IDs. After any deletion, all
 | Utility | 1 | 9 |
 | Guardrails system | 1 | — |
 | Helpers & validation | 1 | — |
-| **Total** | **34 tool files** | **327 tools** |
+| **Total** | **34 tool files** | **327 tools** _(v1.0.0 snapshot; current `main` is 333 — see [README](README.md))_ |
 
-**Tests: 308 passing** _(v1.0.0 audit snapshot; current `main` is 323 passing after post-1.0.0 fixes — see [CHANGELOG](CHANGELOG.md))_
+**Tests: 308 passing** _(v1.0.0 audit snapshot; current `main` is 481 passing after post-1.0.0 fixes — see [CHANGELOG](CHANGELOG.md))_

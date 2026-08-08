@@ -16,9 +16,10 @@ project_root = Path(__file__).parent.parent
 env_path = project_root / ".env"
 load_dotenv(dotenv_path=env_path)
 
-# Configure logging
+# Configure logging (LOG_LEVEL env var; unknown values fall back to INFO)
+_log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=_log_level if _log_level in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"} else logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)

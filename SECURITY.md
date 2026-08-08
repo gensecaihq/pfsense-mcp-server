@@ -47,7 +47,9 @@ deployment that ignore the hardening guidance below.
 - Prefer `MCP_READ_ONLY=true` and/or `MCP_ALLOWED_TOOLS` to reduce the exposed
   surface where full write access is not required.
 - Keep the pfSense REST API package updated (see the compatibility matrix in
-  the README; releases before pkg-RESTAPI v2.9.0 carry a known advisory).
+  the README; releases before pkg-RESTAPI v2.10.0 carry known advisories —
+  GHSA-w3w4-mvcc-vmgr, fixed in v2.10.0, and GHSA-8q8g-9f77-8g8g, fixed in
+  v2.9.0).
 
 ## Supported versions
 

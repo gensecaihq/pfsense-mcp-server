@@ -4,7 +4,7 @@ How the pfSense MCP Server is put together, for contributors and reviewers.
 
 ## Overview
 
-The server exposes 327 tools over the [Model Context Protocol](https://modelcontextprotocol.io)
+The server exposes 333 tools over the [Model Context Protocol](https://modelcontextprotocol.io)
 that translate natural-language intent into calls against the
 [pfSense REST API v2](https://github.com/pfrest/pfSense-pkg-RESTAPI). It is a
 single-process, single-firewall server driven by a trusted operator; it holds no
@@ -16,7 +16,7 @@ MCP client (Claude Desktop / Code / …)
         ▼
   ┌───────────────────────────────────────────────┐
   │ FastMCP server (src/server.py)                 │
-  │   • 327 @mcp.tool functions (src/tools/*.py)   │
+  │   • 333 @mcp.tool functions (src/tools/*.py)   │
   │   • ToolAnnotations (read/destructive hints)   │
   └───────────────┬───────────────────────────────┘
                   │ each tool calls the API client
