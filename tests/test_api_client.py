@@ -505,6 +505,45 @@ class TestDiagnosticCommand:
 
 
 # ---------------------------------------------------------------------------
+# Firewall log filtering
+# ---------------------------------------------------------------------------
+
+class TestFirewallLogFiltering:
+    async def test_get_logs_by_ip_fetches_newest_window_and_filters_locally(
+        self, mock_client, mock_make_request
+    ):
+        mock_make_request.return_value = {
+            "data": [
+                {"text": "new 203.0.113.5 entry"},
+                {"text": "new 192.0.2.10 entry"},
+            ]
+        }
+
+        result = await mock_client.get_logs_by_ip("203.0.113.5", lines=200)
+
+        assert result["data"] == [{"text": "new 203.0.113.5 entry"}]
+        assert mock_make_request.call_args.kwargs["filters"] is None
+        assert mock_make_request.call_args.kwargs["pagination"].limit == 50
+
+    async def test_get_blocked_traffic_logs_filters_parsed_actions_locally(
+        self, mock_client, mock_make_request
+    ):
+        mock_make_request.return_value = {
+            "data": [
+                {"text": "Jan 15 10:00:00 pfSense filterlog[1]: 5,,,1000000103,wan,match,block,in,4,0x0,,128,12345,0,none,6,tcp,60,203.0.113.5,192.168.1.1,54321,22,0,S,"},
+                {"text": "Jan 15 10:01:00 pfSense filterlog[1]: 5,,,1000000104,lan,match,pass,in,4,0x0,,64,12346,0,none,17,udp,41,192.168.1.100,8.8.8.8,51234,53,21,"},
+            ]
+        }
+
+        result = await mock_client.get_blocked_traffic_logs(lines=10)
+
+        assert len(result["data"]) == 1
+        assert "block" in result["data"][0]["text"]
+        assert mock_make_request.call_args.kwargs["filters"] is None
+        assert mock_make_request.call_args.kwargs["pagination"].limit == 10
+
+
+# ---------------------------------------------------------------------------
 # Auth methods
 # ---------------------------------------------------------------------------
 

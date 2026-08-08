@@ -170,20 +170,17 @@ async def analyze_blocked_traffic(
     the pfSense web UI instead.
 
     Args:
-        limit: Number of recent blocked entries to analyze (max 50)
+        limit: Number of recent raw log entries to fetch and analyze (max 50);
+            this is not a guaranteed number of blocked entries
         group_by_source: Group results by source IP with threat scoring
     """
     client = get_api_client()
     try:
-        # Do not use the API's text__contains filter: it can return stale
-        # records on this pfSense API version. Filter the newest window here.
+        # The client fetches a newest window and filters parsed actions locally
+        # to avoid pfSense 2.8.1's stale text__contains behavior.
         safe_limit = max(1, min(limit, 50))
-        logs = await client.get_firewall_logs(lines=safe_limit)
-        log_data = []
-        for entry in logs.get("data") or []:
-            parsed = parse_filterlog_entry(entry.get("text", ""))
-            if parsed and parsed.get("action", "").lower() in {"block", "reject"}:
-                log_data.append(entry)
+        logs = await client.get_blocked_traffic_logs(lines=safe_limit)
+        log_data = logs.get("data") or []
 
         if group_by_source:
             # Parse structured fields from the raw filterlog CSV format.
@@ -264,7 +261,8 @@ async def search_logs_by_ip(
     Args:
         ip_address: IP address to search for
         log_type: Type of logs to search (firewall, system, etc.)
-        lines: Number of log lines to retrieve (default 50, max 50)
+        lines: Number of newest raw log lines to search (default 50, max 50);
+            no match does not prove there was no older activity
     """
     # Validate IP address format
     try:
@@ -276,9 +274,9 @@ async def search_logs_by_ip(
     try:
         safe_lines = max(1, min(lines, 50))
         if log_type == "firewall":
-            # Server-side text filtering can return stale records. Filter the
-            # current reverse-chronological window locally instead.
-            logs = await client.get_firewall_logs(lines=safe_lines)
+            # The client fetches the newest window and filters locally because
+            # server-side text__contains can return stale records on pfSense 2.8.1.
+            logs = await client.get_logs_by_ip(ip_address, lines=safe_lines)
         else:
             # Validate log_type against allowlist to prevent path traversal
             if log_type not in VALID_LOG_TYPES:
@@ -295,11 +293,6 @@ async def search_logs_by_ip(
             )
 
         log_entries = logs.get("data") or []
-        if log_type == "firewall":
-            log_entries = [
-                entry for entry in log_entries
-                if ip_address in entry.get("text", "")
-            ]
 
         # Pattern analysis on raw text lines
         # Firewall log entries are raw text; we search for keywords
