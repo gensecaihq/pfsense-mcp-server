@@ -1,7 +1,7 @@
 """Contract tests for the DNS/DHCP silent-drop wire fixes.
 
 Each drives a real tool through the mocked client and asserts the payload it
-puts on the wire matches the pfSense v2.9.0 model contract. Before the fixes
+puts on the wire matches the pfSense v2.10.0 model contract. Before the fixes
 these failed: DNS resolver sent register_dhcp/register_dhcp_static (upstream
 regdhcp/regdhcpstatic), DHCP sent dnsserver as a bare string (upstream array),
 and the access-list tools sent aclname/aclaction/descr (upstream

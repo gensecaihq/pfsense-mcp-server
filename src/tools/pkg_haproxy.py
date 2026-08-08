@@ -532,7 +532,7 @@ async def create_haproxy_frontend(
         if ha_certificates:
             # Upstream ha_certificates is a nested model list; each item is
             # {"ssl_certificate": <refid>}, not a bare refid string. Matches
-            # manage_haproxy_frontend_certificate and the v2.9.0 contract.
+            # manage_haproxy_frontend_certificate and the v2.10.0 contract.
             frontend_data["ha_certificates"] = [
                 {"ssl_certificate": refid} for refid in ha_certificates
             ]

@@ -20,7 +20,7 @@ from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
 
 # The upstream OpenVPN models use different field names/types than the tools
-# historically sent. Verified against pkg-RESTAPI v2.9.0 (see tests/contract):
+# historically sent. Verified against pkg-RESTAPI v2.10.0 (see tests/contract):
 #   crypto (single str)  -> data_ciphers (array)
 #   ca / cert            -> caref / certref
 #   descr                -> description
@@ -939,7 +939,7 @@ async def manage_openvpn_cso(
         # (array of interface names) is security-relevant: a dropped server_id
         # left the override applying to ALL servers. descr -> description,
         # disabled -> disable, redirect_gateway -> gwredir; the *_network fields
-        # and custom_options are arrays upstream. Verified against v2.9.0.
+        # and custom_options are arrays upstream. Verified against v2.10.0.
         field_map = {
             "common_name": common_name,
             "server_list": server_list,
@@ -1093,7 +1093,7 @@ async def export_openvpn_client_config(
         # `usetoken`, `silent`, and proxy* names (proxyport is string-typed).
         # The pre-fix payload (server_id/export_type/use_token/...) used field
         # names the model doesn't have, so every call was rejected. Verified
-        # against pkg-RESTAPI v2.9.0 (see tests/contract). NOTE: some export
+        # against pkg-RESTAPI v2.10.0 (see tests/contract). NOTE: some export
         # knobs (per-CN certref selection, useaddr semantics) still need live
         # validation; the mappable, unambiguous fields are wired here.
         export_data: Dict = {

@@ -19,7 +19,7 @@ from ..server import get_api_client, logger, mcp
 
 # LDAP transport -> upstream AuthServer.ldap_urltype vocabulary. The pre-fix
 # code sent a `transport` field with tcp/ssl/starttls, none of which the API
-# recognizes. Verified against pkg-RESTAPI v2.9.0 (see tests/contract).
+# recognizes. Verified against pkg-RESTAPI v2.10.0 (see tests/contract).
 _LDAP_URLTYPE = {
     "tcp": "Standard TCP",
     "starttls": "STARTTLS Encrypt",
@@ -584,7 +584,7 @@ async def create_auth_server(
         # Upstream AuthServer uses ldap_-prefixed field names and a specific
         # url-type vocabulary; the pre-fix generic names (port/transport/scope/
         # basedn/authcn) were silently dropped, so LDAP servers could not be
-        # created. Verified against pkg-RESTAPI v2.9.0 (see tests/contract).
+        # created. Verified against pkg-RESTAPI v2.10.0 (see tests/contract).
         # Port fields are string-typed upstream (PortField); ints are rejected.
         if port is not None:
             server_data["ldap_port" if type == "ldap" else "radius_auth_port"] = str(port)
@@ -732,7 +732,7 @@ async def update_auth_server(
             radius_acct_port = str(radius_acct_port)
 
         # Upstream AuthServer uses ldap_-prefixed field names; the generic
-        # names were silently dropped. Verified against pkg-RESTAPI v2.9.0.
+        # names were silently dropped. Verified against pkg-RESTAPI v2.10.0.
         field_map = {
             "name": "name",
             "type": "type",

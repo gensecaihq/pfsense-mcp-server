@@ -33,7 +33,7 @@ MCP client (Claude Desktop / Code / …)
   │   429 handling, connection pooling, redaction  │
   └───────────────┬───────────────────────────────┘
                   ▼  HTTPS /api/v2/...
-            pfSense REST API v2 (pkg-RESTAPI v2.9.0)
+            pfSense REST API v2 (pkg-RESTAPI v2.10.0)
 ```
 
 ## Modules
@@ -94,7 +94,7 @@ unit test. To make that failure mode visible:
 
 - `scripts/generate_contract.py` distills the upstream OpenAPI spec (a
   pkg-RESTAPI release asset) into a slim, vendored contract
-  (`tests/contract/contract-v2.9.0.json`): valid field names, JSON types, enum
+  (`tests/contract/contract-v2.10.0.json`): valid field names, JSON types, enum
   choices, and create-required fields per endpoint.
 - `tests/contract/schema.py` exposes `assert_payload_valid(mock)` which captures
   a tool's actual `_make_request` payload and checks it against the contract.
@@ -110,7 +110,7 @@ python scripts/generate_contract.py openapi.json tests/contract/contract-<ver>.j
 
 `PfSenseVersion` (`src/models.py`) enumerates supported releases; the value is
 informational (it does not gate behavior today). The wire layer targets
-pkg-RESTAPI **v2.9.0**. See the README compatibility matrix; legacy names such as
+pkg-RESTAPI **v2.10.0**. See the README compatibility matrix; legacy names such as
 the historically-mislabeled `CE_26_03` remain accepted as enum aliases.
 
 ## MCP protocol

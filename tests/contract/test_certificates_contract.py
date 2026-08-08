@@ -3,7 +3,7 @@
 Before these fixes: import sent `cert` (upstream `crt`) so it 400'd; internal
 generation was POSTed to the import endpoint (wrong fields dropped); renew and
 PKCS#12 export sent the array-index `id` instead of the required `certref`.
-Each test drives the real tool and asserts the payload matches the v2.9.0
+Each test drives the real tool and asserts the payload matches the v2.10.0
 contract.
 """
 from src.tools.certificates import (
