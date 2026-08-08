@@ -140,3 +140,6 @@ secrets/
 # Local development
 .local/
 scratch/
+
+# Local AI-assistant guidance (not version-controlled)
+CLAUDE.md
