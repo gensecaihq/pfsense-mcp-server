@@ -26,9 +26,32 @@ grew from 327 to 333 (new ACME/HAProxy sub-resource tools); test suite grew from
 - **Schedule-based firewall rules.** The schedule tools (`create_firewall_schedule`, `create_schedule_time_range`, etc.) could build schedules, but no rule tool could reference one, so schedules were inert. `create_firewall_rule_advanced` and `update_firewall_rule` now expose a `schedule` parameter (sent as the API's `sched` field) to assign an existing schedule to a rule; on update, passing `""` detaches the schedule.
 - **IPv6 / dual-stack firewall rules** (PR #10). `create_firewall_rule_advanced` exposes an `ipprotocol` parameter (`inet`, `inet6`, `inet46`) with validation instead of hardcoding `inet`.
 - **uvx / pipx installation** (#8). Added a `pfsense-mcp-server` console entry point and setuptools package discovery, so the server can run without cloning the repository.
+- **End-to-end MCP protocol smoke test** (`scripts/inspector_smoke.sh`, `make test-e2e`, CI job `mcp-inspector-e2e`). Drives the server over the real MCP wire protocol with the official [MCP Inspector](https://github.com/modelcontextprotocol/inspector) CLI on both transports: initialize handshake, 333-tool listing with annotations and descriptions, guardrail confirm-gate on a destructive call, `MCP_READ_ONLY` tool reduction, unauthenticated `/health`, 401-without-bearer and 403-bad-Origin enforcement, and an authenticated HTTP session. Runs in CI on every push with no pfSense instance (TEST-NET black-hole target), so transport and handshake regressions fail CI rather than surfacing in a user's Claude Desktop.
 
 ### Fixed
 
+- **`API_TIMEOUT` was silently ignored — every API request ran with timeouts
+  disabled.** The retry refactor passed `timeout=None` to httpx for any request
+  without a per-request override, and httpx treats an explicit `None` as
+  "disable timeouts", not "use the client default". Against an unreachable
+  pfSense, each attempt hung until the OS abandoned the TCP connect (~75s), so
+  a single tool call could stall for minutes. Requests now pass
+  `httpx.USE_CLIENT_DEFAULT`, restoring the configured `API_TIMEOUT`
+  (regression-tested). Found by driving the server with the MCP Inspector CLI
+  against a black-holed TEST-NET address.
+- **An unreachable pfSense delayed MCP startup past client timeouts.** The
+  preflight connectivity check runs before the MCP transport opens and used the
+  full retry pipeline (up to ~4× `API_TIMEOUT` plus backoff) — with the timeout
+  bug above, several minutes. Claude Desktop and the MCP Inspector mark a server
+  dead long before that. The preflight is now hard-bounded to 5 seconds
+  (`asyncio.wait_for`); on expiry the server logs a warning and starts anyway,
+  per the existing degraded-start design (PR #14).
+- **Connectivity failures surfaced as an empty error string.** `str()` of
+  httpx timeout exceptions is often empty, so tools reported
+  `{"success": false, "error": ""}` — useless to an operator. Transport errors
+  are now re-raised with a descriptive message (`Cannot reach pfSense at <host>:
+  ConnectTimeout (timeout 30s, 4 attempt(s))`) with the exception type
+  preserved for existing handlers.
 - **Live health diagnostics reported wrong data.** `diagnose_dns_resolution`/`diagnose_service_health`/`get_system_health_report`/`diagnose_connectivity`/`diagnose_interface_issues` read runtime gateway status from the `/routing/gateways` *config* endpoint (which has no `status` field), so every gateway was classified `unknown` and `diagnose_connectivity` appended a false "Gateway X is unknown" issue on every run; DNS servers were read from the system-status payload instead of `/system/dns`; and service status wasn't normalized for the API v2 boolean form. Now sourced from `/status/gateways` and `/system/dns` with boolean-status handling. (Original fix by @pbhorjee in #21, completed with the two remaining gateway call sites and a test suite.)
 - **A momentary network blip or `503`/`429` failed the whole tool call.** The API client now retries transient failures with exponential backoff (capped): connection errors and `429`/`503` are retried for any method (a `Retry-After` header is honored, bounded); read-timeouts and `502`/`504` are retried only for idempotent `GET`s. Non-idempotent writes (POST/PATCH/DELETE) are never retried on an ambiguous read-timeout or gateway error, so a change can't be silently applied twice, and the fast-fail log endpoints (which set a short read timeout) opt out entirely. Also bounded the httpx connection pool (`max_connections=10`) so a burst of tool calls can't overwhelm pfSense's PHP-FPM workers.
 - **The input sanitizer rejected legitimate values** (e.g. multi-container LDAP DNs like `CN=Users;DC=example,DC=com`, OpenVPN custom options, pipes in descriptions). Its shell-injection rules (`;\s*\w`, `|\s*\w`, backtick, `$(`, `${`) were security theater for this codebase — tool values are sent to the pfSense API as JSON *data*, never into a shell (the one real command sink is hard-allowlisted separately) — while false-positiving on real config. The denylist is now scoped to threats meaningful for stored data: path traversal and a `<script>` tag; field-level positive validation (IP/port/MAC/…) does the real input checking.

@@ -165,18 +165,33 @@ def main():
     # the server begins serving.
     apply_read_only_filter()
 
-    # Test connection before starting server
+    # Test connection before starting server. Bounded hard: the preflight runs
+    # *before* the MCP transport opens, so an unreachable pfSense must not hold
+    # the handshake hostage (the full request path retries with backoff — up to
+    # ~4x API_TIMEOUT). MCP clients (Claude Desktop, the Inspector) time out
+    # and mark the server dead long before that.
+    PREFLIGHT_BUDGET_SECONDS = 5
+
     async def test_conn():
         client = get_api_client()
         try:
             logger.info("Testing connection to pfSense API...")
-            result = await client.test_connection()
+            result = await asyncio.wait_for(
+                client.test_connection(), timeout=PREFLIGHT_BUDGET_SECONDS
+            )
             if result["connected"]:
                 logger.info("Successfully connected to pfSense API")
                 return True
             else:
                 logger.error("Failed to connect to pfSense API: %s", result.get("error", "unknown error"))
                 return False
+        except (asyncio.TimeoutError, TimeoutError):
+            logger.error(
+                "Preflight connectivity check exceeded its %ss budget; "
+                "not blocking server startup on it.",
+                PREFLIGHT_BUDGET_SECONDS,
+            )
+            return False
         except Exception as e:
             logger.error(f"Connection error: {e}")
             import traceback
