@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Post-1.0.0 bug fixes and quality improvements, all merged to `main`. Tool count
 grew from 327 to 333 (new ACME/HAProxy sub-resource tools); test suite grew from
-308 to 481.
+308 to 483.
 
 ### Added
 

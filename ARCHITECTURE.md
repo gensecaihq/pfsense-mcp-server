@@ -106,6 +106,19 @@ gh release download <tag> --repo pfrest/pfSense-pkg-RESTAPI --pattern openapi.js
 python scripts/generate_contract.py openapi.json tests/contract/contract-<ver>.json --version <ver>
 ```
 
+## Protocol-level E2E layer
+
+The unit and contract suites run in-process with the transport mocked away, so
+they cannot see handshake, transport, or auth regressions. A third layer
+(`scripts/inspector_smoke.sh`, CI job `mcp-inspector-e2e`) drives the built
+server over the real MCP wire protocol with the official MCP Inspector CLI:
+initialize handshake, tools/list with annotations on both transports, the
+confirm gate on a destructive call, `MCP_READ_ONLY` reduction, `/health`, and
+bearer-auth + Origin enforcement. It points the server at a black-holed
+TEST-NET address, which is also what keeps the startup path honest: the
+preflight connectivity check is hard-bounded (5 s) so an unreachable pfSense
+can never stall the MCP handshake past a client's startup timeout.
+
 ## Version compatibility
 
 `PfSenseVersion` (`src/models.py`) enumerates supported releases; the value is
