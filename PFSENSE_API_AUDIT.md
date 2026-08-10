@@ -176,4 +176,4 @@ pfSense uses non-persistent array indices as object IDs. After any deletion, all
 | Helpers & validation | 1 | — |
 | **Total** | **34 tool files** | **327 tools** _(v1.0.0 snapshot; current `main` is 333 — see [README](README.md))_ |
 
-**Tests: 308 passing** _(v1.0.0 audit snapshot; current `main` is 481 passing after post-1.0.0 fixes — see [CHANGELOG](CHANGELOG.md))_
+**Tests: 308 passing** _(v1.0.0 audit snapshot; current `main` is 483 passing after post-1.0.0 fixes — see [CHANGELOG](CHANGELOG.md))_

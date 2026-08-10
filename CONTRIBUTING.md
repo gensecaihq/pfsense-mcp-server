@@ -23,9 +23,18 @@ pip install -e ".[dev]"        # installs runtime + pytest, ruff
 Run the full suite and the linter — CI runs both and must pass:
 
 ```bash
-pytest -v                      # 481 tests
+pytest -v                      # 483 tests
 pytest --cov=src               # with coverage (CI gate: >=40%)
 ruff check src/ tests/         # lint (must be clean)
+```
+
+If your change touches transports, auth, startup, or tool registration, also
+run the protocol-level E2E suite that CI runs (`mcp-inspector-e2e`) — it
+drives the server over the real MCP wire protocol with the MCP Inspector CLI
+and needs `node`/`npx` and `jq`, but no pfSense instance:
+
+```bash
+make test-e2e                  # or: ./scripts/inspector_smoke.sh
 ```
 
 Add or update tests for any behavior you change. Tool tests live under
