@@ -66,6 +66,10 @@ test-cov: ## Run tests with coverage
 	@echo "$(YELLOW)Running tests with coverage...$(NC)"
 	python3 -m pytest tests/ --cov=src --cov-report=term-missing
 
+test-e2e: ## Run MCP Inspector protocol smoke test (needs node/npx, jq)
+	@echo "$(YELLOW)Running MCP Inspector smoke test...$(NC)"
+	./scripts/inspector_smoke.sh
+
 lint: ## Run linting
 	@echo "$(YELLOW)Running linter...$(NC)"
 	ruff check .

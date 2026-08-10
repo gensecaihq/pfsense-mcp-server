@@ -294,6 +294,19 @@ python3 -m pytest tests/ --cov=src   # with coverage (~46%)
 
 The suite includes a **wire-contract layer** (`tests/contract/`) that asserts every tool's payload against the real pfSense REST API v2.10.0 schema (distilled from the upstream OpenAPI spec), so a wrong field name or type is a failing test rather than a silent misconfiguration. CI runs on Python 3.11/3.12/3.13 with `pip-audit` dependency scanning.
 
+On top of the in-process suite, an **end-to-end protocol smoke test** drives the
+server over the real MCP wire protocol with the official
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector) CLI — on
+both transports, in CI on every push:
+
+```bash
+make test-e2e            # or: ./scripts/inspector_smoke.sh  (needs node/npx, jq)
+```
+
+It verifies the initialize handshake, the 333-tool listing with annotations,
+the guardrail confirm-gate over the wire, read-only mode, and HTTP bearer-auth
+plus Origin enforcement — no pfSense instance required.
+
 ## MCP Specification Compliance
 
 Compliant with [MCP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25) — the newest revision with stable SDK support — and negotiates down to older revisions per connection, so existing clients keep working:
@@ -322,6 +335,7 @@ src/
 scripts/
   generate_contract.py Regenerate the wire contract from an OpenAPI spec
   generate_token.py    Generate a secure MCP_API_KEY bearer token
+  inspector_smoke.sh   End-to-end MCP protocol smoke test (MCP Inspector CLI)
 tests/                 481 tests (incl. tests/contract/ wire-contract suite)
 ```
 

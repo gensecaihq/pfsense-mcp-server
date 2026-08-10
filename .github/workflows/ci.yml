@@ -41,6 +41,35 @@ jobs:
       - name: Lint with ruff
         run: ruff check src/ tests/
 
+  # End-to-end MCP protocol conformance via the official MCP Inspector CLI:
+  # real initialize handshake, tools/list on both transports, guardrail
+  # confirm-gate over the wire, read-only mode, HTTP bearer-auth and Origin
+  # enforcement. Catches transport/handshake regressions the in-process
+  # pytest suite cannot see.
+  mcp-inspector-e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run MCP Inspector smoke test
+        run: PYTHON=python ./scripts/inspector_smoke.sh
+
   security:
     # Dependency vulnerability scan. Informational for now (continue-on-error)
     # so a freshly-disclosed advisory surfaces without blocking unrelated merges.

@@ -76,6 +76,20 @@ class EnhancedPfSenseAPIClient:
         except (ValueError, TypeError):
             return None  # HTTP-date form not honored; fall back to backoff
 
+    def _describe_transport_error(self, e: httpx.TransportError, attempts: int):
+        """Re-raise a transport error with a human-readable message.
+
+        ``str()`` of httpx timeout exceptions is often empty, so the stringly-
+        typed tool handlers would surface ``"error": ""`` — useless to the
+        operator. Rebuild the same exception type with a descriptive message
+        (type preserved so existing except clauses keep matching).
+        """
+        detail = str(e).strip() or type(e).__name__
+        return type(e)(
+            f"Cannot reach pfSense at {self.host}: {detail} "
+            f"(timeout {self.timeout}s, {attempts + 1} attempt(s))"
+        )
+
     async def _send(self, method, url, headers, data, req_timeout):
         """Issue a single HTTP request (no retry)."""
         verb = method.upper()
@@ -289,7 +303,14 @@ class EnhancedPfSenseAPIClient:
         # Per-request timeout override (used by log endpoints to fail fast).
         # Only the read phase is shortened so connect/write/pool timeouts
         # keep using the client defaults and don't cause false positives.
-        req_timeout = httpx.Timeout(self.timeout, read=timeout) if timeout else None
+        # NOTE: httpx treats an explicit timeout=None as "disable timeouts",
+        # not "use the client default" — USE_CLIENT_DEFAULT is the sentinel
+        # that preserves the client-level API_TIMEOUT.
+        req_timeout = (
+            httpx.Timeout(self.timeout, read=timeout)
+            if timeout
+            else httpx.USE_CLIENT_DEFAULT
+        )
 
         # Make request, retrying transient failures with exponential backoff.
         # Retry is skipped when a per-request read timeout is set (log endpoints
@@ -304,18 +325,18 @@ class EnhancedPfSenseAPIClient:
         while True:
             try:
                 response = await self._send(method, url, headers, data, req_timeout)
-            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout):
+            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as e:
                 if allow_retry and attempt < self._MAX_RETRIES:
                     await asyncio.sleep(self._backoff_delay(attempt))
                     attempt += 1
                     continue
-                raise
-            except httpx.ReadTimeout:
+                raise self._describe_transport_error(e, attempt) from e
+            except httpx.ReadTimeout as e:
                 if allow_retry and idempotent and attempt < self._MAX_RETRIES:
                     await asyncio.sleep(self._backoff_delay(attempt))
                     attempt += 1
                     continue
-                raise
+                raise self._describe_transport_error(e, attempt) from e
 
             retry_any_method = response.status_code in (429, 503)
             retry_idempotent = response.status_code in (502, 504)

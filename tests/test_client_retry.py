@@ -102,3 +102,29 @@ async def test_retries_are_bounded(no_sleep):
         with pytest.raises(httpx.ConnectError):
             await c._make_request("GET", "/firewall/rule")
     assert send.await_count == c._MAX_RETRIES + 1  # initial + retries
+
+
+async def test_default_request_uses_client_timeout_not_disabled(no_sleep):
+    # Regression: passing timeout=None to httpx DISABLES timeouts entirely
+    # (it is not "use the client default"). A request without a per-request
+    # override must send the USE_CLIENT_DEFAULT sentinel so the client-level
+    # API_TIMEOUT stays in force; None here means every call can hang until
+    # the OS abandons the TCP connect (~minutes against a black-holed host).
+    c = _client()
+    with patch.object(c, "_send", new_callable=AsyncMock) as send:
+        send.return_value = _resp(200)
+        await c._make_request("GET", "/firewall/rule")
+    assert send.await_args.args[4] is httpx.USE_CLIENT_DEFAULT
+
+
+async def test_log_endpoint_read_timeout_override_is_scoped(no_sleep):
+    # The fast-fail override shortens only the read phase; connect/write/pool
+    # keep the client-level timeout.
+    c = _client()
+    with patch.object(c, "_send", new_callable=AsyncMock) as send:
+        send.return_value = _resp(200)
+        await c._make_request("GET", "/status/logs", timeout=5)
+    t = send.await_args.args[4]
+    assert isinstance(t, httpx.Timeout)
+    assert t.read == 5
+    assert t.connect == c.timeout
