@@ -175,6 +175,40 @@ class TestCreateDhcpStaticMapping:
         # dnsserver is an array of strings upstream (see tests/contract)
         assert data["dnsserver"] == ["8.8.8.8"]
 
+    async def test_lease_times_sent_when_provided(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 2}}
+        result = await _create_dhcp_static_mapping(
+            interface="lan", mac_address="aa:bb:cc:dd:ee:05",
+            ip_address="192.168.1.204",
+            default_lease_time=86400, max_lease_time=172800,
+        )
+        assert result["success"] is True
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["defaultleasetime"] == 86400
+        assert data["maxleasetime"] == 172800
+
+    async def test_lease_times_omitted_when_unset(self, mock_client, mock_make_request):
+        """Unset lease times must send no field at all, leaving today's behaviour intact."""
+        mock_make_request.return_value = {"data": {"id": 3}}
+        result = await _create_dhcp_static_mapping(
+            interface="lan", mac_address="aa:bb:cc:dd:ee:06", ip_address="192.168.1.205"
+        )
+        assert result["success"] is True
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert "defaultleasetime" not in data
+        assert "maxleasetime" not in data
+
+    async def test_zero_lease_time_reaches_wire(self, mock_client, mock_make_request):
+        """0 is a value the caller passed, not an absent field."""
+        mock_make_request.return_value = {"data": {"id": 4}}
+        result = await _create_dhcp_static_mapping(
+            interface="lan", mac_address="aa:bb:cc:dd:ee:07",
+            ip_address="192.168.1.206", default_lease_time=0,
+        )
+        assert result["success"] is True
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["defaultleasetime"] == 0
+
 
 # ---------------------------------------------------------------------------
 # update_dhcp_static_mapping
@@ -217,6 +251,57 @@ class TestUpdateDhcpStaticMapping:
         result = await _update_dhcp_static_mapping(mapping_id=0)
         assert result["success"] is False
         assert "No fields" in result["error"]
+
+    async def test_lease_times_only_leaves_other_fields_untouched(
+        self, mock_client, mock_make_request
+    ):
+        """Updating only the lease times must not blank mac/ipaddr/hostname/descr.
+
+        Bulk lease-time edits across many reservations depend on this: the PATCH
+        carries only the fields the caller named, plus the id/parent_id the API
+        needs to target the child object.
+        """
+        mock_make_request.side_effect = [
+            {"data": [{"id": 7, "parent_id": "lan", "mac": "aa:bb:cc:dd:ee:01"}]},
+            {"data": {"id": 7}},
+        ]
+        result = await _update_dhcp_static_mapping(
+            mapping_id=7, default_lease_time=86400, max_lease_time=172800
+        )
+        assert result["success"] is True
+
+        patch_call = mock_make_request.call_args_list[1]
+        method = patch_call.kwargs.get("method") or patch_call[0][0]
+        data = patch_call.kwargs.get("data") or patch_call[1].get("data")
+        assert method == "PATCH"
+        assert data["defaultleasetime"] == 86400
+        assert data["maxleasetime"] == 172800
+        assert set(data) == {"id", "parent_id", "defaultleasetime", "maxleasetime"}
+
+    async def test_partial_update_omits_every_unset_optional(
+        self, mock_client, mock_make_request
+    ):
+        """Any single-field update sends that field only, for all optionals."""
+        mock_make_request.side_effect = [
+            {"data": [{"id": 2, "parent_id": "lan"}]},
+            {"data": {"id": 2}},
+        ]
+        result = await _update_dhcp_static_mapping(mapping_id=2, description="renamed")
+        assert result["success"] is True
+        patch_call = mock_make_request.call_args_list[1]
+        data = patch_call.kwargs.get("data") or patch_call[1].get("data")
+        assert set(data) == {"id", "parent_id", "descr"}
+
+    async def test_zero_lease_time_reaches_wire(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = [
+            {"data": [{"id": 5, "parent_id": "lan"}]},
+            {"data": {"id": 5}},
+        ]
+        result = await _update_dhcp_static_mapping(mapping_id=5, max_lease_time=0)
+        assert result["success"] is True
+        patch_call = mock_make_request.call_args_list[1]
+        data = patch_call.kwargs.get("data") or patch_call[1].get("data")
+        assert data["maxleasetime"] == 0
 
 
 # ---------------------------------------------------------------------------
