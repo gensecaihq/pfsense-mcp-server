@@ -12,7 +12,7 @@
 [![MCP 2025-11-25](https://img.shields.io/badge/MCP-2025--11--25-6E56CF.svg)](https://modelcontextprotocol.io)
 [![pfSense API v2.10.0](https://img.shields.io/badge/pfSense%20API-v2.10.0-orange.svg)](https://pfrest.org/)
 [![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-3776AB.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-483%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-486%20passing-brightgreen.svg)](#testing)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -33,7 +33,7 @@ Claude:  ✓ created peer on tun_wg0  →  here's the client config to import
 
 **pfSense MCP Server** connects [Claude Desktop](https://claude.ai/download), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and any other [MCP](https://modelcontextprotocol.io) client to your pfSense firewall. Ask questions, diagnose issues, and change configuration through conversation — with a confirmation gate, config backup, and rollback on every destructive action.
 
-Letting an AI touch a production firewall is only safe if the plumbing is right, so that's where the work went: every tool's wire format is verified against the pfSense REST API schema by a contract-test layer, and every change runs through a guardrail pipeline. 483 tests plus a wire-protocol E2E suite in CI on Python 3.11–3.13.
+Letting an AI touch a production firewall is only safe if the plumbing is right, so that's where the work went: every tool's wire format is verified against the pfSense REST API schema by a contract-test layer, and every change runs through a guardrail pipeline. 486 tests plus a wire-protocol E2E suite in CI on Python 3.11–3.13.
 
 > [!TIP]
 > Jump to the [Quick Start](#quick-start) — about two minutes with `uvx`, no clone required. And if this saves you a trip through the pfSense web UI, a ⭐ helps others find it.
@@ -298,7 +298,7 @@ environments that already run one.
 ## Testing
 
 ```bash
-python3 -m pytest tests/ -v          # 483 tests
+python3 -m pytest tests/ -v          # 486 tests
 python3 -m pytest tests/ --cov=src   # with coverage (~46%)
 ```
 
@@ -350,7 +350,7 @@ scripts/
   generate_contract.py Regenerate the wire contract from an OpenAPI spec
   generate_token.py    Generate a secure MCP_API_KEY bearer token
   inspector_smoke.sh   End-to-end MCP protocol smoke test (MCP Inspector CLI)
-tests/                 483 tests (incl. tests/contract/ wire-contract suite)
+tests/                 486 tests (incl. tests/contract/ wire-contract suite)
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the request lifecycle, guardrail
@@ -377,6 +377,7 @@ We need real-world testing across diverse pfSense environments. See [CONTRIBUTIN
 - [JeremiahChurch](https://github.com/JeremiahChurch) — modular rewrite (PR #5), log endpoint OOM safeguards (PR #6)
 - [shawnpetersen](https://github.com/shawnpetersen) — API v2 endpoint discovery (PR #3)
 - [aemitic](https://github.com/aemitic) — DELETE-body fix (PR #9), firewall `ipprotocol` for IPv6/dual-stack (PR #10), `logconfigchanges` (PR #11)
+- [pbhorjee](https://github.com/pbhorjee) — live-status diagnostics fix (PR #21), firewall-log freshness + exact-IP filtering (PR #23)
 - [hossamnagy](https://github.com/hossamnagy) — resilient startup on transient preflight failure (PR #14)
 - [bill-mccormick-dg](https://github.com/bill-mccormick-dg) — independent DELETE-body fix (PR #16)
 - [w1ld3r](https://github.com/w1ld3r) — DELETE and remote-syslog bug reports (#12, #13)
