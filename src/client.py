@@ -11,6 +11,7 @@ from urllib.parse import urlencode, urlparse
 import httpx
 
 from .guardrails import _redact_sensitive
+from .helpers import parse_filterlog_entry
 from .models import (
     AuthMethod,
     ControlParameters,
@@ -721,26 +722,47 @@ class EnhancedPfSenseAPIClient:
     async def get_logs_by_ip(self, ip_address: str, lines: int = 20) -> Dict:
         """Get firewall logs containing a specific IP address.
 
-        Uses text__contains since the firewall log model only has a 'text' field.
-        """
-        filters = [QueryFilter("text", ip_address, "contains")]
+        Fetches the newest log window and filters it locally. pfSense 2.8.1 can
+        return stale, non-chronological results for the server-side
+        ``text__contains`` filter (see pfSense-pkg-RESTAPI#806/#860).
 
-        return await self.get_firewall_logs(
-            filters=filters,
-            lines=min(lines, 50)
-        )
+        The search is limited to the newest ``lines`` raw log entries (max 50),
+        so no matches does not prove that the IP had no older activity.
+        """
+        logs = await self.get_firewall_logs(lines=min(lines, 50))
+        matched = []
+        for entry in logs.get("data") or []:
+            text = entry.get("text", "")
+            parsed = parse_filterlog_entry(text)
+            if parsed:
+                # Exact field matching avoids 10.0.0.1 matching 10.0.0.10.
+                if ip_address in (parsed.get("src_ip"), parsed.get("dst_ip")):
+                    matched.append(entry)
+            elif ip_address in text:
+                # Preserve useful matches for non-filterlog log entries.
+                matched.append(entry)
+        logs["data"] = matched
+        return logs
 
     async def get_blocked_traffic_logs(self, lines: int = 20) -> Dict:
-        """Get firewall logs containing 'block' in the raw text.
+        """Get recent firewall entries whose parsed action is block or reject.
 
-        Uses text__contains since the firewall log model only has a 'text' field.
+        Fetches the newest log window and filters it locally because pfSense
+        2.8.1 can return stale results for server-side ``text__contains``
+        filtering (see pfSense-pkg-RESTAPI#806/#860). Only parseable filterlog
+        entries with an explicit ``block`` or ``reject`` action are returned.
+        The search covers the newest ``lines`` raw log entries (max 50), not a
+        guaranteed number of blocked entries.
         """
-        filters = [QueryFilter("text", "block", "contains")]
-
-        return await self.get_firewall_logs(
-            filters=filters,
-            lines=min(lines, 50)
-        )
+        logs = await self.get_firewall_logs(lines=min(lines, 50))
+        logs["data"] = [
+            entry for entry in logs.get("data") or []
+            if (
+                (parsed := parse_filterlog_entry(entry.get("text", "")))
+                and parsed.get("action", "").lower() in {"block", "reject"}
+            )
+        ]
+        return logs
 
     # Allowlist of valid log types to prevent path traversal via log endpoint
     _VALID_LOG_TYPES = frozenset({"firewall", "system", "dhcp", "openvpn", "auth"})

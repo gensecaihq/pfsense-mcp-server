@@ -64,16 +64,17 @@ class TestGetFirewallLog:
             source_ip="203.0.113.5", protocol="tcp",
         )
         assert result["success"] is True
+        assert result["count"] == 1
         assert result["filters_applied"]["action"] == "block"
         assert result["filters_applied"]["interface"] == "wan"
+        assert mock_make_request.call_args.kwargs.get("filters") is None
 
     async def test_destination_ip_filter(self, mock_client, mock_make_request, firewall_logs_response):
         mock_make_request.return_value = firewall_logs_response
         result = await _get_firewall_log(destination_ip="192.168.1.1")
         assert result["success"] is True
-        # Firewall log model only has 'text' field — client-side filtering on raw text
-        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
-        assert any(f.field == "text" and f.value == "192.168.1.1" and f.operator == "contains" for f in filters)
+        # Firewall log filters run locally so the API returns the newest window.
+        assert mock_make_request.call_args.kwargs.get("filters") is None
 
     async def test_no_sort_sent(self, mock_client, mock_make_request, firewall_logs_response):
         """Log endpoints don't support sort_by — verify none is sent."""
@@ -105,6 +106,7 @@ class TestAnalyzeBlockedTraffic:
         mock_make_request.return_value = firewall_logs_response
         result = await _analyze_blocked_traffic(group_by_source=True)
         assert result["success"] is True
+        assert result["total_entries_analyzed"] == 1
         assert result["analysis"]["grouped_by"] == "source_ip"
 
     async def test_ungrouped(self, mock_client, mock_make_request, firewall_logs_response):
@@ -131,6 +133,7 @@ class TestSearchLogsByIp:
         result = await _search_logs_by_ip(ip_address="203.0.113.5", log_type="firewall")
         assert result["success"] is True
         assert result["ip_address"] == "203.0.113.5"
+        assert result["total_entries"] == 1
         assert result["patterns"] is not None
 
     async def test_non_firewall_type(self, mock_client, mock_make_request):
