@@ -620,11 +620,21 @@ class EnhancedPfSenseAPIClient:
         The search is limited to the newest ``lines`` raw log entries (max 50),
         so no matches does not prove that the IP had no older activity.
         """
+        from .helpers import parse_filterlog_entry
+
         logs = await self.get_firewall_logs(lines=min(lines, 50))
-        logs["data"] = [
-            entry for entry in logs.get("data") or []
-            if ip_address in entry.get("text", "")
-        ]
+        matched = []
+        for entry in logs.get("data") or []:
+            text = entry.get("text", "")
+            parsed = parse_filterlog_entry(text)
+            if parsed:
+                # Exact field matching avoids 10.0.0.1 matching 10.0.0.10.
+                if ip_address in (parsed.get("src_ip"), parsed.get("dst_ip")):
+                    matched.append(entry)
+            elif ip_address in text:
+                # Preserve useful matches for non-filterlog log entries.
+                matched.append(entry)
+        logs["data"] = matched
         return logs
 
     async def get_blocked_traffic_logs(self, lines: int = 20) -> Dict:

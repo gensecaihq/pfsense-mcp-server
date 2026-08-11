@@ -525,6 +525,24 @@ class TestFirewallLogFiltering:
         assert mock_make_request.call_args.kwargs["filters"] is None
         assert mock_make_request.call_args.kwargs["pagination"].limit == 50
 
+    async def test_get_logs_by_ip_matches_parsed_addresses_exactly(
+        self, mock_client, mock_make_request
+    ):
+        target = "Jan 15 10:00:00 pfSense filterlog[1]: 5,,,1000000103,wan,match,block,in,4,0x0,,128,12345,0,none,6,tcp,60,203.0.113.5,192.168.1.1,54321,22,0,S,"
+        near_match = target.replace("203.0.113.5", "203.0.113.50")
+        unparseable = "service: lookup for 203.0.113.5 completed"
+        mock_make_request.return_value = {
+            "data": [
+                {"text": target},
+                {"text": near_match},
+                {"text": unparseable},
+            ]
+        }
+
+        result = await mock_client.get_logs_by_ip("203.0.113.5")
+
+        assert result["data"] == [{"text": target}, {"text": unparseable}]
+
     async def test_get_blocked_traffic_logs_filters_parsed_actions_locally(
         self, mock_client, mock_make_request
     ):
@@ -537,13 +555,14 @@ class TestFirewallLogFiltering:
             ]
         }
 
-        result = await mock_client.get_blocked_traffic_logs(lines=10)
+        result = await mock_client.get_blocked_traffic_logs(lines=200)
 
-        assert len(result["data"]) == 2
-        assert "block" in result["data"][0]["text"]
-        assert "reject" in result["data"][1]["text"]
+        assert result["data"] == [
+            {"text": "Jan 15 10:00:00 pfSense filterlog[1]: 5,,,1000000103,wan,match,block,in,4,0x0,,128,12345,0,none,6,tcp,60,203.0.113.5,192.168.1.1,54321,22,0,S,"},
+            {"text": "Jan 15 10:00:30 pfSense filterlog[1]: 5,,,1000000105,wan,match,reject,in,4,0x0,,128,12347,0,none,6,tcp,60,203.0.113.6,192.168.1.1,54322,22,0,S,"},
+        ]
         assert mock_make_request.call_args.kwargs["filters"] is None
-        assert mock_make_request.call_args.kwargs["pagination"].limit == 10
+        assert mock_make_request.call_args.kwargs["pagination"].limit == 50
 
 
 # ---------------------------------------------------------------------------
