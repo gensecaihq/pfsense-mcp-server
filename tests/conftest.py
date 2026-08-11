@@ -11,11 +11,11 @@ import pytest
 try:
     from fastmcp.tools.tool import FunctionTool
 
-    if not hasattr(FunctionTool, "__call__"):
-        def _call_function_tool(self, *args, **kwargs):
-            return self.fn(*args, **kwargs)
+    def _call_function_tool(self, *args, **kwargs):
+        return self.fn(*args, **kwargs)
 
-        FunctionTool.__call__ = _call_function_tool
+    FunctionTool.__call__ = _call_function_tool
+    FunctionTool.__test__ = False
 except (ImportError, AttributeError):
     pass
 
