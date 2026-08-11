@@ -352,18 +352,40 @@ class TestAddToAliasClient:
 
 
 class TestRemoveFromAliasClient:
-    async def test_remove_uses_patch_with_remove(self, mock_client, mock_make_request):
-        mock_make_request.return_value = {"data": {"id": 9}}
+    async def test_remove_rebuilds_address_and_detail_in_lockstep(self, mock_client, mock_make_request):
+        """The API's remove flag strips only addresses and then rejects the
+        alias for having more detail items than addresses; removal must
+        rebuild both lists together."""
+        mock_make_request.side_effect = [
+            {"data": {"id": 9,
+                      "address": ["10.0.0.1", "10.0.0.5", "10.0.0.9"],
+                      "detail": ["one", "five", "nine"]}},
+            {"data": {"id": 9}},
+        ]
         await mock_client.remove_from_alias(9, ["10.0.0.5"])
-        call_kwargs = mock_make_request.call_args
-        method = call_kwargs[0][0] if call_kwargs[0] else call_kwargs.kwargs.get("method")
-        assert method == "PATCH"
-        endpoint = call_kwargs[0][1] if len(call_kwargs[0]) > 1 else call_kwargs.kwargs.get("endpoint")
-        assert endpoint == "/firewall/alias"
-        data = call_kwargs.kwargs.get("data") or call_kwargs[1].get("data")
+        assert mock_make_request.call_count == 2
+        get_call = mock_make_request.call_args_list[0]
+        assert get_call[0][0] == "GET"
+        patch_call = mock_make_request.call_args_list[1]
+        assert patch_call[0][0] == "PATCH"
+        assert patch_call[0][1] == "/firewall/alias"
+        data = patch_call.kwargs.get("data") or patch_call[1].get("data")
         assert data["id"] == 9
-        control = call_kwargs.kwargs.get("control") or call_kwargs[1].get("control")
-        assert control.remove is True
+        assert data["address"] == ["10.0.0.1", "10.0.0.9"]
+        assert data["detail"] == ["one", "nine"]
+
+    async def test_remove_pads_short_detail_list(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = [
+            {"data": {"id": 3,
+                      "address": ["10.0.0.1", "10.0.0.5", "10.0.0.9"],
+                      "detail": ["one"]}},
+            {"data": {"id": 3}},
+        ]
+        await mock_client.remove_from_alias(3, ["10.0.0.1"])
+        patch_call = mock_make_request.call_args_list[1]
+        data = patch_call.kwargs.get("data") or patch_call[1].get("data")
+        assert data["address"] == ["10.0.0.5", "10.0.0.9"]
+        assert data["detail"] == ["", ""]
 
 
 # ---------------------------------------------------------------------------
@@ -531,14 +553,17 @@ class TestFirewallLogFiltering:
         mock_make_request.return_value = {
             "data": [
                 {"text": "Jan 15 10:00:00 pfSense filterlog[1]: 5,,,1000000103,wan,match,block,in,4,0x0,,128,12345,0,none,6,tcp,60,203.0.113.5,192.168.1.1,54321,22,0,S,"},
+                {"text": "Jan 15 10:00:30 pfSense filterlog[1]: 5,,,1000000105,wan,match,reject,in,4,0x0,,128,12347,0,none,6,tcp,60,203.0.113.6,192.168.1.1,54322,22,0,S,"},
                 {"text": "Jan 15 10:01:00 pfSense filterlog[1]: 5,,,1000000104,lan,match,pass,in,4,0x0,,64,12346,0,none,17,udp,41,192.168.1.100,8.8.8.8,51234,53,21,"},
+                {"text": "service: block operation completed"},
             ]
         }
 
         result = await mock_client.get_blocked_traffic_logs(lines=10)
 
-        assert len(result["data"]) == 1
+        assert len(result["data"]) == 2
         assert "block" in result["data"][0]["text"]
+        assert "reject" in result["data"][1]["text"]
         assert mock_make_request.call_args.kwargs["filters"] is None
         assert mock_make_request.call_args.kwargs["pagination"].limit == 10
 
