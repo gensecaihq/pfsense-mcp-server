@@ -11,7 +11,6 @@ from urllib.parse import urlencode, urlparse
 import httpx
 
 from .guardrails import _redact_sensitive
-from .helpers import parse_filterlog_entry
 from .models import (
     AuthMethod,
     ControlParameters,
@@ -746,6 +745,8 @@ class EnhancedPfSenseAPIClient:
         The search covers the newest ``lines`` raw log entries (max 50), not a
         guaranteed number of blocked entries.
         """
+        from .helpers import parse_filterlog_entry
+
         logs = await self.get_firewall_logs(lines=min(lines, 50))
         logs["data"] = [
             entry for entry in logs.get("data") or []
