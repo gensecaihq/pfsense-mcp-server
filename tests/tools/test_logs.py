@@ -9,9 +9,9 @@ from src.tools.logs import (
     search_logs_by_ip,
 )
 
-_get_firewall_log = get_firewall_log
-_analyze_blocked_traffic = analyze_blocked_traffic
-_search_logs_by_ip = search_logs_by_ip
+_get_firewall_log = getattr(get_firewall_log, "fn", get_firewall_log)
+_analyze_blocked_traffic = getattr(analyze_blocked_traffic, "fn", analyze_blocked_traffic)
+_search_logs_by_ip = getattr(search_logs_by_ip, "fn", search_logs_by_ip)
 
 
 # ---------------------------------------------------------------------------
