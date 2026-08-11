@@ -5,20 +5,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-# FastMCP 2.x exposes decorated tools as non-callable FunctionTool objects,
-# while FastMCP 3.x exposes callable functions. Keep direct tool tests
-# compatible with both supported decorator shapes.
-try:
-    from fastmcp.tools.tool import FunctionTool
-
-    def _call_function_tool(self, *args, **kwargs):
-        return self.fn(*args, **kwargs)
-
-    FunctionTool.__call__ = _call_function_tool
-    FunctionTool.__test__ = False
-except (ImportError, AttributeError):
-    pass
-
 # Force test env vars — override any real values to prevent leaking
 # real credentials into tests
 os.environ["PFSENSE_URL"] = "https://192.0.2.1"
