@@ -226,6 +226,22 @@ class TestMakeRequestContentType:
             assert "Content-Type" not in headers
 
 
+class TestClientConfiguration:
+    async def test_disables_automatic_redirects(self):
+        client = EnhancedPfSenseAPIClient(
+            host="https://192.0.2.1",
+            auth_method=AuthMethod.API_KEY,
+            api_key="test-key",
+            verify_ssl=False,
+        )
+
+        client._ensure_client()
+        try:
+            assert client.client.follow_redirects is False
+        finally:
+            await client.close()
+
+
 # ---------------------------------------------------------------------------
 # _make_request error handling
 # ---------------------------------------------------------------------------

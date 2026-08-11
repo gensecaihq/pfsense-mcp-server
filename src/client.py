@@ -132,7 +132,11 @@ class EnhancedPfSenseAPIClient:
             self.client = httpx.AsyncClient(
                 verify=self.verify_ssl,
                 timeout=self.timeout,
-                follow_redirects=True,
+                # Never forward authentication headers to an untrusted
+                # redirect target. HTTPX strips standard credentials on
+                # cross-origin redirects, but custom X-API-Key headers are
+                # not treated as sensitive.
+                follow_redirects=False,
                 # Bound concurrency so a burst of tool calls can't overwhelm
                 # pfSense's modest PHP-FPM worker pool.
                 limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
