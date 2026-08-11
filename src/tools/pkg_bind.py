@@ -9,7 +9,11 @@ from mcp.types import ToolAnnotations
 # Zones
 # ---------------------------------------------------------------------------
 from ..guardrails import guarded, rate_limited
-from ..helpers import create_default_sort, create_pagination, sanitize_description
+from ..helpers import (
+    create_default_sort,
+    create_search_pagination,
+    sanitize_description,
+)
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
 
@@ -42,7 +46,7 @@ async def search_bind_zones(
                 return {"success": False, "error": "zone_type must be 'master', 'slave', or 'forward'"}
             filters.append(QueryFilter("type", zone_type))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -252,7 +256,7 @@ async def search_bind_zone_records(
         if record_type:
             filters.append(QueryFilter("type", record_type))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -292,6 +296,7 @@ async def search_bind_zone_records(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_bind_zone_record(
     action: str,
     parent_id: int,
@@ -487,7 +492,7 @@ async def search_bind_access_lists(
     """
     client = get_api_client()
     try:
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -522,6 +527,7 @@ async def search_bind_access_lists(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_bind_access_list(
     action: str,
     name: Optional[str] = None,

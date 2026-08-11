@@ -9,7 +9,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     VALID_ALIAS_TYPES,
     create_default_sort,
-    create_pagination,
+    create_search_pagination,
     validate_alias_addresses,
     validate_alias_name,
 )
@@ -46,7 +46,7 @@ async def search_aliases(
         if containing_ip:
             filters.append(QueryFilter("address", containing_ip, "contains"))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         aliases = await client.get_aliases(
@@ -86,6 +86,7 @@ async def search_aliases(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def manage_alias_addresses(
     alias_id: int,
     action: str,

@@ -81,7 +81,11 @@ _RISK_CLASSIFICATION = {
     "check_": RiskLevel.READ,
     "diagnose_": RiskLevel.READ,
     "compare_": RiskLevel.READ,
-    "export_": RiskLevel.READ,
+    # export_* tools issue POSTs and can extract sensitive material (a PKCS#12
+    # private-key bundle, an OpenVPN client profile). They are NOT read-only:
+    # classify MEDIUM so they are rate-limited, audited, and excluded from
+    # MCP_READ_ONLY mode.
+    "export_": RiskLevel.MEDIUM,
     "system_status": RiskLevel.READ,
     "refresh_": RiskLevel.READ,
     "run_ping": RiskLevel.READ,
@@ -235,18 +239,49 @@ def _build_impact_summary(tool_name: str, params: Dict) -> str:
     return f"Will execute {tool_name.replace('_', ' ')} on the live pfSense appliance."
 
 
+# Exact field names that hold secrets but don't contain an obvious secret word.
+_SECRET_EXACT_KEYS = {
+    "prv", "pwd", "passwd", "key", "api_key", "token", "jwt_token",
+    "bearer_token", "ipsecpsk", "radius_secret", "ldap_bindpw", "cert",
+    "certificate", "do_pw", "do_letoken",
+}
+# Substrings that reliably indicate a secret regardless of the exact field name.
+# Deliberately excludes bare "key" (would hit publickey/keylen/keytype) — the
+# private-key fields are matched by "privatekey"/"prv"/"secret"/"psk" instead.
+_SECRET_SUBSTRINGS = (
+    "password", "passwd", "passphrase", "secret", "psk", "bindpw",
+    "authorizedkey", "privatekey", "private_key", "pre_shared_key",
+    "presharedkey", "apitoken", "auth_pass", "_pw",
+)
+# Some tools (e.g. manage_acme_certificate_domain's provider_fields, or
+# a_domainlist entries) accept an open-ended dict of DNS-provider credential
+# fields we can't enumerate exactly — pfSense's ACME package alone has ~250 of
+# them (cf_token, cf_key, aws_secret_access_key, ...). Catch those by suffix;
+# suffixes are deliberately narrow so identifiers like certificate_id,
+# keylength, or cf_zone_id are NOT redacted.
+_SECRET_SUFFIXES = ("_key", "_token", "_secret", "_password", "_passwd", "_pwd")
+
+
+def _is_secret_key(key: str) -> bool:
+    k = key.lower()
+    return (
+        k in _SECRET_EXACT_KEYS
+        or any(sub in k for sub in _SECRET_SUBSTRINGS)
+        or k.endswith(_SECRET_SUFFIXES)
+    )
+
+
 def _redact_sensitive(params: Dict) -> Dict:
     """Redact sensitive values from parameters for display.
 
-    Passwords, keys, and secrets are replaced with '***REDACTED***'.
+    Passwords, keys, and secrets are replaced with '***REDACTED***'. Field names
+    are matched by an exact-name set plus secret-indicating substrings so
+    provider-specific fields (radius_secret, ldap_bindpw, ipsecpsk,
+    webrootftppassword, cpanel_apitoken, dnsexit_auth_pass, ...) are caught too.
     """
-    sensitive_keys = {"password", "pre_shared_key", "presharedkey", "privatekey",
-                      "secret", "passphrase", "api_key", "prv", "key",
-                      "pwd", "passwd", "token", "jwt_token", "bearer_token",
-                      "cert", "certificate"}
     redacted = {}
     for k, v in params.items():
-        if k.lower() in sensitive_keys:
+        if _is_secret_key(k):
             redacted[k] = "***REDACTED***"
         elif isinstance(v, dict):
             redacted[k] = _redact_sensitive(v)
@@ -488,14 +523,19 @@ def is_tool_allowed(tool_name: str) -> bool:
 # ---------------------------------------------------------------------------
 
 # Patterns that should never appear in user-supplied string parameters
+# Tool parameters are sent to the pfSense API as JSON *data*, not into a shell
+# or an HTML sink, so shell-injection screening here is a false sense of security
+# (the one real command sink, /diagnostics/command_prompt, is hard-allowlisted
+# separately in the client). The old command-chaining (`;\s*\w`) and pipe
+# (`|\s*\w`) rules also false-positived on legitimate values — LDAP DNs like
+# `CN=Users;DC=example,DC=com`, regex/description fields, etc. Scope the denylist
+# to patterns that remain meaningful for *stored* config data: path traversal
+# (path-like fields) and a `<script` tag (descriptions may be rendered in the
+# pfSense web UI). Field-level positive validation (IP/port/MAC/etc.) does the
+# real input checking.
 _INJECTION_PATTERNS = [
-    re.compile(r"\.\./"),                    # Directory traversal
-    re.compile(r";\s*\w"),                   # Command chaining
-    re.compile(r"\|\s*\w"),                  # Pipe injection
-    re.compile(r"`[^`]+`"),                  # Backtick execution
-    re.compile(r"\$\("),                     # Command substitution
-    re.compile(r"\$\{"),                     # Variable expansion
-    re.compile(r"<script", re.IGNORECASE),   # XSS
+    re.compile(r"\.\./"),                    # Directory traversal (path fields)
+    re.compile(r"<script", re.IGNORECASE),   # Stored XSS (rendered descriptions)
 ]
 
 
@@ -681,6 +721,8 @@ def rate_limited(fn):
 
         return result
 
+    # Marker so a registration-time meta-test can verify guardrail coverage.
+    wrapper._guardrail = "rate_limited"
     return wrapper
 
 
@@ -729,6 +771,7 @@ def guarded(fn):
 
         # Capture pre-change config revision for rollback
         pre_change_revision = None
+        rollback_capture_error = None
         risk = classify_risk(tool_name)
         if risk in (RiskLevel.HIGH, RiskLevel.CRITICAL):
             try:
@@ -745,11 +788,33 @@ def guarded(fn):
                         "time": _revisions[0].get("time"),
                         "description": _revisions[0].get("description", ""),
                     }
-            except Exception:
-                pass  # Non-critical — don't block the operation
+                else:
+                    rollback_capture_error = "no config-history revisions returned"
+            except Exception as e:
+                # Don't block the operation, but do NOT hide it: the caller is
+                # told (below) that no rollback point exists for this change.
+                rollback_capture_error = str(e)
+                logger.warning(
+                    "Rollback point capture failed for %s: %s", tool_name, e
+                )
 
         # Guardrails passed — execute the tool
         result = await fn(*args, **kwargs)
+
+        # Honesty: if a rollback point could not be captured for a HIGH/CRITICAL
+        # change, tell the caller rather than silently omitting the backup.
+        if (
+            isinstance(result, dict)
+            and result.get("success")
+            and pre_change_revision is None
+            and risk in (RiskLevel.HIGH, RiskLevel.CRITICAL)
+        ):
+            result["config_backup_warning"] = (
+                "No pre-change rollback point was captured for this operation"
+                + (f" ({rollback_capture_error})" if rollback_capture_error else "")
+                + ". If you need to undo it, restore manually from Diagnostics > "
+                "Config History."
+            )
 
         # Post-execution: attach pre-change revision for rollback
         if isinstance(result, dict) and pre_change_revision and result.get("success"):
@@ -782,4 +847,6 @@ def guarded(fn):
 
         return result
 
+    # Marker so a registration-time meta-test can verify guardrail coverage.
+    wrapper._guardrail = "guarded"
     return wrapper

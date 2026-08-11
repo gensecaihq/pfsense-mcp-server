@@ -52,19 +52,70 @@ from .tools import (  # noqa: F401, E402
     vpn_wireguard,
 )
 
-# In read-only mode, remove all non-read tools after registration
-if _READ_ONLY_MODE:
+
+def apply_read_only_filter() -> int:
+    """In read-only mode, remove every non-read tool. Returns the count removed.
+
+    Called from ``main()`` — deliberately NOT at import time. Doing this at
+    module scope means running ``asyncio.run()`` while ``src.main`` is still
+    being imported; on Python 3.11 (coarser import lock than 3.12+) any lazy
+    import triggered by that coroutine can deadlock. Running it from ``main()``,
+    after all imports complete, avoids that entirely.
+
+    Uses FastMCP's public local-provider API (``list_tools`` / ``remove_tool``);
+    the pre-3.0 code reached into ``mcp._tool_manager._tools``, which FastMCP 3
+    removed. ``tests/test_read_only_mode.py`` exercises this so neither the crash
+    nor the import-time hang can recur.
+    """
+    if not _READ_ONLY_MODE:
+        return 0
+
     from .guardrails import RiskLevel, classify_risk
-    _all_tools = dict(mcp._tool_manager._tools)
-    for name in list(_all_tools.keys()):
+
+    provider = mcp.local_provider
+    names = [t.name for t in asyncio.run(provider.list_tools())]
+    removed = 0
+    for name in names:
         if classify_risk(name) != RiskLevel.READ:
-            del mcp._tool_manager._tools[name]
-    _removed = len(_all_tools) - len(mcp._tool_manager._tools)
-    import logging as _logging
-    _logging.getLogger(__name__).info(
-        "READ-ONLY MODE: Removed %d non-read tools. %d read-only tools available.",
-        _removed, len(mcp._tool_manager._tools),
+            provider.remove_tool(name)
+            removed += 1
+    logger.info(
+        "READ-ONLY MODE: removed %d non-read tools; %d read-only tools available.",
+        removed, len(names) - removed,
     )
+    return removed
+
+
+_MIN_API_KEY_LEN = 16
+_PLACEHOLDER_KEYS = {"changeme", "change-me", "your-token-here", "secret", "token"}
+
+
+def mcp_api_key_error(api_key):
+    """Return an error string if MCP_API_KEY is unusable, else None.
+
+    Rejects an unset key, the documented ``CHANGE-ME`` placeholder, and tokens
+    too short to be a real secret — so an HTTP deployment can't boot with a
+    publicly-known or trivially-guessable bearer token. Supports the
+    comma-separated multi-key form; every key must be valid.
+    """
+    if not api_key or not api_key.strip():
+        return (
+            "MCP_API_KEY must be set for streamable-http transport. "
+            "Set MCP_API_KEY or use --transport stdio."
+        )
+    for key in (k.strip() for k in api_key.split(",") if k.strip()):
+        low = key.lower()
+        if low in _PLACEHOLDER_KEYS or low.startswith("change-me") or low.startswith("changeme"):
+            return (
+                "MCP_API_KEY is set to a placeholder value. Generate a real token, "
+                "e.g. `python -c \"import secrets; print(secrets.token_urlsafe(32))\"`."
+            )
+        if len(key) < _MIN_API_KEY_LEN:
+            return (
+                f"MCP_API_KEY token is too short ({len(key)} chars); "
+                f"use at least {_MIN_API_KEY_LEN} characters of entropy."
+            )
+    return None
 
 
 # Main execution
@@ -110,18 +161,37 @@ def main():
             args.host,
         )
 
-    # Test connection before starting server
+    # Apply the read-only tool filter (no-op unless MCP_READ_ONLY=true) before
+    # the server begins serving.
+    apply_read_only_filter()
+
+    # Test connection before starting server. Bounded hard: the preflight runs
+    # *before* the MCP transport opens, so an unreachable pfSense must not hold
+    # the handshake hostage (the full request path retries with backoff — up to
+    # ~4x API_TIMEOUT). MCP clients (Claude Desktop, the Inspector) time out
+    # and mark the server dead long before that.
+    PREFLIGHT_BUDGET_SECONDS = 5
+
     async def test_conn():
         client = get_api_client()
         try:
             logger.info("Testing connection to pfSense API...")
-            result = await client.test_connection()
+            result = await asyncio.wait_for(
+                client.test_connection(), timeout=PREFLIGHT_BUDGET_SECONDS
+            )
             if result["connected"]:
                 logger.info("Successfully connected to pfSense API")
                 return True
             else:
                 logger.error("Failed to connect to pfSense API: %s", result.get("error", "unknown error"))
                 return False
+        except (asyncio.TimeoutError, TimeoutError):
+            logger.error(
+                "Preflight connectivity check exceeded its %ss budget; "
+                "not blocking server startup on it.",
+                PREFLIGHT_BUDGET_SECONDS,
+            )
+            return False
         except Exception as e:
             logger.error(f"Connection error: {e}")
             import traceback
@@ -155,13 +225,12 @@ def main():
 
         app = mcp.http_app()
 
-        # Require bearer auth for HTTP transport — fail closed
+        # Require a real bearer token for HTTP transport — fail closed on unset,
+        # placeholder, or weak keys.
         api_key = os.getenv("MCP_API_KEY")
-        if not api_key:
-            logger.error(
-                "MCP_API_KEY must be set for streamable-http transport. "
-                "Set MCP_API_KEY or use --transport stdio."
-            )
+        key_error = mcp_api_key_error(api_key)
+        if key_error:
+            logger.error(key_error)
             sys.exit(1)
         # Parse allowed origins from env (comma-separated) or use defaults
         allowed_origins_str = os.getenv("MCP_ALLOWED_ORIGINS", "")

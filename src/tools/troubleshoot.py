@@ -85,11 +85,14 @@ async def diagnose_connectivity(
 
     # --- Gateway status ---
     try:
-        gw_result = await client.crud_list("/routing/gateways")
+        # Live status endpoint: the /routing/gateways config endpoint has no
+        # runtime `status` field, so it classified every gateway as "unknown"
+        # and appended a false issue on every run.
+        gw_result = await client.crud_get_settings("/status/gateways")
         gateways = gw_result.get("data") or []
         gw_summary = []
         for gw in gateways:
-            status = gw.get("status", "unknown")
+            status = str(gw.get("status") or "unknown")
             gw_summary.append({
                 "name": gw.get("name"),
                 "interface": gw.get("interface"),
@@ -97,7 +100,7 @@ async def diagnose_connectivity(
                 "status": status,
                 "monitor": gw.get("monitor"),
             })
-            if status and status.lower() not in ("online", "none", ""):
+            if status.lower() not in ("online", "none", "", "unknown"):
                 results["issues"].append(
                     f"Gateway {gw.get('name')} is {status}"
                 )
@@ -374,21 +377,22 @@ async def diagnose_interface_issues(
 
     # --- Gateway status for this interface ---
     try:
-        gw_result = await client.crud_list("/routing/gateways")
+        # Live status endpoint (see diagnose_connectivity): the config endpoint
+        # has no runtime `status` field.
+        gw_result = await client.crud_get_settings("/status/gateways")
         gateways = gw_result.get("data") or []
         iface_gateways = []
         for gw in gateways:
             gw_iface = gw.get("interface", "")
             if gw_iface.lower() == interface.lower():
-                gw_info = {
+                status = str(gw.get("status") or "unknown")
+                iface_gateways.append({
                     "name": gw.get("name"),
                     "gateway": gw.get("gateway"),
-                    "status": gw.get("status", "unknown"),
+                    "status": status,
                     "monitor": gw.get("monitor"),
-                }
-                iface_gateways.append(gw_info)
-                status = gw.get("status", "")
-                if status and status.lower() not in ("online", "none", ""):
+                })
+                if status.lower() not in ("online", "none", "", "unknown"):
                     results["issues"].append(
                         f"Gateway {gw.get('name')} on {interface} is {status}"
                     )
@@ -758,10 +762,12 @@ async def diagnose_dns_resolution() -> Dict:
 
     # --- System DNS servers ---
     try:
-        sys_status = await client.get_system_status()
-        sys_data = sys_status.get("data", sys_status)
-        if isinstance(sys_data, dict):
-            dns_servers = sys_data.get("dns_servers") or sys_data.get("dnsserver") or []
+        # DNS servers are exposed by the dedicated system DNS endpoint, not
+        # by the system-status payload.
+        dns_settings = await client.crud_get_settings("/system/dns")
+        dns_data = dns_settings.get("data", dns_settings)
+        if isinstance(dns_data, dict):
+            dns_servers = dns_data.get("dnsserver") or dns_data.get("dns_servers") or []
             results["system_dns_servers"] = dns_servers
             if not dns_servers:
                 results["issues"].append("No system DNS servers configured")
@@ -831,7 +837,11 @@ async def diagnose_service_health() -> Dict:
         running = []
         stopped = []
         for svc in services:
-            status = (svc.get("status") or "").lower()
+            raw_status = svc.get("status")
+            if isinstance(raw_status, bool):
+                status = "running" if raw_status else "stopped"
+            else:
+                status = str(raw_status or "").lower()
             svc_info = {
                 "name": svc.get("name"),
                 "description": svc.get("description") or svc.get("descr"),
@@ -1130,7 +1140,13 @@ async def get_system_health_report() -> Dict:
         running = 0
         stopped_list = []
         for svc in services:
-            status = (svc.get("status") or "").lower()
+            raw_status = svc.get("status")
+            # pfSense API v2 returns service status as a boolean on some
+            # versions/endpoints, and as a string on others.
+            if isinstance(raw_status, bool):
+                status = "running" if raw_status else "stopped"
+            else:
+                status = str(raw_status or "").lower()
             if status in ("running", "active"):
                 running += 1
             else:
@@ -1156,17 +1172,27 @@ async def get_system_health_report() -> Dict:
 
     # --- Gateway status ---
     try:
-        gw_result = await client.crud_list("/routing/gateways")
+        # Use the live status endpoint. The gateway configuration endpoint
+        # does not include a runtime `status` field and would incorrectly
+        # classify every configured gateway as "unknown".
+        gw_result = await client.crud_get_settings("/status/gateways")
         gateways = gw_result.get("data") or []
         gw_summary = []
         for gw in gateways:
-            status = gw.get("status", "unknown")
+            raw_status = gw.get("status")
+            status = (
+                "online" if raw_status is True
+                else "offline" if raw_status is False
+                else str(raw_status or "unknown")
+            )
             gw_summary.append({
                 "name": gw.get("name"),
                 "status": status,
                 "interface": gw.get("interface"),
+                "delay": gw.get("delay"),
+                "loss": gw.get("loss"),
             })
-            if status and status.lower() not in ("online", "none", ""):
+            if status.lower() not in ("online", "none", ""):
                 report["findings"].append({
                     "severity": "warning",
                     "component": "gateway",

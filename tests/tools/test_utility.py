@@ -10,13 +10,13 @@ from src.tools.utility import (
     test_enhanced_connection,
 )
 
-_follow_api_link = follow_api_link.fn
-_enable_hateoas = enable_hateoas.fn
-_disable_hateoas = disable_hateoas.fn
-_refresh_object_ids = refresh_object_ids.fn
-_find_object_by_field = find_object_by_field.fn
-_get_api_capabilities = get_api_capabilities.fn
-_test_enhanced_connection = test_enhanced_connection.fn
+_follow_api_link = follow_api_link
+_enable_hateoas = enable_hateoas
+_disable_hateoas = disable_hateoas
+_refresh_object_ids = refresh_object_ids
+_find_object_by_field = find_object_by_field
+_get_api_capabilities = get_api_capabilities
+_test_enhanced_connection = test_enhanced_connection
 
 
 # ---------------------------------------------------------------------------

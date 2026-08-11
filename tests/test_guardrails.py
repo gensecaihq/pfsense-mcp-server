@@ -80,6 +80,41 @@ class TestApprovalRequest:
         assert params["pre_shared_key"] == "***REDACTED***"
         assert params["name"] == "test"  # Non-sensitive preserved
 
+    def test_redacts_nested_provider_fields_by_suffix(self):
+        """manage_acme_certificate_domain's provider_fields (and a_domainlist
+        entries) carry arbitrary DNS-provider credential keys we can't
+        enumerate exactly (cf_token, cf_key, aws_secret_access_key, ...).
+        These must be redacted by suffix, while non-secret IDs survive."""
+        result = build_approval_request(
+            "manage_acme_certificate_domain",
+            {
+                "parent_id": 5,
+                "name": "ha.example.com",
+                "provider_fields": {
+                    "cf_token": "cfut_supersecret",
+                    "cf_zone_id": "08b64116",
+                },
+            },
+            "Add domain to ACME certificate",
+        )
+        params = result["parameters_visible"]
+        assert params["provider_fields"]["cf_token"] == "***REDACTED***"
+        assert params["provider_fields"]["cf_zone_id"] == "08b64116"  # ID, not a secret
+        assert params["parent_id"] == 5  # Non-sensitive preserved
+
+    def test_does_not_over_redact_length_or_id_fields(self):
+        """'keylength' ends in 'length' not '_key'; 'certificate_id' ends in
+        '_id' not '_secret'/'_key' — neither should be swept up by the new
+        suffix rule."""
+        result = build_approval_request(
+            "update_acme_certificate",
+            {"certificate_id": 3, "keylength": "ec-256"},
+            "Update ACME certificate",
+        )
+        params = result["parameters_visible"]
+        assert params["certificate_id"] == 3
+        assert params["keylength"] == "ec-256"
+
 
 # ---------------------------------------------------------------------------
 # Rate Limiting
@@ -116,22 +151,24 @@ class TestInputSanitization:
         assert result is not None
         assert "unsafe" in result.lower()
 
-    def test_command_injection(self):
-        assert sanitize_input("rule; rm -rf /") is not None
-        assert sanitize_input("rule | cat /etc/passwd") is not None
-        assert sanitize_input("$(whoami)") is not None
-        assert sanitize_input("`id`") is not None
+    def test_shell_metachars_are_allowed(self):
+        # Values go to the pfSense API as JSON data, not into a shell, and shell
+        # screening false-positived on legit config (LDAP DNs, OpenVPN options).
+        # These are no longer rejected; field-level validation does real checking.
+        assert sanitize_input("rule; rm -rf /") is None
+        assert sanitize_input("a | b") is None
+        assert sanitize_input("CN=Users;DC=example,DC=com") is None
 
     def test_xss(self):
         assert sanitize_input("<script>alert(1)</script>") is not None
 
     def test_parameter_scanning(self):
         assert sanitize_parameters({"name": "good", "descr": "safe"}) is None
-        result = sanitize_parameters({"name": "good", "descr": "$(whoami)"})
+        result = sanitize_parameters({"name": "good", "descr": "<script>x</script>"})
         assert result is not None
 
     def test_list_parameter_scanning(self):
-        result = sanitize_parameters({"addresses": ["10.0.0.1", "$(rm -rf /)"]})
+        result = sanitize_parameters({"addresses": ["10.0.0.1", "../../etc/passwd"]})
         assert result is not None
 
 
@@ -212,7 +249,7 @@ class TestCheckGuardrails:
     def test_injection_blocked(self):
         result = check_guardrails(
             "create_alias",
-            {"name": "test", "descr": "$(rm -rf /)"},
+            {"name": "test", "descr": "<script>alert(1)</script>"},
         )
         assert result is not None
         assert "unsafe" in result["error"].lower()

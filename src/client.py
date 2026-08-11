@@ -10,6 +10,7 @@ from urllib.parse import urlencode, urlparse
 
 import httpx
 
+from .guardrails import _redact_sensitive
 from .helpers import parse_filterlog_entry
 from .models import (
     AuthMethod,
@@ -37,7 +38,7 @@ class EnhancedPfSenseAPIClient:
         api_key: Optional[str] = None,
         verify_ssl: bool = True,
         timeout: int = 30,
-        version: PfSenseVersion = PfSenseVersion.CE_2_8_0,
+        version: PfSenseVersion = PfSenseVersion.CE_2_8_1,
         enable_hateoas: bool = False
     ):
         self.host = host.rstrip('/')
@@ -56,6 +57,60 @@ class EnhancedPfSenseAPIClient:
 
         # API base URL
         self.api_base = f"{self.host}/api/v2"
+
+    # Transient-failure retry policy.
+    _MAX_RETRIES = 3
+    _BACKOFF_BASE = 0.5   # seconds; delay = base * 2**attempt
+    _BACKOFF_CAP = 8.0    # seconds; ceiling per wait
+
+    def _backoff_delay(self, attempt: int) -> float:
+        return min(self._BACKOFF_BASE * (2 ** attempt), self._BACKOFF_CAP)
+
+    @staticmethod
+    def _retry_after_delay(response) -> Optional[float]:
+        """Parse a Retry-After header (delta-seconds) into a bounded delay."""
+        value = response.headers.get("Retry-After")
+        if not value:
+            return None
+        try:
+            return max(0.0, min(float(value), 30.0))
+        except (ValueError, TypeError):
+            return None  # HTTP-date form not honored; fall back to backoff
+
+    def _describe_transport_error(self, e: httpx.TransportError, attempts: int):
+        """Re-raise a transport error with a human-readable message.
+
+        ``str()`` of httpx timeout exceptions is often empty, so the stringly-
+        typed tool handlers would surface ``"error": ""`` — useless to the
+        operator. Rebuild the same exception type with a descriptive message
+        (type preserved so existing except clauses keep matching).
+        """
+        detail = str(e).strip() or type(e).__name__
+        return type(e)(
+            f"Cannot reach pfSense at {self.host}: {detail} "
+            f"(timeout {self.timeout}s, {attempts + 1} attempt(s))"
+        )
+
+    async def _send(self, method, url, headers, data, req_timeout):
+        """Issue a single HTTP request (no retry)."""
+        verb = method.upper()
+        if verb == "GET":
+            return await self.client.get(url, headers=headers, timeout=req_timeout)
+        if verb == "POST":
+            return await self.client.post(url, headers=headers, json=data, timeout=req_timeout)
+        if verb == "PATCH":
+            return await self.client.patch(url, headers=headers, json=data, timeout=req_timeout)
+        if verb == "PUT":
+            return await self.client.put(url, headers=headers, json=data, timeout=req_timeout)
+        if verb == "DELETE":
+            # httpx.AsyncClient.delete() does NOT accept a json= kwarg; only
+            # request()/post()/patch()/put() do. Some pfSense DELETEs carry a
+            # body (bulk operations), so route DELETE through request(). See
+            # issue #12 / PR #9.
+            return await self.client.request(
+                "DELETE", url, headers=headers, json=data, timeout=req_timeout
+            )
+        raise ValueError(f"Unsupported HTTP method: {method}")
 
     def _ensure_client(self):
         """Ensure HTTP client is created for current event loop.
@@ -77,7 +132,10 @@ class EnhancedPfSenseAPIClient:
             self.client = httpx.AsyncClient(
                 verify=self.verify_ssl,
                 timeout=self.timeout,
-                follow_redirects=True
+                follow_redirects=True,
+                # Bound concurrency so a burst of tool calls can't overwhelm
+                # pfSense's modest PHP-FPM worker pool.
+                limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
             )
             self._client_loop = current_loop
 
@@ -246,38 +304,66 @@ class EnhancedPfSenseAPIClient:
         # Per-request timeout override (used by log endpoints to fail fast).
         # Only the read phase is shortened so connect/write/pool timeouts
         # keep using the client defaults and don't cause false positives.
-        req_timeout = httpx.Timeout(self.timeout, read=timeout) if timeout else None
+        # NOTE: httpx treats an explicit timeout=None as "disable timeouts",
+        # not "use the client default" — USE_CLIENT_DEFAULT is the sentinel
+        # that preserves the client-level API_TIMEOUT.
+        req_timeout = (
+            httpx.Timeout(self.timeout, read=timeout)
+            if timeout
+            else httpx.USE_CLIENT_DEFAULT
+        )
 
-        # Make request
-        if method.upper() == "GET":
-            response = await self.client.get(url, headers=headers, timeout=req_timeout)
-        elif method.upper() == "POST":
-            response = await self.client.post(url, headers=headers, json=data, timeout=req_timeout)
-        elif method.upper() == "PATCH":
-            response = await self.client.patch(url, headers=headers, json=data, timeout=req_timeout)
-        elif method.upper() == "PUT":
-            response = await self.client.put(url, headers=headers, json=data, timeout=req_timeout)
-        elif method.upper() == "DELETE":
-            # httpx.AsyncClient.delete() does NOT accept a json= kwarg; only
-            # request()/post()/patch()/put() do. Some pfSense DELETEs carry a
-            # body (bulk operations), so route DELETE through request(). See
-            # issue #12 / PR #9.
-            response = await self.client.request(
-                "DELETE", url, headers=headers, json=data, timeout=req_timeout
-            )
-        else:
-            raise ValueError(f"Unsupported HTTP method: {method}")
+        # Make request, retrying transient failures with exponential backoff.
+        # Retry is skipped when a per-request read timeout is set (log endpoints
+        # deliberately fail fast). Non-idempotent methods (POST/PATCH/DELETE) are
+        # retried ONLY when the request provably did not reach or was not
+        # processed by the server — connection errors and 429/503 — never on an
+        # ambiguous read timeout or gateway error, so a write can't be applied
+        # twice. GETs additionally retry read-timeouts and 502/504.
+        idempotent = method.upper() == "GET"
+        allow_retry = timeout is None
+        attempt = 0
+        while True:
+            try:
+                response = await self._send(method, url, headers, data, req_timeout)
+            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as e:
+                if allow_retry and attempt < self._MAX_RETRIES:
+                    await asyncio.sleep(self._backoff_delay(attempt))
+                    attempt += 1
+                    continue
+                raise self._describe_transport_error(e, attempt) from e
+            except httpx.ReadTimeout as e:
+                if allow_retry and idempotent and attempt < self._MAX_RETRIES:
+                    await asyncio.sleep(self._backoff_delay(attempt))
+                    attempt += 1
+                    continue
+                raise self._describe_transport_error(e, attempt) from e
+
+            retry_any_method = response.status_code in (429, 503)
+            retry_idempotent = response.status_code in (502, 504)
+            if (
+                allow_retry
+                and attempt < self._MAX_RETRIES
+                and (retry_any_method or (idempotent and retry_idempotent))
+            ):
+                delay = self._retry_after_delay(response)
+                await asyncio.sleep(delay if delay is not None else self._backoff_delay(attempt))
+                attempt += 1
+                continue
+            break
 
         # Enhanced error handling
         if response.status_code >= 400:
-            error_body = response.text
             try:
                 error_json = response.json()
                 error_message = error_json.get('message', 'Unknown error')
-                error_detail = json.dumps(error_json, indent=2)
+                # pfSense error bodies echo the offending field values, which can
+                # include submitted secrets (password/pre_shared_key/ldap_bindpw/
+                # radius_secret/...). Redact before it reaches tool output or logs.
+                error_detail = json.dumps(_redact_sensitive(error_json), indent=2)
             except Exception:
-                error_message = error_body
-                error_detail = error_body
+                error_message = "Unknown error"
+                error_detail = "(non-JSON error body withheld to avoid leaking secrets)"
 
             # Log error info at DEBUG level (endpoint only, no sensitive data)
             logger.debug(
@@ -528,12 +614,34 @@ class EnhancedPfSenseAPIClient:
         alias_id: int,
         addresses: List[str]
     ) -> Dict:
-        """Remove addresses from existing alias"""
-        control = ControlParameters(remove=True, apply=True)
+        """Remove addresses from existing alias.
 
+        Rebuilds the address and detail lists in lockstep rather than using
+        the API's remove flag: that flag strips only address entries, and the
+        API then rejects the alias because the parallel detail list has more
+        items than addresses (TOO_MANY_ALIAS_DETAILS).
+        """
+        current = await self._make_request(
+            "GET", "/firewall/alias",
+            extra_params={"id": str(alias_id)},
+        )
+        alias = current.get("data") or {}
+        cur_addresses = alias.get("address") or []
+        cur_details = alias.get("detail") or []
+        # Pad details to address length so indices stay aligned while filtering
+        cur_details = cur_details + [""] * (len(cur_addresses) - len(cur_details))
+
+        to_remove = set(addresses)
+        kept = [(a, d) for a, d in zip(cur_addresses, cur_details) if a not in to_remove]
+
+        control = ControlParameters(apply=True)
         return await self._make_request(
             "PATCH", "/firewall/alias",
-            data={"id": alias_id, "address": addresses},
+            data={
+                "id": alias_id,
+                "address": [a for a, _ in kept],
+                "detail": [d for _, d in kept],
+            },
             control=control
         )
 
@@ -702,12 +810,15 @@ class EnhancedPfSenseAPIClient:
 
     async def find_running_services(self) -> Dict:
         """Find only running services"""
-        filters = [QueryFilter("status", "running")]
+        # Service.status is a boolean upstream; the strings "running"/"stopped"
+        # both loose-compare as truthy, so a bare "stopped" returned the running
+        # services. Filter on real booleans (serialized true/false).
+        filters = [QueryFilter("status", True)]
         return await self.get_services(filters=filters)
 
     async def find_stopped_services(self) -> Dict:
         """Find only stopped services"""
-        filters = [QueryFilter("status", "stopped")]
+        filters = [QueryFilter("status", False)]
         return await self.get_services(filters=filters)
 
     async def _lookup_service_id(self, service_name: str) -> int:

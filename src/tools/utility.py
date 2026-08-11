@@ -6,7 +6,7 @@ from typing import Dict
 
 from mcp.types import ToolAnnotations
 
-from ..guardrails import classify_risk, get_rollback_history
+from ..guardrails import classify_risk, get_rollback_history, rate_limited
 from ..models import PaginationOptions, QueryFilter, SortOptions
 from ..server import get_api_client, logger, mcp
 
@@ -67,6 +67,7 @@ async def follow_api_link(link_url: str) -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True))
+@rate_limited
 async def enable_hateoas(confirm: bool = False) -> Dict:
     """Enable HATEOAS links in API responses on the pfSense server.
 
@@ -98,6 +99,7 @@ async def enable_hateoas(confirm: bool = False) -> Dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True))
+@rate_limited
 async def disable_hateoas(confirm: bool = False) -> Dict:
     """Disable HATEOAS links in API responses on the pfSense server.
 
@@ -215,7 +217,7 @@ async def get_api_capabilities() -> Dict:
             "success": True,
             "api_version": "v2",
             "package": "jaredhendrickson13/pfsense-api",
-            "pfsense_version": os.getenv("PFSENSE_VERSION", "CE_2_8_0"),
+            "pfsense_version": os.getenv("PFSENSE_VERSION", "CE_2_8_1"),
             "capabilities": capabilities.get("data", capabilities),
             "features": {
                 "object_ids": "Dynamic, non-persistent",
@@ -297,6 +299,11 @@ async def test_enhanced_connection() -> Dict:
     except Exception as e:
         logger.error(f"Enhanced connection test failed: {e}")
         return {"success": False, "error": str(e)}
+
+
+# The tool name matches pytest's test_* pattern; without this, importing it in
+# a test module makes pytest execute the real connection tool as a "test".
+test_enhanced_connection.__test__ = False
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))

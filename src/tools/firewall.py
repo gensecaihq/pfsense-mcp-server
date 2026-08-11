@@ -145,6 +145,7 @@ async def create_firewall_rule_advanced(
     source_port: Optional[str] = None,
     destination_port: Optional[str] = None,
     gateway: Optional[str] = None,
+    schedule: Optional[str] = None,
     position: Optional[int] = None,
     disabled: bool = False,
     apply_immediately: bool = True,
@@ -165,6 +166,7 @@ async def create_firewall_rule_advanced(
         source_port: Source port — single (443), range (1024-65535), or alias name
         destination_port: Destination port — single (443), range (1024-65535), or alias name
         gateway: Optional gateway for policy routing (e.g., "WAN_DHCP")
+        schedule: Name of an existing firewall schedule (from search_firewall_schedules) — the rule is only active during the schedule's time ranges
         position: Position to insert rule (0 = top). Rule is created first, then moved.
         disabled: Create the rule in disabled state (useful for staging)
         apply_immediately: Whether to apply changes to the running firewall
@@ -206,6 +208,9 @@ async def create_firewall_rule_advanced(
 
     if gateway:
         rule_data["gateway"] = gateway
+
+    if schedule:
+        rule_data["sched"] = schedule
 
     # Handle protocol field - try null for "any", otherwise use the specified protocol
     if protocol and protocol.lower() == "any":
@@ -279,6 +284,7 @@ async def create_firewall_rule_advanced(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def move_firewall_rule(
     rule_id: int,
     new_position: int,
@@ -329,6 +335,7 @@ async def update_firewall_rule(
     source_port: Optional[str] = None,
     destination_port: Optional[str] = None,
     description: Optional[str] = None,
+    schedule: Optional[str] = None,
     disabled: Optional[bool] = None,
     log_matches: Optional[bool] = None,
     apply_immediately: bool = True,
@@ -346,6 +353,7 @@ async def update_firewall_rule(
         source_port: Single port (443), range (1024-65535), or alias name
         destination_port: Single port (443), range (1024-65535), or alias name. Do NOT pass multiple space/comma-separated ports — create a port alias first instead.
         description: Rule description
+        schedule: Name of an existing firewall schedule (from search_firewall_schedules) to assign; pass "" to remove the schedule from the rule
         disabled: Whether the rule is disabled
         log_matches: Whether to log rule matches
         apply_immediately: Whether to apply changes immediately
@@ -376,6 +384,7 @@ async def update_firewall_rule(
             "source_port": "source_port",
             "destination_port": "destination_port",
             "description": "descr",
+            "schedule": "sched",
             "disabled": "disabled",
             "log_matches": "log",
         }
@@ -389,6 +398,7 @@ async def update_firewall_rule(
             "source_port": source_port,
             "destination_port": destination_port,
             "description": description,
+            "schedule": schedule,
             "disabled": disabled,
             "log_matches": log_matches,
         }
@@ -400,6 +410,8 @@ async def update_firewall_rule(
                 if param_name == "interface":
                     updates[api_field] = [value] if isinstance(value, str) else value
                 elif param_name == "protocol" and isinstance(value, str) and value.lower() == "any":
+                    updates[api_field] = None
+                elif param_name == "schedule" and value == "":
                     updates[api_field] = None
                 else:
                     updates[api_field] = value
@@ -561,6 +573,7 @@ async def bulk_block_ips(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_firewall_changes() -> Dict:
     """Force apply pending firewall changes and recompile the pf ruleset.
 

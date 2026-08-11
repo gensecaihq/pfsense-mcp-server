@@ -23,9 +23,18 @@ pip install -e ".[dev]"        # installs runtime + pytest, ruff
 Run the full suite and the linter — CI runs both and must pass:
 
 ```bash
-pytest -v                      # 323 tests
-pytest --cov=src               # with coverage
+pytest -v                      # 483 tests
+pytest --cov=src               # with coverage (CI gate: >=40%)
 ruff check src/ tests/         # lint (must be clean)
+```
+
+If your change touches transports, auth, startup, or tool registration, also
+run the protocol-level E2E suite that CI runs (`mcp-inspector-e2e`) — it
+drives the server over the real MCP wire protocol with the MCP Inspector CLI
+and needs `node`/`npx` and `jq`, but no pfSense instance:
+
+```bash
+make test-e2e                  # or: ./scripts/inspector_smoke.sh
 ```
 
 Add or update tests for any behavior you change. Tool tests live under
@@ -35,12 +44,19 @@ the tool sends — match that pattern.
 
 ## Guidelines
 
-- **Mirror the pfSense REST API field names verbatim.** Several past bugs (#7,
-  #13) were silent field drops caused by a tool using a different key than the
-  API expects. When in doubt, check the API's OpenAPI schema / a live response.
-- **Respect the guardrail model.** New destructive tools must take `confirm`,
-  carry the right `ToolAnnotations`, and (for create/update) the `@rate_limited`
-  decorator. Risk classification lives in `src/guardrails.py`.
+- **Mirror the pfSense REST API field names verbatim, and add a contract test.**
+  A whole class of past bugs was silent field drops — a tool sending a key/type
+  the API model doesn't recognize, which pfSense drops on PATCH or 400s on POST.
+  The wire contract in `tests/contract/` (distilled from the upstream OpenAPI
+  spec, see `scripts/generate_contract.py`) catches these: use
+  `assert_payload_valid()` to check your tool's payload against the real
+  v2.10.0 model. See `ARCHITECTURE.md` and the existing `tests/contract/test_*`.
+- **Respect the guardrail model.** Every non-read tool must carry a guardrail
+  decorator — `@guarded` for destructive tools (which also take `confirm`/
+  `dry_run`) or `@rate_limited` for other mutating tools — and the right
+  `ToolAnnotations`. This is enforced at import by
+  `tests/test_guardrail_coverage.py`, so an undecorated mutating tool fails CI.
+  Risk classification lives in `src/guardrails.py`.
 - **Don't log secrets.** Sensitive parameters are redacted centrally; don't add
   code paths that print raw request bodies or credentials.
 - Keep changes focused and match the style of the surrounding code.

@@ -9,11 +9,25 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_pagination,
+    create_search_pagination,
     normalize_mac_address,
     validate_ip_address,
 )
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
+
+
+def _dns_servers_to_list(value: str) -> list:
+    """Normalize a DNS-server override into the array the API expects.
+
+    Upstream ``dnsserver`` is an array of strings (max 4); the tool accepts a
+    single value or a comma/space-separated list for ergonomics. Each entry is
+    validated as an IP. Raises ValueError on an invalid entry.
+    """
+    parts = [p.strip() for p in value.replace(",", " ").split() if p.strip()]
+    for ip in parts:
+        validate_ip_address(ip)
+    return parts
 
 
 async def _lookup_mapping_parent_id(client, mapping_id: int) -> str:
@@ -75,7 +89,7 @@ async def search_dhcp_leases(
             # DHCP uses 'active_status' field, not 'state'
             filters.append(QueryFilter("active_status", state))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by, descending=True)
 
         leases = await client.get_dhcp_leases(
@@ -248,7 +262,12 @@ async def create_dhcp_static_mapping(
         if gateway:
             mapping_data["gateway"] = gateway
         if dns_server:
-            mapping_data["dnsserver"] = dns_server
+            # Upstream dnsserver is an array of strings; a bare string was
+            # rejected. Verified against pkg-RESTAPI v2.10.0 (see tests/contract).
+            try:
+                mapping_data["dnsserver"] = _dns_servers_to_list(dns_server)
+            except ValueError as e:
+                return {"success": False, "error": f"Invalid dns_server: {e}"}
 
         control = ControlParameters(apply=apply_immediately)
         result = await client.create_dhcp_static_mapping(mapping_data, control)
@@ -444,12 +463,21 @@ async def update_dhcp_server_config(
     """
     # Validate IP fields before sending to API
     for field_label, ip_val in [("range_from", range_from), ("range_to", range_to),
-                                 ("gateway", gateway), ("dns_server", dns_server)]:
+                                 ("gateway", gateway)]:
         if ip_val:
             try:
                 validate_ip_address(ip_val)
             except ValueError as e:
                 return {"success": False, "error": f"Invalid {field_label}: {e}"}
+
+    # Upstream dnsserver is an array of strings; a bare string was rejected.
+    # Verified against pkg-RESTAPI v2.10.0 (see tests/contract).
+    dnsserver_list = None
+    if dns_server:
+        try:
+            dnsserver_list = _dns_servers_to_list(dns_server)
+        except ValueError as e:
+            return {"success": False, "error": f"Invalid dns_server: {e}"}
 
     client = get_api_client()
     try:
@@ -469,7 +497,7 @@ async def update_dhcp_server_config(
             "range_to": range_to,
             "gateway": gateway,
             "domain": domain,
-            "dns_server": dns_server,
+            "dns_server": dnsserver_list,
             "default_lease_time": default_lease_time,
             "max_lease_time": max_lease_time,
             "enable": enable,

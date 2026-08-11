@@ -9,7 +9,11 @@ from mcp.types import ToolAnnotations
 # Interface Configuration
 # ---------------------------------------------------------------------------
 from ..guardrails import guarded, rate_limited
-from ..helpers import create_default_sort, create_pagination, sanitize_description
+from ..helpers import (
+    create_default_sort,
+    create_search_pagination,
+    sanitize_description,
+)
 from ..models import ControlParameters
 from ..server import get_api_client, logger, mcp
 
@@ -31,7 +35,7 @@ async def search_interface_configs(
     """
     client = get_api_client()
     try:
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -242,6 +246,7 @@ async def delete_interface(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_interface_changes() -> Dict:
     """Apply pending interface changes
 
@@ -285,7 +290,7 @@ async def search_vlans(
     """
     client = get_api_client()
     try:
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -490,7 +495,7 @@ async def search_interface_bridges(
     """
     client = get_api_client()
     try:
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -589,7 +594,7 @@ async def search_interface_groups(
     """
     client = get_api_client()
     try:
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(

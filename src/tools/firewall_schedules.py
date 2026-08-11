@@ -1,7 +1,7 @@
 """Firewall schedule tools for pfSense MCP server."""
 
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from mcp.types import ToolAnnotations
 
@@ -9,7 +9,11 @@ from mcp.types import ToolAnnotations
 # Firewall Schedules
 # ---------------------------------------------------------------------------
 from ..guardrails import guarded, rate_limited
-from ..helpers import create_default_sort, create_pagination, sanitize_description
+from ..helpers import (
+    create_default_sort,
+    create_search_pagination,
+    sanitize_description,
+)
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
 
@@ -31,7 +35,7 @@ async def search_firewall_schedules(
     """
     client = get_api_client()
     try:
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -70,22 +74,53 @@ async def search_firewall_schedules(
 @rate_limited
 async def create_firewall_schedule(
     name: str,
+    hour: str,
+    position: Optional[List[int]] = None,
+    month: Optional[List[int]] = None,
+    day: Optional[List[int]] = None,
+    rangedescr: Optional[str] = None,
     descr: Optional[str] = None,
     schedlabel: Optional[str] = None,
     apply_immediately: bool = True,
 ) -> Dict:
-    """Create a firewall schedule
+    """Create a firewall schedule with an initial time range.
+
+    The pfSense API requires at least one time range at creation. Use
+    create_schedule_time_range to add further ranges afterwards.
 
     Args:
         name: Schedule name (alphanumeric and underscores only)
+        hour: Start/end time for the initial time range in 24-hour format (e.g., "8:00-17:00")
+        position: Days of week for a weekly-recurring range (1=Monday ... 7=Sunday, e.g., [1,2,3,4,5]). Required unless month/day are given.
+        month: Months (1-12) for specific calendar dates; each entry pairs with the same-index `day` entry
+        day: Days of month pairing with `month` (e.g., month=[12], day=[25] for every Dec 25)
+        rangedescr: Description for the initial time range
         descr: Optional description
         schedlabel: Optional schedule label
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
+
+    if not position and not (month and day):
+        return {
+            "success": False,
+            "error": "Provide either `position` (weekdays, 1=Mon..7=Sun) or both `month` and `day` for the initial time range",
+        }
+
     try:
+        time_range: Dict = {"hour": hour}
+        if position:
+            time_range["position"] = position
+        if month:
+            time_range["month"] = month
+        if day:
+            time_range["day"] = day
+        if rangedescr:
+            time_range["rangedescr"] = sanitize_description(rangedescr)
+
         schedule_data: Dict = {
             "name": name,
+            "timerange": [time_range],
         }
 
         if descr:
@@ -221,7 +256,7 @@ async def search_schedule_time_ranges(
     try:
         filters = [QueryFilter("parent_id", parent_id)]
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -263,22 +298,22 @@ async def search_schedule_time_ranges(
 @rate_limited
 async def create_schedule_time_range(
     parent_id: int,
-    month: Optional[str] = None,
-    day: Optional[str] = None,
+    month: Optional[List[int]] = None,
+    day: Optional[List[int]] = None,
     hour: Optional[str] = None,
     rangedescr: Optional[str] = None,
-    position: Optional[str] = None,
+    position: Optional[List[int]] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Create a time range within a firewall schedule
 
     Args:
         parent_id: Parent schedule ID (from search_firewall_schedules)
-        month: Month specification for the time range
-        day: Day specification for the time range
-        hour: Hour specification for the time range (e.g., "8:00-17:00")
+        month: Months (1-12) for specific calendar dates; each entry pairs with the same-index `day` entry
+        day: Days of month pairing with `month` (e.g., month=[12], day=[25] for every Dec 25)
+        hour: Start/end time in 24-hour format (e.g., "8:00-17:00")
         rangedescr: Description for this time range entry
-        position: Position/order of this time range within the schedule
+        position: Days of week for a weekly-recurring range (1=Monday ... 7=Sunday, e.g., [1,2,3,4,5])
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
@@ -319,11 +354,11 @@ async def create_schedule_time_range(
 async def update_schedule_time_range(
     time_range_id: int,
     parent_id: Optional[int] = None,
-    month: Optional[str] = None,
-    day: Optional[str] = None,
+    month: Optional[List[int]] = None,
+    day: Optional[List[int]] = None,
     hour: Optional[str] = None,
     rangedescr: Optional[str] = None,
-    position: Optional[str] = None,
+    position: Optional[List[int]] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Update an existing time range within a firewall schedule by ID
@@ -331,11 +366,11 @@ async def update_schedule_time_range(
     Args:
         time_range_id: Time range ID (from search_schedule_time_ranges)
         parent_id: Parent schedule ID (if moving to a different schedule)
-        month: Month specification
-        day: Day specification
-        hour: Hour specification (e.g., "8:00-17:00")
+        month: Months (1-12) for specific calendar dates; each entry pairs with the same-index `day` entry
+        day: Days of month pairing with `month`
+        hour: Start/end time in 24-hour format (e.g., "8:00-17:00")
         rangedescr: Description for this time range entry
-        position: Position/order of this time range
+        position: Days of week for a weekly-recurring range (1=Monday ... 7=Sunday)
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()

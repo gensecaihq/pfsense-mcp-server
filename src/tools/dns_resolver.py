@@ -10,6 +10,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_pagination,
+    create_search_pagination,
     sanitize_description,
     validate_fqdn,
 )
@@ -61,6 +62,7 @@ async def update_dns_resolver_settings(
     register_dhcp: Optional[bool] = None,
     register_dhcp_static: Optional[bool] = None,
     custom_options: Optional[str] = None,
+    active_interfaces: Optional[List[str]] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Update DNS Resolver (Unbound) settings
@@ -72,6 +74,7 @@ async def update_dns_resolver_settings(
         register_dhcp: Register DHCP leases in the DNS Resolver
         register_dhcp_static: Register DHCP static mappings in the DNS Resolver
         custom_options: Custom Unbound configuration options (advanced)
+        active_interfaces: Interfaces on which Unbound accepts client queries
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
@@ -80,9 +83,14 @@ async def update_dns_resolver_settings(
             "enable": "enable",
             "dnssec": "dnssec",
             "forwarding": "forwarding",
-            "register_dhcp": "register_dhcp",
-            "register_dhcp_static": "register_dhcp_static",
+            # Upstream DNSResolverSettings fields are regdhcp / regdhcpstatic;
+            # the pre-fix names were silently ignored (PATCH drops unknown keys),
+            # so DHCP registration could never be toggled. Verified against
+            # pkg-RESTAPI v2.10.0 (see tests/contract).
+            "register_dhcp": "regdhcp",
+            "register_dhcp_static": "regdhcpstatic",
             "custom_options": "custom_options",
+            "active_interfaces": "active_interface",
         }
 
         params = {
@@ -92,6 +100,7 @@ async def update_dns_resolver_settings(
             "register_dhcp": register_dhcp,
             "register_dhcp_static": register_dhcp_static,
             "custom_options": custom_options,
+            "active_interfaces": active_interfaces,
         }
 
         updates = {}
@@ -151,7 +160,7 @@ async def search_dns_host_overrides(
         if host:
             filters.append(QueryFilter("host", host))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.crud_list(
@@ -619,19 +628,39 @@ async def delete_dns_domain_override(
 
 # --- Access List tools ---
 
+# Upstream DNSResolverAccessList uses the field names name/action/description and
+# space-separated action choices (aclname/aclaction/descr are internal-only names
+# that PATCH silently drops and POST rejects). The tool keeps the ergonomic
+# underscore action spellings and maps them to the wire values. Verified against
+# pkg-RESTAPI v2.10.0 (see tests/contract).
+_ACL_ACTION_WIRE = {
+    "allow": "allow",
+    "deny": "deny",
+    "refuse": "refuse",
+    "allow_snoop": "allow snoop",
+    "deny_nonlocal": "deny nonlocal",
+    "refuse_nonlocal": "refuse nonlocal",
+    # tolerate the space forms and the alternate underscore spelling
+    "allow snoop": "allow snoop",
+    "deny nonlocal": "deny nonlocal",
+    "refuse nonlocal": "refuse nonlocal",
+    "deny_non_local": "deny nonlocal",
+    "refuse_non_local": "refuse nonlocal",
+}
+
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_dns_access_lists(
     page: int = 1,
     page_size: int = 20,
-    sort_by: str = "aclname",
+    sort_by: str = "name",
 ) -> Dict:
     """Search DNS Resolver access lists with pagination
 
     Args:
         page: Page number for pagination
         page_size: Number of results per page
-        sort_by: Field to sort by (aclname, aclaction, descr, etc.)
+        sort_by: Field to sort by (name, action, description)
     """
     client = get_api_client()
     try:
@@ -676,23 +705,24 @@ async def create_dns_access_list(
         networks: List of network dicts, each with "network" and "mask" keys (e.g., [{"network": "192.168.1.0", "mask": 24}])
         apply_immediately: Whether to apply changes immediately
     """
-    # Validate aclaction
-    valid_actions = ("allow", "deny", "refuse", "allow_snoop", "deny_nonlocal", "refuse_nonlocal")
-    if aclaction not in valid_actions:
+    # Validate and map the action to its wire value
+    wire_action = _ACL_ACTION_WIRE.get(aclaction)
+    if wire_action is None:
         return {
             "success": False,
-            "error": f"Invalid aclaction '{aclaction}'. Must be one of: {', '.join(valid_actions)}",
+            "error": f"Invalid aclaction '{aclaction}'. Must be one of: "
+                     f"{', '.join(sorted(set(_ACL_ACTION_WIRE)))}",
         }
 
     client = get_api_client()
     try:
         acl_data = {
-            "aclname": aclname,
-            "aclaction": aclaction,
+            "name": aclname,
+            "action": wire_action,
         }
 
         if descr:
-            acl_data["descr"] = sanitize_description(descr)
+            acl_data["description"] = sanitize_description(descr)
 
         if networks:
             acl_data["networks"] = networks
@@ -717,6 +747,7 @@ async def create_dns_access_list(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_dns_resolver_changes() -> Dict:
     """Apply pending DNS Resolver configuration changes
 
@@ -761,11 +792,18 @@ async def update_dns_access_list(
     try:
         updates = {}
         if aclname is not None:
-            updates["aclname"] = aclname
+            updates["name"] = aclname
         if aclaction is not None:
-            updates["aclaction"] = aclaction
+            wire_action = _ACL_ACTION_WIRE.get(aclaction)
+            if wire_action is None:
+                return {
+                    "success": False,
+                    "error": f"Invalid aclaction '{aclaction}'. Must be one of: "
+                             f"{', '.join(sorted(set(_ACL_ACTION_WIRE)))}",
+                }
+            updates["action"] = wire_action
         if descr is not None:
-            updates["descr"] = sanitize_description(descr)
+            updates["description"] = sanitize_description(descr)
 
         if not updates:
             return {"success": False, "error": "No fields to update — provide at least one field"}

@@ -7,10 +7,10 @@ from src.tools.nat import (
     update_nat_port_forward,
 )
 
-_search_nat_port_forwards = search_nat_port_forwards.fn
-_create_nat_port_forward = create_nat_port_forward.fn
-_delete_nat_port_forward = delete_nat_port_forward.fn
-_update_nat_port_forward = update_nat_port_forward.fn
+_search_nat_port_forwards = search_nat_port_forwards
+_create_nat_port_forward = create_nat_port_forward
+_delete_nat_port_forward = delete_nat_port_forward
+_update_nat_port_forward = update_nat_port_forward
 
 
 # ---------------------------------------------------------------------------

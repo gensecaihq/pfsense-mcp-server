@@ -10,13 +10,13 @@ from src.tools.dhcp import (
     update_dhcp_static_mapping,
 )
 
-_search_dhcp_leases = search_dhcp_leases.fn
-_search_dhcp_static_mappings = search_dhcp_static_mappings.fn
-_create_dhcp_static_mapping = create_dhcp_static_mapping.fn
-_update_dhcp_static_mapping = update_dhcp_static_mapping.fn
-_delete_dhcp_static_mapping = delete_dhcp_static_mapping.fn
-_get_dhcp_server_config = get_dhcp_server_config.fn
-_update_dhcp_server_config = update_dhcp_server_config.fn
+_search_dhcp_leases = search_dhcp_leases
+_search_dhcp_static_mappings = search_dhcp_static_mappings
+_create_dhcp_static_mapping = create_dhcp_static_mapping
+_update_dhcp_static_mapping = update_dhcp_static_mapping
+_delete_dhcp_static_mapping = delete_dhcp_static_mapping
+_get_dhcp_server_config = get_dhcp_server_config
+_update_dhcp_server_config = update_dhcp_server_config
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +172,8 @@ class TestCreateDhcpStaticMapping:
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
         assert data["hostname"] == "myhost"
         assert data["descr"] == "Test mapping"
-        assert data["dnsserver"] == "8.8.8.8"
+        # dnsserver is an array of strings upstream (see tests/contract)
+        assert data["dnsserver"] == ["8.8.8.8"]
 
 
 # ---------------------------------------------------------------------------

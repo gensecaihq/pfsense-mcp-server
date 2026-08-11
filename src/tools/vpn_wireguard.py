@@ -105,7 +105,8 @@ async def create_wireguard_tunnel(
     try:
         tunnel_data = {
             "name": name,
-            "listenport": listenport,
+            # listenport is a string-typed PortField upstream; ints are rejected.
+            "listenport": str(listenport),
             "privatekey": privatekey,
             "enabled": enabled,
         }
@@ -157,6 +158,10 @@ async def update_wireguard_tunnel(
     """
     client = get_api_client()
     try:
+        # listenport is a string-typed PortField upstream.
+        if listenport is not None:
+            listenport = str(listenport)
+
         field_map = {
             "name": "name",
             "listenport": "listenport",
@@ -243,7 +248,7 @@ async def delete_wireguard_tunnel(
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_wireguard_peers(
     search_description: Optional[str] = None,
-    tun: Optional[int] = None,
+    tun: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     sort_by: str = "descr",
@@ -252,7 +257,7 @@ async def search_wireguard_peers(
 
     Args:
         search_description: Search in peer descriptions
-        tun: Filter by parent tunnel ID
+        tun: Filter by parent tunnel name
         page: Page number for pagination
         page_size: Number of results per page
         sort_by: Field to sort by (descr, endpoint, publickey, etc.)
@@ -298,25 +303,29 @@ async def search_wireguard_peers(
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 @rate_limited
 async def create_wireguard_peer(
-    tun: int,
+    tun: str,
     publickey: str,
     descr: Optional[str] = None,
     endpoint: Optional[str] = None,
     port: Optional[int] = None,
     presharedkey: Optional[str] = None,
     keepalive: Optional[int] = None,
+    enabled: bool = True,
     apply_immediately: bool = True,
 ) -> Dict:
     """Create a new WireGuard peer on a tunnel
 
     Args:
-        tun: Parent tunnel ID the peer belongs to
+        tun: Parent tunnel name the peer belongs to (e.g. "tun_wg0" — upstream
+            references the tunnel by name, not by array-index id)
         publickey: WireGuard public key for the peer
         descr: Optional description
         endpoint: Optional peer endpoint hostname or IP
         port: Optional peer endpoint port
         presharedkey: Optional pre-shared key for additional security
         keepalive: Optional persistent keepalive interval in seconds
+        enabled: Whether the peer is enabled (default: True; upstream defaults
+            new peers to disabled, so this must be sent to get a working peer)
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
@@ -324,6 +333,7 @@ async def create_wireguard_peer(
         peer_data = {
             "tun": tun,
             "publickey": publickey,
+            "enabled": enabled,
         }
 
         if descr is not None:
@@ -331,11 +341,13 @@ async def create_wireguard_peer(
         if endpoint is not None:
             peer_data["endpoint"] = endpoint
         if port is not None:
-            peer_data["port"] = port
+            # port is a string-typed PortField upstream.
+            peer_data["port"] = str(port)
         if presharedkey is not None:
             peer_data["presharedkey"] = presharedkey
         if keepalive is not None:
-            peer_data["keepalive"] = keepalive
+            # upstream field is persistentkeepalive, not keepalive
+            peer_data["persistentkeepalive"] = keepalive
 
         control = ControlParameters(apply=apply_immediately)
         result = await client.crud_create(_PEER, peer_data, control)
@@ -357,30 +369,37 @@ async def create_wireguard_peer(
 @rate_limited
 async def update_wireguard_peer(
     peer_id: int,
-    tun: Optional[int] = None,
+    tun: Optional[str] = None,
     publickey: Optional[str] = None,
     descr: Optional[str] = None,
     endpoint: Optional[str] = None,
     port: Optional[int] = None,
     presharedkey: Optional[str] = None,
     keepalive: Optional[int] = None,
+    enabled: Optional[bool] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Update an existing WireGuard peer by ID
 
     Args:
         peer_id: Peer ID (from search_wireguard_peers)
-        tun: Parent tunnel ID
+        tun: Parent tunnel name (upstream references the tunnel by name)
         publickey: WireGuard public key
         descr: Description
         endpoint: Peer endpoint hostname or IP
         port: Peer endpoint port
         presharedkey: Pre-shared key
         keepalive: Persistent keepalive interval in seconds
+        enabled: Whether the peer is enabled
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
     try:
+        # port is a string-typed PortField upstream.
+        if port is not None:
+            port = str(port)
+
+        # upstream field is persistentkeepalive, not keepalive
         field_map = {
             "tun": "tun",
             "publickey": "publickey",
@@ -388,7 +407,8 @@ async def update_wireguard_peer(
             "endpoint": "endpoint",
             "port": "port",
             "presharedkey": "presharedkey",
-            "keepalive": "keepalive",
+            "keepalive": "persistentkeepalive",
+            "enabled": "enabled",
         }
 
         params = {
@@ -399,6 +419,7 @@ async def update_wireguard_peer(
             "port": port,
             "presharedkey": presharedkey,
             "keepalive": keepalive,
+            "enabled": enabled,
         }
 
         updates = {}
@@ -516,6 +537,7 @@ async def search_wireguard_peer_allowed_ips(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
+@rate_limited
 async def manage_wireguard_peer_allowed_ip(
     action: str,
     peer_id: int,
@@ -683,6 +705,7 @@ async def update_wireguard_settings(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_wireguard_changes() -> Dict:
     """Apply pending WireGuard configuration changes
 

@@ -12,15 +12,15 @@ from src.tools.firewall import (
     update_firewall_rule,
 )
 
-_search_firewall_rules = search_firewall_rules.fn
-_create_firewall_rule_advanced = create_firewall_rule_advanced.fn
-_update_firewall_rule = update_firewall_rule.fn
-_delete_firewall_rule = delete_firewall_rule.fn
-_find_blocked_rules = find_blocked_rules.fn
-_move_firewall_rule = move_firewall_rule.fn
-_bulk_block_ips = bulk_block_ips.fn
-_apply_firewall_changes = apply_firewall_changes.fn
-_get_pf_rules = get_pf_rules.fn
+_search_firewall_rules = search_firewall_rules
+_create_firewall_rule_advanced = create_firewall_rule_advanced
+_update_firewall_rule = update_firewall_rule
+_delete_firewall_rule = delete_firewall_rule
+_find_blocked_rules = find_blocked_rules
+_move_firewall_rule = move_firewall_rule
+_bulk_block_ips = bulk_block_ips
+_apply_firewall_changes = apply_firewall_changes
+_get_pf_rules = get_pf_rules
 
 
 # ---------------------------------------------------------------------------
@@ -41,6 +41,21 @@ class TestSearchFirewallRules:
         call_kwargs = mock_make_request.call_args
         filters = call_kwargs.kwargs.get("filters") or call_kwargs[1].get("filters")
         assert any(f.field == "interface" and f.value == "lan" for f in filters)
+
+    async def test_disabled_false_serializes_lowercase(
+        self, mock_client, mock_make_request, firewall_rules_response
+    ):
+        """disabled=False must reach the wire as "false", not "False".
+
+        Upstream loose-compares "False" as truthy, so the old value inverted the
+        query — asking for enabled rules returned the disabled ones.
+        """
+        mock_make_request.return_value = firewall_rules_response
+        await _search_firewall_rules(disabled=False)
+        call_kwargs = mock_make_request.call_args
+        filters = call_kwargs.kwargs.get("filters") or call_kwargs[1].get("filters")
+        disabled_filter = next(f for f in filters if f.field == "disabled")
+        assert disabled_filter.to_param() == ("disabled", "false")
 
     async def test_multiple_filters(self, mock_client, mock_make_request, firewall_rules_response):
         mock_make_request.return_value = firewall_rules_response
@@ -195,6 +210,24 @@ class TestCreateFirewallRuleAdvanced:
         data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[0][2]
         assert data["ipprotocol"] == "inet6"
 
+    async def test_schedule_threaded_through(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 11}}
+        await _create_firewall_rule_advanced(
+            interface="lan", rule_type="pass", protocol="tcp",
+            source="any", destination="any", schedule="BusinessHours",
+        )
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[0][2]
+        assert data["sched"] == "BusinessHours"
+
+    async def test_no_schedule_omits_sched(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 12}}
+        await _create_firewall_rule_advanced(
+            interface="lan", rule_type="pass", protocol="tcp",
+            source="any", destination="any",
+        )
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[0][2]
+        assert "sched" not in data
+
     async def test_ipprotocol_invalid_rejected(self, mock_client, mock_make_request):
         result = await _create_firewall_rule_advanced(
             interface="lan", rule_type="pass", protocol="tcp",
@@ -244,6 +277,22 @@ class TestUpdateFirewallRule:
         assert result["success"] is False
         assert "Invalid source_port" in result["error"]
         mock_make_request.assert_not_called()
+
+    async def test_schedule_field_mapping(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 3}}
+        result = await _update_firewall_rule(rule_id=3, schedule="BusinessHours")
+        assert result["success"] is True
+        assert "sched" in result["fields_updated"]
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["sched"] == "BusinessHours"
+
+    async def test_schedule_empty_string_clears(self, mock_client, mock_make_request):
+        """Passing schedule='' must send sched=null to detach the schedule."""
+        mock_make_request.return_value = {"data": {"id": 3}}
+        result = await _update_firewall_rule(rule_id=3, schedule="")
+        assert result["success"] is True
+        data = mock_make_request.call_args.kwargs.get("data") or mock_make_request.call_args[1].get("data")
+        assert data["sched"] is None
 
 
 # ---------------------------------------------------------------------------

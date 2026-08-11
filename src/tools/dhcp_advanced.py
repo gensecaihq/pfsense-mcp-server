@@ -393,6 +393,7 @@ async def delete_dhcp_custom_option(
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
+@rate_limited
 async def apply_dhcp_changes() -> Dict:
     """Apply pending DHCP server changes
 

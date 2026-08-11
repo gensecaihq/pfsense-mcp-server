@@ -9,9 +9,22 @@ from mcp.types import ToolAnnotations
 # Users
 # ------------------------------------------------------------------ #
 from ..guardrails import guarded, rate_limited
-from ..helpers import create_default_sort, create_pagination, sanitize_description
+from ..helpers import (
+    create_default_sort,
+    create_search_pagination,
+    sanitize_description,
+)
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
+
+# LDAP transport -> upstream AuthServer.ldap_urltype vocabulary. The pre-fix
+# code sent a `transport` field with tcp/ssl/starttls, none of which the API
+# recognizes. Verified against pkg-RESTAPI v2.10.0 (see tests/contract).
+_LDAP_URLTYPE = {
+    "tcp": "Standard TCP",
+    "starttls": "STARTTLS Encrypt",
+    "ssl": "SSL/TLS Encrypted",
+}
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
@@ -36,7 +49,7 @@ async def search_users(
         if search_term:
             filters.append(QueryFilter("name", search_term, "contains"))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.get_users(
@@ -267,7 +280,7 @@ async def search_groups(
         if search_term:
             filters.append(QueryFilter("name", search_term, "contains"))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.get_groups(
@@ -300,7 +313,7 @@ async def create_group(
     scope: str = "local",
     descr: Optional[str] = None,
     priv: Optional[List[str]] = None,
-    member: Optional[List[int]] = None,
+    member: Optional[List[str]] = None,
 ) -> Dict:
     """Create a new pfSense user group
 
@@ -309,7 +322,8 @@ async def create_group(
         scope: Group scope (local or remote)
         descr: Group description
         priv: List of privileges to assign to the group
-        member: List of user IDs to add as members
+        member: List of usernames to add as members (upstream references users
+            by name, not by array-index id)
     """
     client = get_api_client()
     try:
@@ -325,7 +339,8 @@ async def create_group(
         }
 
         if descr:
-            group_data["descr"] = sanitize_description(descr)
+            # upstream UserGroup field is `description`, not `descr`
+            group_data["description"] = sanitize_description(descr)
 
         if priv is not None:
             group_data["priv"] = priv
@@ -355,7 +370,7 @@ async def update_group(
     scope: Optional[str] = None,
     descr: Optional[str] = None,
     priv: Optional[List[str]] = None,
-    member: Optional[List[int]] = None,
+    member: Optional[List[str]] = None,
 ) -> Dict:
     """Update an existing pfSense user group by ID
 
@@ -365,17 +380,19 @@ async def update_group(
         scope: Group scope (local or remote)
         descr: Group description
         priv: List of privileges (replaces existing)
-        member: List of user IDs (replaces existing membership)
+        member: List of usernames (replaces existing membership; upstream
+            references users by name, not by array-index id)
     """
     client = get_api_client()
     try:
         if scope is not None and scope not in ("local", "remote"):
             return {"success": False, "error": "scope must be 'local' or 'remote'"}
 
+        # upstream UserGroup field is `description`, not `descr`
         field_map = {
             "name": "name",
             "scope": "scope",
-            "descr": "descr",
+            "descr": "description",
             "priv": "priv",
             "member": "member",
         }
@@ -477,7 +494,7 @@ async def search_auth_servers(
         if search_term:
             filters.append(QueryFilter("name", search_term, "contains"))
 
-        pagination, page, page_size = create_pagination(page, page_size)
+        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
         sort = create_default_sort(sort_by)
 
         result = await client.get_auth_servers(
@@ -564,25 +581,30 @@ async def create_auth_server(
             "host": host.strip(),
         }
 
+        # Upstream AuthServer uses ldap_-prefixed field names and a specific
+        # url-type vocabulary; the pre-fix generic names (port/transport/scope/
+        # basedn/authcn) were silently dropped, so LDAP servers could not be
+        # created. Verified against pkg-RESTAPI v2.10.0 (see tests/contract).
+        # Port fields are string-typed upstream (PortField); ints are rejected.
         if port is not None:
-            server_data["port"] = port
+            server_data["ldap_port" if type == "ldap" else "radius_auth_port"] = str(port)
 
         # LDAP-specific fields
         if transport is not None:
-            if transport not in ("tcp", "ssl", "starttls"):
+            if transport not in _LDAP_URLTYPE:
                 return {"success": False, "error": "transport must be 'tcp', 'ssl', or 'starttls'"}
-            server_data["transport"] = transport
+            server_data["ldap_urltype"] = _LDAP_URLTYPE[transport]
 
         if scope is not None:
             if scope not in ("one", "subtree"):
                 return {"success": False, "error": "scope must be 'one' or 'subtree'"}
-            server_data["scope"] = scope
+            server_data["ldap_scope"] = scope
 
         if basedn is not None:
-            server_data["basedn"] = basedn
+            server_data["ldap_basedn"] = basedn
 
         if authcn is not None:
-            server_data["authcn"] = authcn
+            server_data["ldap_authcn"] = authcn
 
         if ldap_attr_user is not None:
             server_data["ldap_attr_user"] = ldap_attr_user
@@ -604,10 +626,10 @@ async def create_auth_server(
             server_data["radius_secret"] = radius_secret
 
         if radius_auth_port is not None:
-            server_data["radius_auth_port"] = radius_auth_port
+            server_data["radius_auth_port"] = str(radius_auth_port)
 
         if radius_acct_port is not None:
-            server_data["radius_acct_port"] = radius_acct_port
+            server_data["radius_acct_port"] = str(radius_acct_port)
 
         if radius_protocol is not None:
             allowed_protocols = ("MSCHAPv2", "MSCHAPv1", "CHAP_MD5", "PAP")
@@ -695,15 +717,31 @@ async def update_auth_server(
             if radius_protocol not in allowed_protocols:
                 return {"success": False, "error": f"radius_protocol must be one of: {', '.join(allowed_protocols)}"}
 
+        # Map the LDAP transport to its upstream url-type value (see create).
+        if transport is not None:
+            if transport not in _LDAP_URLTYPE:
+                return {"success": False, "error": "transport must be 'tcp', 'ssl', or 'starttls'"}
+            transport = _LDAP_URLTYPE[transport]
+
+        # Port fields are string-typed upstream (PortField).
+        if port is not None:
+            port = str(port)
+        if radius_auth_port is not None:
+            radius_auth_port = str(radius_auth_port)
+        if radius_acct_port is not None:
+            radius_acct_port = str(radius_acct_port)
+
+        # Upstream AuthServer uses ldap_-prefixed field names; the generic
+        # names were silently dropped. Verified against pkg-RESTAPI v2.10.0.
         field_map = {
             "name": "name",
             "type": "type",
             "host": "host",
-            "port": "port",
-            "transport": "transport",
-            "scope": "scope",
-            "basedn": "basedn",
-            "authcn": "authcn",
+            "port": "ldap_port",
+            "transport": "ldap_urltype",
+            "scope": "ldap_scope",
+            "basedn": "ldap_basedn",
+            "authcn": "ldap_authcn",
             "ldap_attr_user": "ldap_attr_user",
             "ldap_attr_group": "ldap_attr_group",
             "ldap_attr_member": "ldap_attr_member",
