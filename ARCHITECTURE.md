@@ -131,8 +131,9 @@ the historically-mislabeled `CE_26_03` remain accepted as enum aliases.
 The server speaks MCP **2025-11-25** (via FastMCP 3.4.x) and negotiates down per
 connection. It uses none of the features the 2026-07-28 revision deprecates
 (Roots, Sampling, MCP Logging) and holds no session state, so it already passes
-its suite on the FastMCP 4 beta (a non-blocking CI job) — adopting the
-sessionless protocol will be a dependency-pin change.
+its suite and the Inspector wire-protocol smoke test on the FastMCP 4 beta
+(a non-blocking CI job) — adopting the sessionless protocol will be a
+dependency-pin change.
 
 ## Known limitations
 
