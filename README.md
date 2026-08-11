@@ -250,6 +250,16 @@ docker compose up
 
 Container security: non-root user (`mcp:1000`), read-only filesystem, all capabilities dropped, `noexec` tmpfs, `no-new-privileges`. In HTTP mode the container health check probes an unauthenticated `/health` endpoint (the `/mcp` endpoint requires a bearer token).
 
+**Behind an MCP gateway** — the HTTP transport is a spec-compliant Streamable
+HTTP endpoint with bearer-token auth, so it can be registered as an MCP-server
+target behind managed gateways such as
+[AWS Bedrock AgentCore Gateway](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-target-MCPservers.html)
+(use its API-key credential provider to supply the `MCP_API_KEY` bearer token,
+and add the gateway's origin to `MCP_ALLOWED_ORIGINS`). Such gateways add
+centralized OAuth/IAM in front and translate between protocol revisions,
+including 2026-07-28. No gateway is required — this is purely an option for
+environments that already run one.
+
 ## Configuration
 
 | Variable | Required | Default | Description |
@@ -318,7 +328,11 @@ Compliant with [MCP 2025-11-25](https://modelcontextprotocol.io/specification/20
 - Default bind to localhost per spec SHOULD
 - stdio and Streamable HTTP transports
 
-The newest revision, [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/changelog), makes the protocol stateless; SDK support ships in fastmcp 4, currently in beta. This codebase already passes its full test suite **and** the MCP Inspector wire-protocol smoke test on the fastmcp 4 beta (4.0.0b2 / mcp SDK 2.0, checked continuously by a non-blocking CI job), and uses none of the features 2026-07-28 deprecates (Roots, Sampling, MCP Logging), so adopting the sessionless protocol when fastmcp 4 is stable is a dependency-pin change. fastmcp 4 servers negotiate the protocol era per connection, keeping today's handshake-era clients fully supported.
+### The stateless 2026-07-28 revision
+
+The newest revision, [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/changelog) (published 28 July 2026), is the protocol's largest overhaul yet: it removes the `initialize` handshake and protocol-level sessions entirely — every request is self-contained, so remote MCP servers become ordinary stateless HTTPS endpoints — and adds an official extensions system, tighter OAuth 2.0/OIDC alignment, and a formal feature-lifecycle policy with a minimum twelve-month deprecation window.
+
+SDK support ships in fastmcp 4, currently in beta. This codebase is **verified ready**: the full test suite **and** the MCP Inspector wire-protocol smoke test pass on the fastmcp 4 beta (4.0.0b2 / mcp SDK 2.0, checked continuously by a non-blocking CI job), the server holds no session state by design, and it uses none of the features 2026-07-28 deprecates (Roots, Sampling, MCP Logging). Adopting the stateless protocol when fastmcp 4 is stable is a dependency-pin change; fastmcp 4 servers negotiate the protocol era per connection, keeping today's handshake-era clients fully supported.
 
 ## Project Structure
 
