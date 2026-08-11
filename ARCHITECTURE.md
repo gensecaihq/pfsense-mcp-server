@@ -129,11 +129,13 @@ the historically-mislabeled `CE_26_03` remain accepted as enum aliases.
 ## MCP protocol
 
 The server speaks MCP **2025-11-25** (via FastMCP 3.4.x) and negotiates down per
-connection. It uses none of the features the 2026-07-28 revision deprecates
-(Roots, Sampling, MCP Logging) and holds no session state, so it already passes
-its suite and the Inspector wire-protocol smoke test on the FastMCP 4 beta
-(a non-blocking CI job) — adopting the sessionless protocol will be a
-dependency-pin change.
+connection. The **2026-07-28** revision removes the handshake and sessions
+outright (every request self-contained) and formalizes a feature lifecycle with
+a minimum twelve-month deprecation window. This server uses none of the
+features that revision deprecates (Roots, Sampling, MCP Logging) and holds no
+session state, so it already passes its suite and the Inspector wire-protocol
+smoke test on the FastMCP 4 beta (a non-blocking CI job) — adopting the
+stateless protocol once fastmcp 4 leaves beta is a dependency-pin change.
 
 ## Known limitations
 
