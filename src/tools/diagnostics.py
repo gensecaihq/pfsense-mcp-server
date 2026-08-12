@@ -300,7 +300,10 @@ async def get_pf_table(
 
         return {
             "success": True,
-            "table_name": table.get("name", name),
+            # get() alone falls back only when the key is absent; the API
+            # returns an explicit null here, and the request went out with
+            # the stripped name, so echo that rather than the raw argument.
+            "table_name": table.get("name") or name.strip(),
             "count": len(entries),
             "entries": entries,
             "table": table,

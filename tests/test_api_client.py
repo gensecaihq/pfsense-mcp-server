@@ -228,6 +228,63 @@ class TestMakeRequestContentType:
             assert "Content-Type" not in headers
 
 
+class TestCrudGetSettings:
+    """Query-param forwarding on the singleton-settings GET helper.
+
+    This helper took only ``endpoint`` while two callers passed ``params=``
+    (``get_pf_table`` and ``get_config_revision``), so both raised TypeError on
+    every invocation — neither tool had ever worked. Nothing failed, because no
+    test exercised the helper with params. These pin the signature so the call
+    sites and the helper can't drift apart again silently. See PR #80.
+    """
+
+    def _client(self):
+        return EnhancedPfSenseAPIClient(
+            host="https://192.0.2.1",
+            auth_method=AuthMethod.API_KEY,
+            api_key="test-key",
+            verify_ssl=False,
+        )
+
+    def _ok(self):
+        resp = MagicMock(spec=httpx.Response)
+        resp.status_code = 200
+        resp.json.return_value = {"data": {}}
+        resp.text = "{}"
+        return resp
+
+    async def test_forwards_params_to_the_query_string(self):
+        client = self._client()
+        with patch.object(client, "_ensure_client"):
+            client.client = MagicMock()
+            client.client.get = AsyncMock(return_value=self._ok())
+            await client.crud_get_settings("/diagnostics/table", params={"id": "bogons"})
+            url = client.client.get.call_args.args[0]
+        assert url.endswith("/diagnostics/table?id=bogons")
+
+    async def test_accepts_a_non_string_param_value(self):
+        """get_config_revision passes an int revision id straight through."""
+        client = self._client()
+        with patch.object(client, "_ensure_client"):
+            client.client = MagicMock()
+            client.client.get = AsyncMock(return_value=self._ok())
+            await client.crud_get_settings(
+                "/diagnostics/config_history/revision", params={"id": 42}
+            )
+            url = client.client.get.call_args.args[0]
+        assert url.endswith("?id=42")
+
+    async def test_omits_the_query_string_without_params(self):
+        client = self._client()
+        with patch.object(client, "_ensure_client"):
+            client.client = MagicMock()
+            client.client.get = AsyncMock(return_value=self._ok())
+            await client.crud_get_settings("/system/timezone")
+            url = client.client.get.call_args.args[0]
+        assert url.endswith("/system/timezone")
+        assert "?" not in url
+
+
 class TestClientConfiguration:
     async def test_disables_automatic_redirects(self):
         client = EnhancedPfSenseAPIClient(

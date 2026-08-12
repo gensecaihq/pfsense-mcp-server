@@ -180,6 +180,16 @@ class TestValidateEndpoint:
         with pytest.raises(ValueError, match="not in the allowed list"):
             _validate_endpoint("/secrets/dump")
 
+    def test_rejects_a_doubled_plural(self):
+        """Only ONE trailing "s" is the plural spelling.
+
+        rstrip("s") strips every trailing "s", so /systemss and /systemsss
+        would satisfy the same check that exists to reject /systemfoo.
+        """
+        for endpoint in ("/systemss", "/systemsss", "/interfacess"):
+            with pytest.raises(ValueError, match="not in the allowed list"):
+                _validate_endpoint(endpoint)
+
 
 # ---------------------------------------------------------------------------
 # get_api_capabilities

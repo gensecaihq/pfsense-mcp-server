@@ -24,6 +24,12 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+# Query-string values are urlencode()'d, which serializes ints as readily as
+# strings. Callers legitimately pass both — get_config_revision hands over an
+# int revision id — so the annotation says so rather than making every call
+# site str() a value that needs no conversion.
+QueryValue = Union[str, int]
+
 
 class EnhancedPfSenseAPIClient:
     """
@@ -257,7 +263,7 @@ class EnhancedPfSenseAPIClient:
         filters: Optional[List[QueryFilter]] = None,
         sort: Optional[SortOptions] = None,
         pagination: Optional[PaginationOptions] = None,
-        extra_params: Optional[Dict[str, str]] = None,
+        extra_params: Optional[Dict[str, QueryValue]] = None,
     ) -> str:
         """Build query parameters for GET requests.
 
@@ -301,7 +307,7 @@ class EnhancedPfSenseAPIClient:
         sort: Optional[SortOptions] = None,
         pagination: Optional[PaginationOptions] = None,
         control: Optional[ControlParameters] = None,
-        extra_params: Optional[Dict[str, str]] = None,
+        extra_params: Optional[Dict[str, QueryValue]] = None,
         timeout: Optional[int] = None,
     ) -> Dict:
         """Make API request with enhanced features.
@@ -1266,7 +1272,7 @@ class EnhancedPfSenseAPIClient:
         filters: Optional[List[QueryFilter]] = None,
         sort: Optional[SortOptions] = None,
         pagination: Optional[PaginationOptions] = None,
-        extra_params: Optional[Dict[str, str]] = None,
+        extra_params: Optional[Dict[str, QueryValue]] = None,
     ) -> Dict:
         """Generic list/search for any plural endpoint."""
         if pagination is None:
@@ -1328,7 +1334,9 @@ class EnhancedPfSenseAPIClient:
         """Generic apply for any apply endpoint (POST with empty body)."""
         return await self._make_request("POST", endpoint, data={})
 
-    async def crud_get_settings(self, endpoint: str, params: Optional[Dict[str, str]] = None) -> Dict:
+    async def crud_get_settings(
+        self, endpoint: str, params: Optional[Dict[str, QueryValue]] = None
+    ) -> Dict:
         """Generic GET for singleton settings endpoints.
 
         Args:
