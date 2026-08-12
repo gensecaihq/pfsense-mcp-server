@@ -324,6 +324,43 @@ class TestMakeRequestErrors:
 
         response.json.assert_not_called()
 
+    @pytest.mark.parametrize(
+        "host, expected, not_expected",
+        [
+            ("http://192.0.2.1", "change it to https://", "nothing in front of it"),
+            ("https://192.0.2.1", "nothing in front of it", "change it to https://"),
+        ],
+        ids=["http-origin", "https-origin"],
+    )
+    async def test_redirect_error_names_the_likely_cause(
+        self, host, expected, not_expected
+    ):
+        """A redirect is a misconfiguration, so the error has to say which one.
+
+        pfSense redirects http:// to https:// by default and PFSENSE_URL is not
+        scheme-validated at startup, so this error is where an operator using
+        http:// first learns of it. Telling them only that redirects are
+        disabled leaves them to guess.
+        """
+        client = EnhancedPfSenseAPIClient(
+            host=host,
+            auth_method=AuthMethod.API_KEY,
+            api_key="test-key",
+            verify_ssl=False,
+        )
+        response = MagicMock(spec=httpx.Response)
+        response.status_code = 302
+        response.headers = {"Location": "https://192.0.2.1/api/v2/start"}
+
+        with patch.object(client, "_ensure_client"):
+            client.client = MagicMock()
+            client.client.get = AsyncMock(return_value=response)
+            with pytest.raises(Exception) as exc:
+                await client._make_request("GET", "/start")
+
+        assert expected in str(exc.value)
+        assert not_expected not in str(exc.value)
+
 
 # ---------------------------------------------------------------------------
 # _build_query_params

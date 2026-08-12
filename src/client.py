@@ -417,13 +417,30 @@ class EnhancedPfSenseAPIClient:
                 "pfSense API redirect %s: %s %s -> %s",
                 response.status_code, method, url_path, location_path,
             )
+            # By far the most likely cause: PFSENSE_URL names an http://
+            # origin and pfSense redirects the webConfigurator to https://.
+            # The scheme isn't validated at startup, so this is the first
+            # place the operator hears about it — name the fix rather than
+            # leaving them to infer it from "redirects are disabled".
+            hint = (
+                "PFSENSE_URL is set to an http:// origin. pfSense redirects "
+                "http:// to https:// by default — change it to https://.\n"
+                if self.host.lower().startswith("http://")
+                else "Check that PFSENSE_URL points at the pfSense API origin "
+                     "directly, with nothing in front of it that rewrites "
+                     "paths.\n"
+            )
             raise Exception(
                 f"\n=== pfSense API Redirect ===\n"
                 f"Status: {response.status_code}\n"
                 f"Endpoint: {url_path}\n"
                 f"Method: {method}\n"
                 f"Location path: {location_path}\n"
-                f"Redirects are disabled for API safety.\n"
+                f"Redirects are disabled for API safety: a custom X-API-Key "
+                f"header is not stripped by httpx on a cross-origin redirect "
+                f"the way Authorization is, so following one could hand the "
+                f"key to another host.\n"
+                f"{hint}"
                 f"===========================\n"
             )
 
