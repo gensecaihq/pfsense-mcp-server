@@ -4,7 +4,9 @@ import asyncio
 import base64
 import json
 import logging
+import os
 import random
+import ssl
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union
 from urllib.parse import urlencode, urlparse
@@ -46,7 +48,8 @@ class EnhancedPfSenseAPIClient:
         verify_ssl: bool = True,
         timeout: int = 30,
         version: PfSenseVersion = PfSenseVersion.CE_2_8_1,
-        enable_hateoas: bool = False
+        enable_hateoas: bool = False,
+        ca_file: Optional[str] = None,
     ):
         self.host = host.rstrip('/')
         self.auth_method = auth_method
@@ -54,6 +57,10 @@ class EnhancedPfSenseAPIClient:
         self.password = password
         self.api_key = api_key
         self.verify_ssl = verify_ssl
+        self.ca_file = ca_file
+        # Resolved once, at construction, so a bad CA path fails at startup
+        # rather than on the first tool call.
+        self._verify = self._resolve_verify()
         self.timeout = timeout
         self.version = version
         self.hateoas_enabled = enable_hateoas
@@ -69,6 +76,46 @@ class EnhancedPfSenseAPIClient:
 
         # API base URL
         self.api_base = f"{self.host}/api/v2"
+
+    def _resolve_verify(self):
+        """Resolve the httpx ``verify`` argument, failing closed on a bad CA.
+
+        pfSense almost always presents a certificate from a private or
+        self-signed CA. Python does not consult the OS trust store, so with
+        ``VERIFY_SSL=true`` and no bundle the handshake fails and the obvious
+        way out is to turn verification off — which puts the API key on a
+        connection nobody authenticated. A CA bundle is the way to keep
+        verification on, so an unreadable one is a startup error, never a
+        silent downgrade.
+        """
+        if not self.verify_ssl:
+            if self.ca_file:
+                logger.warning(
+                    "PFSENSE_CA_FILE is set but VERIFY_SSL=false, so the CA "
+                    "bundle is ignored and the pfSense certificate is NOT "
+                    "verified. Remove VERIFY_SSL=false to use the bundle."
+                )
+            return False
+
+        if not self.ca_file:
+            return True
+
+        path = os.path.expanduser(self.ca_file)
+        if not os.path.isfile(path):
+            raise ValueError(
+                f"CA bundle not found: {path}. Set PFSENSE_CA_FILE to a "
+                f"readable PEM file, or unset it to use the default trust store."
+            )
+        try:
+            # Server authentication only: no client cert, hostname checking
+            # and verification left at the secure defaults.
+            return ssl.create_default_context(cafile=path)
+        except (ssl.SSLError, OSError) as e:
+            # Report the path and error class only — never file contents.
+            raise ValueError(
+                f"CA bundle at {path} could not be loaded: "
+                f"{type(e).__name__}. It must be PEM-encoded."
+            ) from None
 
     # Transient-failure retry policy.
     _MAX_RETRIES = 3
@@ -179,7 +226,7 @@ class EnhancedPfSenseAPIClient:
             # and cannot be safely closed from here. The explicit close()
             # method should be used before switching loops.
             self.client = httpx.AsyncClient(
-                verify=self.verify_ssl,
+                verify=self._verify,
                 timeout=self.timeout,
                 # Never forward authentication headers to an untrusted
                 # redirect target. HTTPX strips standard credentials on
@@ -1456,7 +1503,18 @@ class EnhancedPfSenseAPIClient:
             if "404" in error_str:
                 return {"connected": False, "error": "API endpoint not found (404). Is the pfSense REST API v2 package installed?"}
             if "SSL" in error_str or "certificate" in error_str.lower():
-                return {"connected": False, "error": f"SSL/TLS error: {e}. Try setting VERIFY_SSL=false for self-signed certs."}
+                return {
+                    "connected": False,
+                    "error": (
+                        f"SSL/TLS error: {e}. pfSense usually presents a "
+                        f"private or self-signed CA that Python does not "
+                        f"trust by default. Point PFSENSE_CA_FILE at that "
+                        f"CA's PEM file to keep verification on. Setting "
+                        f"VERIFY_SSL=false also connects, but stops "
+                        f"authenticating the firewall and exposes the "
+                        f"credential to anyone able to intercept."
+                    ),
+                }
             return {"connected": False, "error": str(e)}
 
     async def get_api_capabilities(self) -> Dict:

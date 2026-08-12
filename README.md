@@ -100,7 +100,7 @@ Using the installed entry point (Option A):
         "PFSENSE_USERNAME": "admin",
         "PFSENSE_PASSWORD": "your-password",
         "PFSENSE_VERSION": "CE_2_8_1",
-        "VERIFY_SSL": "false"
+        "PFSENSE_CA_FILE": "/path/to/pfsense-ca.pem"
       }
     }
   }
@@ -122,12 +122,23 @@ Or running from a clone (Option B):
         "PFSENSE_USERNAME": "admin",
         "PFSENSE_PASSWORD": "your-password",
         "PFSENSE_VERSION": "CE_2_8_1",
-        "VERIFY_SSL": "false"
+        "PFSENSE_CA_FILE": "/path/to/pfsense-ca.pem"
       }
     }
   }
 }
 ```
+
+**About that CA file.** pfSense ships with a self-signed certificate from its own
+CA, and Python does not read your OS trust store — so verification fails out of
+the box. Export the CA at **System > Cert. Manager > CAs** (the export-certificate
+icon), save the PEM anywhere readable, and point `PFSENSE_CA_FILE` at it. A
+missing or unparseable file is a startup error, never a silent downgrade.
+
+`VERIFY_SSL=false` also connects, and is fine for a throwaway lab. Understand what
+it costs: nothing authenticates the firewall, so anything that can intercept the
+connection can read the API key and act as the firewall. This tool changes
+firewall rules — treat that credential accordingly.
 
 **Start talking to your firewall.** Open Claude Desktop and ask:
 - *"Show me all blocked traffic in the last hour"*
@@ -270,7 +281,8 @@ environments that already run one.
 | `PFSENSE_USERNAME` | * | — | pfSense username (for basic/jwt) |
 | `PFSENSE_PASSWORD` | * | — | pfSense password (for basic/jwt) |
 | `PFSENSE_VERSION` | | `CE_2_8_1` | Current: `CE_2_8_1`, `PLUS_25_11_1`, `PLUS_26_03`, `PLUS_26_03_1`. Legacy (still accepted): `CE_2_8_0`, `PLUS_24_11`, `PLUS_25_11`, `CE_26_03` |
-| `VERIFY_SSL` | | `true` | `false` for self-signed certificates |
+| `VERIFY_SSL` | | `true` | `false` disables certificate checking entirely — prefer `PFSENSE_CA_FILE` |
+| `PFSENSE_CA_FILE` | | — | PEM file for pfSense's private/self-signed CA, so verification stays on |
 | `API_TIMEOUT` | | `30` | Request timeout in seconds |
 | `MCP_READ_ONLY` | | `false` | Only expose read-only tools |
 

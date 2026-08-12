@@ -98,6 +98,7 @@ def get_api_client() -> EnhancedPfSenseAPIClient:
             password=os.getenv("PFSENSE_PASSWORD"),
             api_key=api_key,
             verify_ssl=os.getenv("VERIFY_SSL", "true").lower() == "true",
+            ca_file=(os.getenv("PFSENSE_CA_FILE") or "").strip() or None,
             timeout=api_timeout,
             version=version,
             enable_hateoas=os.getenv("ENABLE_HATEOAS", "false").lower() == "true"

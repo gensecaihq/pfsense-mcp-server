@@ -86,7 +86,12 @@ PFSENSE_PASSWORD=your-password
 # Legacy (still accepted): CE_2_8_0, PLUS_24_11, PLUS_25_11, CE_26_03
 PFSENSE_VERSION=CE_2_8_1
 AUTH_METHOD=basic
-VERIFY_SSL=false              # Set to true if using a trusted SSL certificate
+VERIFY_SSL=true
+# pfSense's certificate comes from its own CA, which Python does not trust by
+# default. Export it at System > Cert. Manager > CAs and point this at the PEM
+# to keep verification on. VERIFY_SSL=false turns checking off entirely and
+# exposes the API credential to interception.
+PFSENSE_CA_FILE=/path/to/pfsense-ca.pem
 ```
 
 ### Authentication Methods
@@ -132,7 +137,9 @@ pfSense, check:
 4. For `api_key` auth: is the key valid? (generate at System > REST API > Keys)
 5. For `basic`/`jwt` auth: are the username and password correct for a local database user?
 6. Does the user have sufficient privileges in **System > User Manager**?
-7. If using self-signed certs, set `VERIFY_SSL=false`
+7. If the handshake fails on pfSense's self-signed certificate, export its CA
+   at **System > Cert. Manager > CAs** and set `PFSENSE_CA_FILE` to the PEM.
+   `VERIFY_SSL=false` also works but stops authenticating the firewall.
 
 ## Maintenance
 

@@ -152,7 +152,16 @@ def main():
     if os.getenv("VERIFY_SSL", "true").lower() == "false":
         logger.warning(
             "SECURITY: SSL verification is DISABLED (VERIFY_SSL=false). "
-            "This is acceptable for self-signed certs in labs but NOT recommended for production."
+            "The pfSense certificate is not checked, so the API credential is "
+            "exposed to anyone able to intercept the connection. For a private "
+            "or self-signed CA, set PFSENSE_CA_FILE to its PEM file instead and "
+            "leave verification on."
+        )
+    elif os.getenv("PFSENSE_CA_FILE"):
+        # Path only — never certificate contents.
+        logger.info(
+            "TLS verification enabled using CA bundle: %s",
+            os.getenv("PFSENSE_CA_FILE"),
         )
     if args.transport == "streamable-http" and args.host != "127.0.0.1" and args.host != "localhost":
         logger.warning(
