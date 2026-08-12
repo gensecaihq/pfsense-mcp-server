@@ -9,7 +9,12 @@ from mcp.types import ToolAnnotations
 # Ping Diagnostic
 # ---------------------------------------------------------------------------
 from ..guardrails import guarded
-from ..helpers import create_default_sort, create_pagination, create_search_pagination
+from ..helpers import (
+    create_default_sort,
+    create_pagination,
+    create_search_pagination,
+    safe_data_dict,
+)
 from ..server import get_api_client, logger, mcp
 
 
@@ -280,15 +285,24 @@ async def get_pf_table(
     """
     client = get_api_client()
     try:
-        result = await client.crud_get_settings(
-            "/diagnostics/table",
-            params={"name": name},
+        if not name or not name.strip():
+            return {"success": False, "error": "name is required"}
+
+        # The Table model is keyed by table name, so the name is the object id.
+        result = await client._make_request(
+            "GET", "/diagnostics/table",
+            extra_params={"id": name.strip()},
         )
+
+        table = safe_data_dict(result)
+        entries = table.get("entries") or []
 
         return {
             "success": True,
-            "table_name": name,
-            "table": result.get("data", result),
+            "table_name": table.get("name", name),
+            "count": len(entries),
+            "entries": entries,
+            "table": table,
             "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
