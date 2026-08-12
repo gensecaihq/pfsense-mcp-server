@@ -4,6 +4,7 @@ Covers dataclass serialisation, helper functions, Content-Type logic,
 query-param assembly, and field remapping in higher-level methods.
 """
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -386,6 +387,41 @@ class TestRemoveFromAliasClient:
         data = patch_call.kwargs.get("data") or patch_call[1].get("data")
         assert data["address"] == ["10.0.0.5", "10.0.0.9"]
         assert data["detail"] == ["", ""]
+
+    async def test_concurrent_removes_are_serialized_per_alias(self, mock_client, mock_make_request):
+        """Concurrent read-modify-write removals must not lose an update."""
+        alias = {
+            "address": ["10.0.0.1", "10.0.0.5"],
+            "detail": ["one", "five"],
+        }
+        calls = []
+
+        async def request(method, endpoint, **kwargs):
+            if method == "GET":
+                calls.append(("GET", tuple(alias["address"])))
+                await asyncio.sleep(0)
+                return {"data": {"id": 9, **alias}}
+
+            data = kwargs["data"]
+            calls.append(("PATCH", tuple(data["address"])))
+            await asyncio.sleep(0)
+            alias["address"] = list(data["address"])
+            alias["detail"] = list(data["detail"])
+            return {"data": {"id": 9}}
+
+        mock_make_request.side_effect = request
+        await asyncio.gather(
+            mock_client.remove_from_alias(9, ["10.0.0.1"]),
+            mock_client.remove_from_alias(9, ["10.0.0.5"]),
+        )
+
+        assert alias["address"] == []
+        assert calls == [
+            ("GET", ("10.0.0.1", "10.0.0.5")),
+            ("PATCH", ("10.0.0.5",)),
+            ("GET", ("10.0.0.5",)),
+            ("PATCH", ()),
+        ]
 
 
 # ---------------------------------------------------------------------------
