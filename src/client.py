@@ -83,13 +83,31 @@ class EnhancedPfSenseAPIClient:
         ``str()`` of httpx timeout exceptions is often empty, so the stringly-
         typed tool handlers would surface ``"error": ""`` — useless to the
         operator. Rebuild the same exception type with a descriptive message
-        (type preserved so existing except clauses keep matching).
+        (type preserved so existing except clauses keep matching), retaining
+        the original request context when the exception provides it.
         """
         detail = str(e).strip() or type(e).__name__
-        return type(e)(
+        message = (
             f"Cannot reach pfSense at {self.host}: {detail} "
             f"(timeout {self.timeout}s, {attempts + 1} attempt(s))"
         )
+
+        # HTTPX exceptions created by the transport carry a Request, but an
+        # exception constructed without one raises RuntimeError when its
+        # ``request`` property is accessed. Older/custom exception classes may
+        # also reject the keyword, so both lookups and reconstruction are
+        # deliberately best-effort.
+        try:
+            request = e.request
+        except (AttributeError, RuntimeError):
+            request = None
+
+        if request is not None:
+            try:
+                return type(e)(message, request=request)
+            except TypeError:
+                pass
+        return type(e)(message)
 
     async def _send(self, method, url, headers, data, req_timeout):
         """Issue a single HTTP request (no retry)."""
