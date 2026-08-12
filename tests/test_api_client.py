@@ -6,6 +6,7 @@ query-param assembly, and field remapping in higher-level methods.
 
 import asyncio
 import json
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -323,6 +324,85 @@ class TestMakeRequestErrors:
                 await client._make_request("GET", "/start")
 
         response.json.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "host, expected, not_expected",
+        [
+            ("http://192.0.2.1", "change it to https://", "nothing in front of it"),
+            ("https://192.0.2.1", "nothing in front of it", "change it to https://"),
+        ],
+        ids=["http-origin", "https-origin"],
+    )
+    async def test_redirect_error_names_the_likely_cause(
+        self, host, expected, not_expected
+    ):
+        """A redirect is a misconfiguration, so the error has to say which one.
+
+        pfSense redirects http:// to https:// by default and PFSENSE_URL is not
+        scheme-validated at startup, so this error is where an operator using
+        http:// first learns of it. Telling them only that redirects are
+        disabled leaves them to guess.
+        """
+        client = EnhancedPfSenseAPIClient(
+            host=host,
+            auth_method=AuthMethod.API_KEY,
+            api_key="test-key",
+            verify_ssl=False,
+        )
+        response = MagicMock(spec=httpx.Response)
+        response.status_code = 302
+        response.headers = {"Location": "https://192.0.2.1/api/v2/start"}
+
+        with patch.object(client, "_ensure_client"):
+            client.client = MagicMock()
+            client.client.get = AsyncMock(return_value=response)
+            with pytest.raises(Exception) as exc:
+                await client._make_request("GET", "/start")
+
+        assert expected in str(exc.value)
+        assert not_expected not in str(exc.value)
+
+    @pytest.mark.parametrize(
+        "auth_method, kwargs, expects_api_key_reason",
+        [
+            (AuthMethod.API_KEY, {"api_key": "test-key"}, True),
+            (AuthMethod.BASIC, {"username": "admin", "password": "pw"}, False),
+            (AuthMethod.JWT, {"username": "admin", "password": "pw"}, False),
+        ],
+        ids=["api-key", "basic", "jwt"],
+    )
+    async def test_redirect_reason_matches_the_credential_in_use(
+        self, auth_method, kwargs, expects_api_key_reason
+    ):
+        """The stated reason has to be true for the credential actually sent.
+
+        Only API_KEY puts X-API-Key on the wire, and that header is the one
+        httpx does not strip across origins. BASIC and JWT send Authorization,
+        which it does strip — so the X-API-Key rationale would be false there.
+        """
+        client = EnhancedPfSenseAPIClient(
+            host="https://192.0.2.1",
+            auth_method=auth_method,
+            verify_ssl=False,
+            **kwargs,
+        )
+        # Seed an unexpired token so JWT doesn't detour through /auth/jwt.
+        client.jwt_token = "seeded-token"
+        client.jwt_expiry = datetime.now() + timedelta(hours=1)
+
+        response = MagicMock(spec=httpx.Response)
+        response.status_code = 302
+        response.headers = {"Location": "https://198.51.100.1/next"}
+
+        with patch.object(client, "_ensure_client"):
+            client.client = MagicMock()
+            client.client.get = AsyncMock(return_value=response)
+            with pytest.raises(Exception) as exc:
+                await client._make_request("GET", "/start")
+
+        message = str(exc.value)
+        assert ("X-API-Key" in message) is expects_api_key_reason
+        assert "Redirects are disabled for API safety" in message
 
 
 # ---------------------------------------------------------------------------

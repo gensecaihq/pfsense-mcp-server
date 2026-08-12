@@ -417,13 +417,44 @@ class EnhancedPfSenseAPIClient:
                 "pfSense API redirect %s: %s %s -> %s",
                 response.status_code, method, url_path, location_path,
             )
+            # By far the most likely cause: PFSENSE_URL names an http://
+            # origin and pfSense redirects the webConfigurator to https://.
+            # The scheme isn't validated at startup, so this is the first
+            # place the operator hears about it — name the fix rather than
+            # leaving them to infer it from "redirects are disabled".
+            hint = (
+                "PFSENSE_URL is set to an http:// origin. pfSense redirects "
+                "http:// to https:// by default — change it to https://.\n"
+                if self.host.lower().startswith("http://")
+                else "Check that PFSENSE_URL points at the pfSense API origin "
+                     "directly, with nothing in front of it that rewrites "
+                     "paths.\n"
+            )
+            # Why redirects are refused depends on which credential is on the
+            # wire. Only API_KEY sends X-API-Key, which httpx does NOT strip
+            # cross-origin; BASIC and JWT send Authorization, which it does.
+            # Claiming the X-API-Key rationale under those methods would be
+            # simply untrue, so say the accurate thing for each.
+            if self.auth_method == AuthMethod.API_KEY:
+                reason = (
+                    "Redirects are disabled for API safety: httpx does not "
+                    "strip a custom X-API-Key header on a cross-origin "
+                    "redirect the way it strips Authorization, so following "
+                    "one could hand the key to another host.\n"
+                )
+            else:
+                reason = (
+                    "Redirects are disabled for API safety, so credentials "
+                    "stay scoped to the configured pfSense origin.\n"
+                )
             raise Exception(
                 f"\n=== pfSense API Redirect ===\n"
                 f"Status: {response.status_code}\n"
                 f"Endpoint: {url_path}\n"
                 f"Method: {method}\n"
                 f"Location path: {location_path}\n"
-                f"Redirects are disabled for API safety.\n"
+                f"{reason}"
+                f"{hint}"
                 f"===========================\n"
             )
 
