@@ -55,6 +55,11 @@ class EnhancedPfSenseAPIClient:
         self.jwt_expiry = None
         self.client = None
         self._client_loop = None
+        # Alias mutations use read-modify-write flows. These locks coordinate
+        # mutations for the same alias within this MCP process only; they do
+        # not replace pfSense-side concurrency control or protect other API
+        # clients/processes.
+        self._alias_locks: Dict[int, asyncio.Lock] = {}
 
         # API base URL
         self.api_base = f"{self.host}/api/v2"
@@ -179,6 +184,11 @@ class EnhancedPfSenseAPIClient:
                 # pfSense's modest PHP-FPM worker pool.
                 limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
             )
+            # Alias locks latch onto the loop they were first contended on and
+            # raise "bound to a different event loop" if awaited from another.
+            # They guard nothing once the loop is gone, so drop them with the
+            # client rather than carrying them across.
+            self._alias_locks.clear()
             self._client_loop = current_loop
 
     async def _get_auth_headers(self, include_content_type: bool = True) -> Dict[str, str]:
@@ -654,6 +664,13 @@ class EnhancedPfSenseAPIClient:
 
     # Enhanced Alias Methods
 
+    def _alias_lock(self, alias_id: int) -> asyncio.Lock:
+        """Return the process-local mutation lock for one alias."""
+        lock = self._alias_locks.get(alias_id)
+        if lock is None:
+            lock = self._alias_locks[alias_id] = asyncio.Lock()
+        return lock
+
     async def get_aliases(
         self,
         alias_type: Optional[str] = None,
@@ -708,11 +725,12 @@ class EnhancedPfSenseAPIClient:
         """Add addresses to existing alias"""
         control = ControlParameters(append=True, apply=True)
 
-        return await self._make_request(
-            "PATCH", "/firewall/alias",
-            data={"id": alias_id, "address": addresses},
-            control=control
-        )
+        async with self._alias_lock(alias_id):
+            return await self._make_request(
+                "PATCH", "/firewall/alias",
+                data={"id": alias_id, "address": addresses},
+                control=control
+            )
 
     async def remove_from_alias(
         self,
@@ -726,29 +744,30 @@ class EnhancedPfSenseAPIClient:
         API then rejects the alias because the parallel detail list has more
         items than addresses (TOO_MANY_ALIAS_DETAILS).
         """
-        current = await self._make_request(
-            "GET", "/firewall/alias",
-            extra_params={"id": str(alias_id)},
-        )
-        alias = current.get("data") or {}
-        cur_addresses = alias.get("address") or []
-        cur_details = alias.get("detail") or []
-        # Pad details to address length so indices stay aligned while filtering
-        cur_details = cur_details + [""] * (len(cur_addresses) - len(cur_details))
+        async with self._alias_lock(alias_id):
+            current = await self._make_request(
+                "GET", "/firewall/alias",
+                extra_params={"id": str(alias_id)},
+            )
+            alias = current.get("data") or {}
+            cur_addresses = alias.get("address") or []
+            cur_details = alias.get("detail") or []
+            # Pad details to address length so indices stay aligned while filtering
+            cur_details = cur_details + [""] * (len(cur_addresses) - len(cur_details))
 
-        to_remove = set(addresses)
-        kept = [(a, d) for a, d in zip(cur_addresses, cur_details) if a not in to_remove]
+            to_remove = set(addresses)
+            kept = [(a, d) for a, d in zip(cur_addresses, cur_details) if a not in to_remove]
 
-        control = ControlParameters(apply=True)
-        return await self._make_request(
-            "PATCH", "/firewall/alias",
-            data={
-                "id": alias_id,
-                "address": [a for a, _ in kept],
-                "detail": [d for _, d in kept],
-            },
-            control=control
-        )
+            control = ControlParameters(apply=True)
+            return await self._make_request(
+                "PATCH", "/firewall/alias",
+                data={
+                    "id": alias_id,
+                    "address": [a for a, _ in kept],
+                    "detail": [d for _, d in kept],
+                },
+                control=control
+            )
 
     async def update_alias(
         self,
@@ -766,10 +785,11 @@ class EnhancedPfSenseAPIClient:
         if not control:
             control = ControlParameters(apply=True)
 
-        return await self._make_request(
-            "PATCH", "/firewall/alias",
-            data={**updates, "id": alias_id}, control=control
-        )
+        async with self._alias_lock(alias_id):
+            return await self._make_request(
+                "PATCH", "/firewall/alias",
+                data={**updates, "id": alias_id}, control=control
+            )
 
     async def delete_alias(
         self,
@@ -784,10 +804,11 @@ class EnhancedPfSenseAPIClient:
         """
         control = ControlParameters(apply=apply_immediately)
 
-        return await self._make_request(
-            "DELETE", "/firewall/alias",
-            data={"id": alias_id}, control=control
-        )
+        async with self._alias_lock(alias_id):
+            return await self._make_request(
+                "DELETE", "/firewall/alias",
+                data={"id": alias_id}, control=control
+            )
 
     # Enhanced Log Methods
     #
@@ -1547,3 +1568,4 @@ class EnhancedPfSenseAPIClient:
         """Reset client state for reuse in a new event loop."""
         self.client = None
         self._client_loop = None
+        self._alias_locks.clear()

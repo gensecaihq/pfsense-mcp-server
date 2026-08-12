@@ -542,6 +542,91 @@ class TestRemoveFromAliasClient:
         assert data["address"] == ["10.0.0.5", "10.0.0.9"]
         assert data["detail"] == ["", ""]
 
+    async def test_concurrent_removes_are_serialized_per_alias(self, mock_client, mock_make_request):
+        """Concurrent read-modify-write removals must not lose an update."""
+        alias = {
+            "address": ["10.0.0.1", "10.0.0.5"],
+            "detail": ["one", "five"],
+        }
+        calls = []
+
+        async def request(method, endpoint, **kwargs):
+            if method == "GET":
+                calls.append(("GET", tuple(alias["address"])))
+                await asyncio.sleep(0)
+                return {"data": {"id": 9, **alias}}
+
+            data = kwargs["data"]
+            calls.append(("PATCH", tuple(data["address"])))
+            await asyncio.sleep(0)
+            alias["address"] = list(data["address"])
+            alias["detail"] = list(data["detail"])
+            return {"data": {"id": 9}}
+
+        mock_make_request.side_effect = request
+        await asyncio.gather(
+            mock_client.remove_from_alias(9, ["10.0.0.1"]),
+            mock_client.remove_from_alias(9, ["10.0.0.5"]),
+        )
+
+        assert alias["address"] == []
+        assert calls == [
+            ("GET", ("10.0.0.1", "10.0.0.5")),
+            ("PATCH", ("10.0.0.5",)),
+            ("GET", ("10.0.0.5",)),
+            ("PATCH", ()),
+        ]
+
+    def test_alias_locks_do_not_outlive_their_event_loop(self, mock_client):
+        """A lock latches its loop once contended, so it must not be reused.
+
+        asyncio.Lock only records a loop when an acquire actually blocks — the
+        uncontended fast path returns before _get_loop() is reached. So a lock
+        contended under one loop and awaited under the next raises "bound to a
+        different event loop", and this client is explicitly built to be reused
+        across loops (reset(), plus the loop-change branch in _ensure_client).
+        """
+        async def contend():
+            lock = mock_client._alias_lock(9)
+
+            async def hold():
+                async with lock:
+                    await asyncio.sleep(0)
+
+            await asyncio.gather(hold(), hold())
+
+        asyncio.run(contend())
+        assert mock_client._alias_locks  # latched onto the now-dead loop
+
+        mock_client.reset()
+        assert not mock_client._alias_locks
+
+        asyncio.run(contend())  # would raise RuntimeError if carried over
+
+    def test_ensure_client_drops_locks_when_the_loop_changes(self, mock_client):
+        """The same clearing has to happen on the implicit path.
+
+        Callers that never call reset() still get a rebuilt httpx client when
+        _ensure_client sees a new loop; the locks have to go with it.
+        """
+        async def contend():
+            mock_client._ensure_client()
+            lock = mock_client._alias_lock(9)
+
+            async def hold():
+                async with lock:
+                    await asyncio.sleep(0)
+
+            await asyncio.gather(hold(), hold())
+
+        asyncio.run(contend())
+        asyncio.run(contend())  # would raise RuntimeError if carried over
+
+    def test_alias_lock_is_stable_per_alias(self, mock_client):
+        """Same alias returns one lock; different aliases don't share one."""
+        assert mock_client._alias_lock(9) is mock_client._alias_lock(9)
+        assert mock_client._alias_lock(9) is not mock_client._alias_lock(10)
+
 
 # ---------------------------------------------------------------------------
 # Service control client methods
