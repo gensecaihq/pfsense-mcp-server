@@ -317,9 +317,9 @@ class EnhancedPfSenseAPIClient:
         # Retry is skipped when a per-request read timeout is set (log endpoints
         # deliberately fail fast). Non-idempotent methods (POST/PATCH/DELETE) are
         # retried ONLY when the request provably did not reach or was not
-        # processed by the server — connection errors and 429/503 — never on an
+        # processed by the server — connection errors and 429 — never on an
         # ambiguous read timeout or gateway error, so a write can't be applied
-        # twice. GETs additionally retry read-timeouts and 502/504.
+        # twice. GETs additionally retry read-timeouts and 502/503/504.
         idempotent = method.upper() == "GET"
         allow_retry = timeout is None
         attempt = 0
@@ -339,8 +339,8 @@ class EnhancedPfSenseAPIClient:
                     continue
                 raise self._describe_transport_error(e, attempt) from e
 
-            retry_any_method = response.status_code in (429, 503)
-            retry_idempotent = response.status_code in (502, 504)
+            retry_any_method = response.status_code == 429
+            retry_idempotent = response.status_code in (502, 503, 504)
             if (
                 allow_retry
                 and attempt < self._MAX_RETRIES

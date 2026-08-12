@@ -1,7 +1,7 @@
 """Transient-failure retry/backoff in the API client.
 
-Policy: retry connection errors and 429/503 for any method; additionally retry
-read-timeouts and 502/504 for idempotent GETs only; never retry when a
+Policy: retry connection errors and 429 for any method; additionally retry
+read-timeouts and 502/503/504 for idempotent GETs only; never retry when a
 per-request read timeout is set (fast-fail log endpoints).
 """
 from unittest.mock import AsyncMock, patch
@@ -41,10 +41,28 @@ async def test_get_retries_connection_error_then_succeeds(no_sleep):
     assert no_sleep.await_count == 2
 
 
-async def test_post_retries_503_then_succeeds(no_sleep):
+async def test_post_not_retried_on_503(no_sleep):
+    c = _client()
+    with patch.object(c, "_send", new_callable=AsyncMock) as send:
+        send.side_effect = [_resp(503)]
+        with pytest.raises(Exception):
+            await c._make_request("POST", "/firewall/rule", data={"x": 1})
+    assert send.await_count == 1  # 503 can follow a committed apply restart
+
+
+async def test_get_retries_503_then_succeeds(no_sleep):
     c = _client()
     with patch.object(c, "_send", new_callable=AsyncMock) as send:
         send.side_effect = [_resp(503), _resp(200)]
+        result = await c._make_request("GET", "/status/system")
+    assert result == {"data": {}}
+    assert send.await_count == 2
+
+
+async def test_post_retries_429_then_succeeds(no_sleep):
+    c = _client()
+    with patch.object(c, "_send", new_callable=AsyncMock) as send:
+        send.side_effect = [_resp(429), _resp(200)]
         result = await c._make_request("POST", "/firewall/rule", data={"x": 1})
     assert result == {"data": {}}
     assert send.await_count == 2
