@@ -1276,9 +1276,14 @@ class EnhancedPfSenseAPIClient:
         """Generic apply for any apply endpoint (POST with empty body)."""
         return await self._make_request("POST", endpoint, data={})
 
-    async def crud_get_settings(self, endpoint: str) -> Dict:
-        """Generic GET for singleton settings endpoints."""
-        return await self._make_request("GET", endpoint)
+    async def crud_get_settings(self, endpoint: str, params: Optional[Dict[str, str]] = None) -> Dict:
+        """Generic GET for singleton settings endpoints.
+
+        Args:
+            endpoint: API endpoint path.
+            params: Optional query parameters to include in the request.
+        """
+        return await self._make_request("GET", endpoint, extra_params=params)
 
     async def crud_update_settings(
         self,
