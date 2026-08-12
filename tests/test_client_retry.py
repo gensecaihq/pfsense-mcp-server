@@ -1,7 +1,7 @@
 """Transient-failure retry/backoff in the API client.
 
-Policy: retry connection errors and 429/503 for any method; additionally retry
-read-timeouts and 502/504 for idempotent GETs only; never retry when a
+Policy: retry connection errors and 429 for any method; additionally retry
+read-timeouts and 502/503/504 for idempotent GETs only; never retry when a
 per-request read timeout is set (fast-fail log endpoints). Backoff uses bounded
 jitter, and total planned retry sleep is capped per request.
 """
@@ -26,6 +26,44 @@ def _resp(status, headers=None):
     return httpx.Response(status, json={"data": {}}, headers=headers or {}, request=req)
 
 
+def test_transport_error_preserves_request_context():
+    c = _client()
+    request = httpx.Request("GET", "https://192.0.2.1/api/v2/status/system")
+    error = httpx.ConnectError("boom", request=request)
+
+    described = c._describe_transport_error(error, attempts=2)
+
+    assert isinstance(described, httpx.ConnectError)
+    assert described.request is request
+    assert "3 attempt(s)" in str(described)
+
+
+def test_transport_error_without_request_still_rebuilds():
+    c = _client()
+    error = httpx.ConnectError("boom")
+
+    described = c._describe_transport_error(error, attempts=0)
+
+    assert isinstance(described, httpx.ConnectError)
+    assert "1 attempt(s)" in str(described)
+
+
+def test_transport_error_falls_back_for_legacy_constructor():
+    class LegacyTransportError(httpx.TransportError):
+        def __init__(self, message):
+            super().__init__(message)
+
+    c = _client()
+    request = httpx.Request("GET", "https://192.0.2.1/api/v2/status/system")
+    error = LegacyTransportError("boom")
+    error._request = request
+
+    described = c._describe_transport_error(error, attempts=0)
+
+    assert isinstance(described, LegacyTransportError)
+    assert "1 attempt(s)" in str(described)
+
+
 @pytest.fixture
 def no_sleep():
     with patch("asyncio.sleep", new_callable=AsyncMock) as s:
@@ -42,10 +80,28 @@ async def test_get_retries_connection_error_then_succeeds(no_sleep):
     assert no_sleep.await_count == 2
 
 
-async def test_post_retries_503_then_succeeds(no_sleep):
+async def test_post_not_retried_on_503(no_sleep):
+    c = _client()
+    with patch.object(c, "_send", new_callable=AsyncMock) as send:
+        send.side_effect = [_resp(503)]
+        with pytest.raises(Exception):
+            await c._make_request("POST", "/firewall/rule", data={"x": 1})
+    assert send.await_count == 1  # 503 can follow a committed apply restart
+
+
+async def test_get_retries_503_then_succeeds(no_sleep):
     c = _client()
     with patch.object(c, "_send", new_callable=AsyncMock) as send:
         send.side_effect = [_resp(503), _resp(200)]
+        result = await c._make_request("GET", "/status/system")
+    assert result == {"data": {}}
+    assert send.await_count == 2
+
+
+async def test_post_retries_429_then_succeeds(no_sleep):
+    c = _client()
+    with patch.object(c, "_send", new_callable=AsyncMock) as send:
+        send.side_effect = [_resp(429), _resp(200)]
         result = await c._make_request("POST", "/firewall/rule", data={"x": 1})
     assert result == {"data": {}}
     assert send.await_count == 2

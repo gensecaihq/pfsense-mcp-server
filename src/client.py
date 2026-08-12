@@ -103,13 +103,31 @@ class EnhancedPfSenseAPIClient:
         ``str()`` of httpx timeout exceptions is often empty, so the stringly-
         typed tool handlers would surface ``"error": ""`` — useless to the
         operator. Rebuild the same exception type with a descriptive message
-        (type preserved so existing except clauses keep matching).
+        (type preserved so existing except clauses keep matching), retaining
+        the original request context when the exception provides it.
         """
         detail = str(e).strip() or type(e).__name__
-        return type(e)(
+        message = (
             f"Cannot reach pfSense at {self.host}: {detail} "
             f"(timeout {self.timeout}s, {attempts + 1} attempt(s))"
         )
+
+        # HTTPX exceptions created by the transport carry a Request, but an
+        # exception constructed without one raises RuntimeError when its
+        # ``request`` property is accessed. Older/custom exception classes may
+        # also reject the keyword, so both lookups and reconstruction are
+        # deliberately best-effort.
+        try:
+            request = e.request
+        except (AttributeError, RuntimeError):
+            request = None
+
+        if request is not None:
+            try:
+                return type(e)(message, request=request)
+            except TypeError:
+                pass
+        return type(e)(message)
 
     async def _send(self, method, url, headers, data, req_timeout):
         """Issue a single HTTP request (no retry)."""
@@ -152,7 +170,11 @@ class EnhancedPfSenseAPIClient:
             self.client = httpx.AsyncClient(
                 verify=self.verify_ssl,
                 timeout=self.timeout,
-                follow_redirects=True,
+                # Never forward authentication headers to an untrusted
+                # redirect target. HTTPX strips standard credentials on
+                # cross-origin redirects, but custom X-API-Key headers are
+                # not treated as sensitive.
+                follow_redirects=False,
                 # Bound concurrency so a burst of tool calls can't overwhelm
                 # pfSense's modest PHP-FPM worker pool.
                 limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
@@ -339,9 +361,9 @@ class EnhancedPfSenseAPIClient:
         # Retry is skipped when a per-request read timeout is set (log endpoints
         # deliberately fail fast). Non-idempotent methods (POST/PATCH/DELETE) are
         # retried ONLY when the request provably did not reach or was not
-        # processed by the server — connection errors and 429/503 — never on an
+        # processed by the server — connection errors and 429 — never on an
         # ambiguous read timeout or gateway error, so a write can't be applied
-        # twice. GETs additionally retry read-timeouts and 502/504.
+        # twice. GETs additionally retry read-timeouts and 502/503/504.
         idempotent = method.upper() == "GET"
         allow_retry = timeout is None
         attempt = 0
@@ -370,8 +392,8 @@ class EnhancedPfSenseAPIClient:
                     continue
                 raise self._describe_transport_error(e, attempt) from e
 
-            retry_any_method = response.status_code in (429, 503)
-            retry_idempotent = response.status_code in (502, 504)
+            retry_any_method = response.status_code == 429
+            retry_idempotent = response.status_code in (502, 503, 504)
             if (
                 allow_retry
                 and attempt < self._MAX_RETRIES
@@ -387,6 +409,24 @@ class EnhancedPfSenseAPIClient:
             break
 
         # Enhanced error handling
+        if 300 <= response.status_code < 400:
+            url_path = urlparse(url).path
+            location = response.headers.get("location")
+            location_path = urlparse(location).path if location else "(not provided)"
+            logger.error(
+                "pfSense API redirect %s: %s %s -> %s",
+                response.status_code, method, url_path, location_path,
+            )
+            raise Exception(
+                f"\n=== pfSense API Redirect ===\n"
+                f"Status: {response.status_code}\n"
+                f"Endpoint: {url_path}\n"
+                f"Method: {method}\n"
+                f"Location path: {location_path}\n"
+                f"Redirects are disabled for API safety.\n"
+                f"===========================\n"
+            )
+
         if response.status_code >= 400:
             try:
                 error_json = response.json()

@@ -4,6 +4,7 @@ Covers dataclass serialisation, helper functions, Content-Type logic,
 query-param assembly, and field remapping in higher-level methods.
 """
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -226,6 +227,61 @@ class TestMakeRequestContentType:
             assert "Content-Type" not in headers
 
 
+class TestClientConfiguration:
+    async def test_disables_automatic_redirects(self):
+        client = EnhancedPfSenseAPIClient(
+            host="https://192.0.2.1",
+            auth_method=AuthMethod.API_KEY,
+            api_key="test-key",
+            verify_ssl=False,
+        )
+
+        client._ensure_client()
+        try:
+            assert client.client.follow_redirects is False
+        finally:
+            await client.close()
+
+    @pytest.mark.parametrize(
+        "location",
+        [
+            "https://192.0.2.1/api/v2/next",
+            "https://198.51.100.1/api/v2/next",
+        ],
+        ids=["same-origin", "cross-origin"],
+    )
+    async def test_redirects_are_not_followed_for_any_location(self, location):
+        seen_requests = []
+
+        async def redirect_handler(request):
+            seen_requests.append(request)
+            return httpx.Response(
+                302,
+                headers={"Location": location},
+                request=request,
+            )
+
+        client = EnhancedPfSenseAPIClient(
+            host="https://192.0.2.1",
+            auth_method=AuthMethod.API_KEY,
+            api_key="test-key",
+            verify_ssl=False,
+        )
+        client.client = httpx.AsyncClient(
+            transport=httpx.MockTransport(redirect_handler),
+            follow_redirects=False,
+        )
+        client._client_loop = asyncio.get_running_loop()
+        try:
+            with pytest.raises(Exception, match=r"Status: 302"):
+                await client._make_request("GET", "/start")
+        finally:
+            await client.close()
+
+        assert len(seen_requests) == 1
+        assert seen_requests[0].headers["X-API-Key"] == "test-key"
+
+
 # ---------------------------------------------------------------------------
 # _make_request error handling
 # ---------------------------------------------------------------------------
@@ -248,6 +304,25 @@ class TestMakeRequestErrors:
             client.client.get = AsyncMock(return_value=resp)
             with pytest.raises(Exception, match="404"):
                 await client._make_request("GET", "/nope")
+
+    async def test_3xx_raises_without_parsing_redirect_body(self):
+        client = EnhancedPfSenseAPIClient(
+            host="https://192.0.2.1",
+            auth_method=AuthMethod.API_KEY,
+            api_key="test-key",
+            verify_ssl=False,
+        )
+        response = MagicMock(spec=httpx.Response)
+        response.status_code = 302
+        response.headers = {"Location": "https://198.51.100.1/next"}
+
+        with patch.object(client, "_ensure_client"):
+            client.client = MagicMock()
+            client.client.get = AsyncMock(return_value=response)
+            with pytest.raises(Exception, match=r"Status: 302"):
+                await client._make_request("GET", "/start")
+
+        response.json.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
