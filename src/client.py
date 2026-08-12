@@ -150,7 +150,11 @@ class EnhancedPfSenseAPIClient:
             self.client = httpx.AsyncClient(
                 verify=self.verify_ssl,
                 timeout=self.timeout,
-                follow_redirects=True,
+                # Never forward authentication headers to an untrusted
+                # redirect target. HTTPX strips standard credentials on
+                # cross-origin redirects, but custom X-API-Key headers are
+                # not treated as sensitive.
+                follow_redirects=False,
                 # Bound concurrency so a burst of tool calls can't overwhelm
                 # pfSense's modest PHP-FPM worker pool.
                 limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
@@ -371,6 +375,24 @@ class EnhancedPfSenseAPIClient:
             break
 
         # Enhanced error handling
+        if 300 <= response.status_code < 400:
+            url_path = urlparse(url).path
+            location = response.headers.get("location")
+            location_path = urlparse(location).path if location else "(not provided)"
+            logger.error(
+                "pfSense API redirect %s: %s %s -> %s",
+                response.status_code, method, url_path, location_path,
+            )
+            raise Exception(
+                f"\n=== pfSense API Redirect ===\n"
+                f"Status: {response.status_code}\n"
+                f"Endpoint: {url_path}\n"
+                f"Method: {method}\n"
+                f"Location path: {location_path}\n"
+                f"Redirects are disabled for API safety.\n"
+                f"===========================\n"
+            )
+
         if response.status_code >= 400:
             try:
                 error_json = response.json()
