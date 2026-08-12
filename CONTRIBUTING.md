@@ -23,7 +23,7 @@ pip install -e ".[dev]"        # installs runtime + pytest, ruff
 Run the full suite and the linter — CI runs both and must pass:
 
 ```bash
-pytest -v                      # 486 tests
+pytest -v                      # 572 tests
 pytest --cov=src               # with coverage (CI gate: >=40%)
 ruff check src/ tests/         # lint (must be clean)
 ```
