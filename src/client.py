@@ -430,16 +430,30 @@ class EnhancedPfSenseAPIClient:
                      "directly, with nothing in front of it that rewrites "
                      "paths.\n"
             )
+            # Why redirects are refused depends on which credential is on the
+            # wire. Only API_KEY sends X-API-Key, which httpx does NOT strip
+            # cross-origin; BASIC and JWT send Authorization, which it does.
+            # Claiming the X-API-Key rationale under those methods would be
+            # simply untrue, so say the accurate thing for each.
+            if self.auth_method == AuthMethod.API_KEY:
+                reason = (
+                    "Redirects are disabled for API safety: httpx does not "
+                    "strip a custom X-API-Key header on a cross-origin "
+                    "redirect the way it strips Authorization, so following "
+                    "one could hand the key to another host.\n"
+                )
+            else:
+                reason = (
+                    "Redirects are disabled for API safety, so credentials "
+                    "stay scoped to the configured pfSense origin.\n"
+                )
             raise Exception(
                 f"\n=== pfSense API Redirect ===\n"
                 f"Status: {response.status_code}\n"
                 f"Endpoint: {url_path}\n"
                 f"Method: {method}\n"
                 f"Location path: {location_path}\n"
-                f"Redirects are disabled for API safety: a custom X-API-Key "
-                f"header is not stripped by httpx on a cross-origin redirect "
-                f"the way Authorization is, so following one could hand the "
-                f"key to another host.\n"
+                f"{reason}"
                 f"{hint}"
                 f"===========================\n"
             )
