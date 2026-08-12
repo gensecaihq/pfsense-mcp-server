@@ -12,6 +12,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_search_pagination,
+    field_contains,
     sanitize_description,
 )
 from ..models import ControlParameters, QueryFilter
@@ -58,9 +59,9 @@ async def search_traffic_shapers(
             term_lower = search_term.lower()
             shapers = [
                 s for s in shapers
-                if term_lower in s.get("interface", "").lower()
-                or term_lower in s.get("descr", "").lower()
-                or term_lower in s.get("scheduler", "").lower()
+                if field_contains(s, "interface", term_lower)
+                or field_contains(s, "descr", term_lower)
+                or field_contains(s, "scheduler", term_lower)
             ]
 
         return {
@@ -269,8 +270,8 @@ async def search_shaper_queues(
             term_lower = search_term.lower()
             queues = [
                 q for q in queues
-                if term_lower in q.get("name", "").lower()
-                or term_lower in q.get("descr", "").lower()
+                if field_contains(q, "name", term_lower)
+                or field_contains(q, "descr", term_lower)
             ]
 
         return {
@@ -489,8 +490,8 @@ async def search_traffic_limiters(
             term_lower = search_term.lower()
             limiters = [
                 lim for lim in limiters
-                if term_lower in lim.get("name", "").lower()
-                or term_lower in lim.get("descr", "").lower()
+                if field_contains(lim, "name", term_lower)
+                or field_contains(lim, "descr", term_lower)
             ]
 
         return {

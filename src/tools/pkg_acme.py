@@ -13,6 +13,7 @@ from ..helpers import (
     create_default_sort,
     create_pagination,
     create_search_pagination,
+    field_contains,
     sanitize_description,
 )
 from ..models import ControlParameters, QueryFilter
@@ -53,8 +54,8 @@ async def search_acme_certificates(
             term_lower = search_term.lower()
             certificates = [
                 c for c in certificates
-                if term_lower in c.get("name", "").lower()
-                or term_lower in c.get("descr", "").lower()
+                if field_contains(c, "name", term_lower)
+                or field_contains(c, "descr", term_lower)
             ]
 
         return {
@@ -287,7 +288,7 @@ async def search_acme_certificate_domains(
 
         if search_term:
             term_lower = search_term.lower()
-            domains = [d for d in domains if term_lower in d.get("name", "").lower()]
+            domains = [d for d in domains if field_contains(d, "name", term_lower)]
 
         return {
             "success": True,
@@ -537,9 +538,9 @@ async def search_acme_account_keys(
             term_lower = search_term.lower()
             account_keys = [
                 k for k in account_keys
-                if term_lower in k.get("name", "").lower()
-                or term_lower in k.get("descr", "").lower()
-                or term_lower in k.get("email", "").lower()
+                if field_contains(k, "name", term_lower)
+                or field_contains(k, "descr", term_lower)
+                or field_contains(k, "email", term_lower)
             ]
 
         return {

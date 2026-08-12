@@ -11,6 +11,7 @@ from ..helpers import (
     create_default_sort,
     create_pagination,
     create_search_pagination,
+    field_contains,
     sanitize_description,
     validate_fqdn,
 )
@@ -177,9 +178,9 @@ async def search_dns_host_overrides(
             term_lower = search_term.lower()
             overrides = [
                 o for o in overrides
-                if term_lower in o.get("host", "").lower()
-                or term_lower in o.get("domain", "").lower()
-                or term_lower in o.get("descr", "").lower()
+                if field_contains(o, "host", term_lower)
+                or field_contains(o, "domain", term_lower)
+                or field_contains(o, "descr", term_lower)
             ]
 
         return {

@@ -12,6 +12,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_search_pagination,
+    field_contains,
     sanitize_description,
 )
 from ..models import ControlParameters
@@ -52,8 +53,8 @@ async def search_freeradius_users(
             term_lower = search_term.lower()
             users = [
                 u for u in users
-                if term_lower in u.get("username", "").lower()
-                or term_lower in u.get("descr", "").lower()
+                if field_contains(u, "username", term_lower)
+                or field_contains(u, "descr", term_lower)
             ]
 
         return {
@@ -248,9 +249,9 @@ async def search_freeradius_clients(
             term_lower = search_term.lower()
             clients = [
                 c for c in clients
-                if term_lower in c.get("shortname", "").lower()
-                or term_lower in c.get("ip", "").lower()
-                or term_lower in c.get("descr", "").lower()
+                if field_contains(c, "shortname", term_lower)
+                or field_contains(c, "ip", term_lower)
+                or field_contains(c, "descr", term_lower)
             ]
 
         return {

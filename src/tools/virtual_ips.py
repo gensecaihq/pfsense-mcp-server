@@ -12,6 +12,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_search_pagination,
+    field_contains,
     sanitize_description,
 )
 from ..models import ControlParameters, QueryFilter
@@ -65,9 +66,9 @@ async def search_virtual_ips(
             term_lower = search_term.lower()
             vips = [
                 v for v in vips
-                if term_lower in v.get("subnet", "").lower()
-                or term_lower in v.get("descr", "").lower()
-                or term_lower in v.get("interface", "").lower()
+                if field_contains(v, "subnet", term_lower)
+                or field_contains(v, "descr", term_lower)
+                or field_contains(v, "interface", term_lower)
             ]
 
         return {

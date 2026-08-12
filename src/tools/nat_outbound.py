@@ -12,6 +12,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_search_pagination,
+    field_contains,
     sanitize_description,
 )
 from ..models import ControlParameters, QueryFilter
@@ -58,10 +59,10 @@ async def search_nat_outbound_mappings(
             term_lower = search_term.lower()
             mappings = [
                 m for m in mappings
-                if term_lower in m.get("descr", "").lower()
-                or term_lower in m.get("source", "").lower()
-                or term_lower in m.get("destination", "").lower()
-                or term_lower in m.get("target", "").lower()
+                if field_contains(m, "descr", term_lower)
+                or field_contains(m, "source", term_lower)
+                or field_contains(m, "destination", term_lower)
+                or field_contains(m, "target", term_lower)
             ]
 
         return {

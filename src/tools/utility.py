@@ -10,25 +10,34 @@ from ..guardrails import classify_risk, get_rollback_history, rate_limited
 from ..models import PaginationOptions, QueryFilter, SortOptions
 from ..server import get_api_client, logger, mcp
 
-# Allowed endpoint prefixes for user-supplied paths (prevents path traversal)
-_SAFE_ENDPOINT_PREFIXES = (
-    "/firewall/", "/status/", "/services/", "/diagnostics/",
-    "/system/", "/vpn/", "/routing/", "/interface/",
-    "/user/", "/certificates/",
+# Allowed first path segments for user-supplied endpoints (prevents path traversal)
+_SAFE_ENDPOINT_ROOTS = (
+    "firewall", "status", "services", "diagnostics",
+    "system", "vpn", "routing", "interface",
+    "user", "certificates",
 )
 
 
 def _validate_endpoint(endpoint: str) -> str:
-    """Validate a user-supplied API endpoint path."""
+    """Validate a user-supplied API endpoint path.
+
+    Matches on the whole first path segment so that collection endpoints are
+    reachable: the API serves a model at /interface and its collection at
+    /interfaces, so both spellings of the segment are accepted. Comparing whole
+    segments also means /systemfoo is rejected rather than passing as a /system
+    path.
+    """
     endpoint = endpoint.strip()
     if not endpoint.startswith("/"):
         endpoint = f"/{endpoint}"
     if ".." in endpoint:
         raise ValueError("Invalid endpoint path: contains '..'")
-    if not any(endpoint.startswith(prefix) for prefix in _SAFE_ENDPOINT_PREFIXES):
+    root = endpoint.split("?", 1)[0].strip("/").split("/", 1)[0]
+    if root not in _SAFE_ENDPOINT_ROOTS and root.rstrip("s") not in _SAFE_ENDPOINT_ROOTS:
         raise ValueError(
-            f"Endpoint '{endpoint}' is not in the allowed prefix list. "
-            f"Allowed prefixes: {', '.join(_SAFE_ENDPOINT_PREFIXES)}"
+            f"Endpoint '{endpoint}' is not in the allowed list. "
+            f"Allowed first path segments (singular or plural): "
+            f"{', '.join(_SAFE_ENDPOINT_ROOTS)}"
         )
     return endpoint
 
@@ -171,7 +180,8 @@ async def find_object_by_field(
     since pfSense object IDs change after deletions.
 
     Args:
-        endpoint: Relative API path (e.g. "/firewall/rules", "/firewall/aliases")
+        endpoint: Relative API path of a collection (e.g. "/firewall/rules",
+            "/firewall/aliases", "/interfaces")
         field: Field name to search by (e.g. "descr", "name")
         value: Value to search for
     """

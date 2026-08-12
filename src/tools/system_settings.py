@@ -12,6 +12,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_search_pagination,
+    field_contains,
     sanitize_description,
 )
 from ..models import ControlParameters
@@ -182,9 +183,9 @@ async def search_system_tunables(
             term_lower = search_term.lower()
             tunables = [
                 t for t in tunables
-                if term_lower in t.get("tunable", "").lower()
-                or term_lower in str(t.get("value", "")).lower()
-                or term_lower in t.get("descr", "").lower()
+                if field_contains(t, "tunable", term_lower)
+                or field_contains(t, "value", term_lower)
+                or field_contains(t, "descr", term_lower)
             ]
 
         return {
@@ -461,9 +462,9 @@ async def search_installed_packages(
             term_lower = search_term.lower()
             packages = [
                 p for p in packages
-                if term_lower in p.get("name", "").lower()
-                or term_lower in p.get("descr", "").lower()
-                or term_lower in p.get("version", "").lower()
+                if field_contains(p, "name", term_lower)
+                or field_contains(p, "descr", term_lower)
+                or field_contains(p, "version", term_lower)
             ]
 
         return {

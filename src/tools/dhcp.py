@@ -10,6 +10,7 @@ from ..helpers import (
     create_default_sort,
     create_pagination,
     create_search_pagination,
+    field_contains,
     normalize_mac_address,
     validate_ip_address,
 )
@@ -105,9 +106,9 @@ async def search_dhcp_leases(
             term_lower = search_term.lower()
             lease_data = [
                 entry for entry in lease_data
-                if term_lower in entry.get("hostname", "").lower()
-                or term_lower in entry.get("ip", "").lower()
-                or term_lower in entry.get("mac", "").lower()
+                if field_contains(entry, "hostname", term_lower)
+                or field_contains(entry, "ip", term_lower)
+                or field_contains(entry, "mac", term_lower)
             ]
 
         return {
@@ -223,6 +224,15 @@ async def create_dhcp_static_mapping(
     apply_immediately: bool = True
 ) -> Dict:
     """Create a DHCP static mapping (reservation)
+
+    Lease times are not optional in effect: the API package materialises
+    defaultleasetime 7200 and maxleasetime 86400 whenever the field is absent
+    from the request, and a later PATCH sending an explicit null returns 200
+    but reads back unchanged. Pass the values you want at create time.
+
+    Whether the DHCP daemon acts on the per-host values is unverified. On an
+    ISC deployment they were present in config.xml but absent from the
+    generated dhcpd.conf; the Kea config was not readable.
 
     Args:
         interface: Interface/DHCP pool (e.g., "lan")

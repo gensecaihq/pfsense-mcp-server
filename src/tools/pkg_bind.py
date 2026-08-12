@@ -12,6 +12,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_search_pagination,
+    field_contains,
     sanitize_description,
 )
 from ..models import ControlParameters, QueryFilter
@@ -62,8 +63,8 @@ async def search_bind_zones(
             term_lower = search_term.lower()
             zones = [
                 z for z in zones
-                if term_lower in z.get("name", "").lower()
-                or term_lower in z.get("descr", "").lower()
+                if field_contains(z, "name", term_lower)
+                or field_contains(z, "descr", term_lower)
             ]
 
         return {
@@ -272,8 +273,8 @@ async def search_bind_zone_records(
             term_lower = search_term.lower()
             records = [
                 r for r in records
-                if term_lower in r.get("name", "").lower()
-                or term_lower in r.get("rdata", "").lower()
+                if field_contains(r, "name", term_lower)
+                or field_contains(r, "rdata", term_lower)
             ]
 
         return {
@@ -507,8 +508,8 @@ async def search_bind_access_lists(
             term_lower = search_term.lower()
             access_lists = [
                 a for a in access_lists
-                if term_lower in a.get("name", "").lower()
-                or term_lower in a.get("descr", "").lower()
+                if field_contains(a, "name", term_lower)
+                or field_contains(a, "descr", term_lower)
             ]
 
         return {

@@ -13,6 +13,7 @@ from ..helpers import (
     create_default_sort,
     create_pagination,
     create_search_pagination,
+    field_contains,
     safe_data_dict,
 )
 from ..server import get_api_client, logger, mcp
@@ -256,7 +257,7 @@ async def search_pf_tables(
             term_lower = search_term.lower()
             tables = [
                 t for t in tables
-                if term_lower in t.get("name", "").lower()
+                if field_contains(t, "name", term_lower)
             ]
 
         return {

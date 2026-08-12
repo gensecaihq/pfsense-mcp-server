@@ -60,6 +60,31 @@ class TestSearchDhcpLeases:
         assert result["count"] == 1
         assert result["leases"][0]["ip"] == "192.168.1.100"
 
+    async def test_search_term_with_null_hostname(
+        self, mock_client, mock_make_request, dhcp_leases_response
+    ):
+        """A lease with no client name comes back as hostname: null.
+
+        The filter must skip it rather than call .lower() on it, which took
+        down the whole page of results.
+        """
+        dhcp_leases_response["data"].append({
+            "ip": "192.168.1.102",
+            "mac": "aa:bb:cc:dd:ee:03",
+            "hostname": None,
+            "if": "lan",
+            "active_status": "active",
+        })
+        mock_make_request.return_value = dhcp_leases_response
+
+        result = await _search_dhcp_leases(search_term="laptop")
+        assert result["success"] is True
+        assert result["count"] == 1
+
+        # The nameless lease is still reachable by its other fields.
+        by_mac = await _search_dhcp_leases(search_term="ee:03")
+        assert [entry["ip"] for entry in by_mac["leases"]] == ["192.168.1.102"]
+
     async def test_hostname_filter(self, mock_client, mock_make_request, dhcp_leases_response):
         mock_make_request.return_value = dhcp_leases_response
         await _search_dhcp_leases(hostname="desktop")

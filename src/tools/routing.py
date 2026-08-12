@@ -12,6 +12,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_search_pagination,
+    field_contains,
     sanitize_description,
 )
 from ..models import ControlParameters, QueryFilter
@@ -65,9 +66,9 @@ async def search_gateways(
             term_lower = search_term.lower()
             gateways = [
                 gw for gw in gateways
-                if term_lower in gw.get("name", "").lower()
-                or term_lower in gw.get("descr", "").lower()
-                or term_lower in gw.get("gateway", "").lower()
+                if field_contains(gw, "name", term_lower)
+                or field_contains(gw, "descr", term_lower)
+                or field_contains(gw, "gateway", term_lower)
             ]
 
         return {
@@ -381,8 +382,8 @@ async def search_gateway_groups(
             term_lower = search_term.lower()
             groups = [
                 g for g in groups
-                if term_lower in g.get("name", "").lower()
-                or term_lower in g.get("descr", "").lower()
+                if field_contains(g, "name", term_lower)
+                or field_contains(g, "descr", term_lower)
             ]
 
         return {
@@ -580,9 +581,9 @@ async def search_static_routes(
             term_lower = search_term.lower()
             routes = [
                 r for r in routes
-                if term_lower in r.get("network", "").lower()
-                or term_lower in r.get("descr", "").lower()
-                or term_lower in r.get("gateway", "").lower()
+                if field_contains(r, "network", term_lower)
+                or field_contains(r, "descr", term_lower)
+                or field_contains(r, "gateway", term_lower)
             ]
 
         return {

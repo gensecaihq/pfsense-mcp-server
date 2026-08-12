@@ -13,6 +13,7 @@ from ..helpers import (
     create_default_sort,
     create_pagination,
     create_search_pagination,
+    field_contains,
     sanitize_description,
 )
 from ..models import ControlParameters, QueryFilter
@@ -53,8 +54,8 @@ async def search_haproxy_backends(
             term_lower = search_term.lower()
             backends = [
                 b for b in backends
-                if term_lower in b.get("name", "").lower()
-                or term_lower in b.get("descr", "").lower()
+                if field_contains(b, "name", term_lower)
+                or field_contains(b, "descr", term_lower)
             ]
 
         return {
@@ -267,8 +268,8 @@ async def search_haproxy_backend_servers(
             term_lower = search_term.lower()
             servers = [
                 s for s in servers
-                if term_lower in s.get("name", "").lower()
-                or term_lower in s.get("address", "").lower()
+                if field_contains(s, "name", term_lower)
+                or field_contains(s, "address", term_lower)
             ]
 
         return {
@@ -431,8 +432,8 @@ async def search_haproxy_frontends(
             term_lower = search_term.lower()
             frontends = [
                 f for f in frontends
-                if term_lower in f.get("name", "").lower()
-                or term_lower in f.get("descr", "").lower()
+                if field_contains(f, "name", term_lower)
+                or field_contains(f, "descr", term_lower)
             ]
 
         return {
@@ -996,7 +997,7 @@ async def search_haproxy_files(
             term_lower = search_term.lower()
             files = [
                 f for f in files
-                if term_lower in f.get("name", "").lower()
+                if field_contains(f, "name", term_lower)
             ]
 
         return {

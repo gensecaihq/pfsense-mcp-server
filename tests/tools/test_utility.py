@@ -1,6 +1,9 @@
 """Unit tests for utility tools (src/tools/utility.py)."""
 
+import pytest
+
 from src.tools.utility import (
+    _validate_endpoint,
     disable_hateoas,
     enable_hateoas,
     find_object_by_field,
@@ -112,6 +115,70 @@ class TestFindObjectByField:
         )
         assert result["success"] is True
         assert result["found"] is False
+
+    async def test_resolves_an_interface_by_descr(
+        self, mock_client, mock_make_request, interfaces_response
+    ):
+        """The collection path is /interfaces, and it must reach the endpoint.
+
+        Interfaces are keyed by name rather than by array index, so looking one
+        up by descr is the supported way to get the id that update_interface
+        and delete_interface take.
+        """
+        mock_make_request.return_value = {
+            "data": [i for i in interfaces_response["data"] if i["descr"] == "MGMT"]
+        }
+        result = await _find_object_by_field(
+            endpoint="/interfaces", field="descr", value="MGMT"
+        )
+        assert result["success"] is True
+        assert result["found"] is True
+        assert result["object_id"] == "opt16"
+
+    async def test_rejects_endpoint_outside_the_allowlist(
+        self, mock_client, mock_make_request
+    ):
+        result = await _find_object_by_field(
+            endpoint="/secrets", field="descr", value="x"
+        )
+        assert result["success"] is False
+        assert "not in the allowed list" in result["error"]
+        mock_make_request.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _validate_endpoint
+# ---------------------------------------------------------------------------
+
+class TestValidateEndpoint:
+    def test_accepts_model_and_collection_spellings(self):
+        for endpoint in (
+            "/interface",
+            "/interfaces",
+            "/interface/vlan",
+            "/firewall/rules",
+            "/status/logs/firewall",
+            "/users",
+            "/certificates",
+        ):
+            assert _validate_endpoint(endpoint) == endpoint
+
+    def test_adds_a_leading_slash(self):
+        assert _validate_endpoint("interfaces") == "/interfaces"
+
+    def test_rejects_traversal(self):
+        with pytest.raises(ValueError, match=r"\.\."):
+            _validate_endpoint("/system/../../etc/passwd")
+
+    def test_rejects_a_segment_that_merely_starts_with_an_allowed_root(self):
+        """Matching is on the whole first segment, not a bare string prefix."""
+        for endpoint in ("/systemfoo", "/interfacex", "/vpnadmin"):
+            with pytest.raises(ValueError, match="not in the allowed list"):
+                _validate_endpoint(endpoint)
+
+    def test_rejects_an_unknown_root(self):
+        with pytest.raises(ValueError, match="not in the allowed list"):
+            _validate_endpoint("/secrets/dump")
 
 
 # ---------------------------------------------------------------------------

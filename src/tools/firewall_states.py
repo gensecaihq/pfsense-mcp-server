@@ -9,7 +9,7 @@ from mcp.types import ToolAnnotations
 # Firewall States
 # ---------------------------------------------------------------------------
 from ..guardrails import guarded
-from ..helpers import create_default_sort, create_search_pagination
+from ..helpers import create_default_sort, create_search_pagination, field_contains
 from ..models import ControlParameters
 from ..server import get_api_client, logger, mcp
 
@@ -46,10 +46,10 @@ async def search_firewall_states(
             term_lower = search_term.lower()
             states = [
                 s for s in states
-                if term_lower in str(s.get("source", "")).lower()
-                or term_lower in str(s.get("destination", "")).lower()
-                or term_lower in str(s.get("protocol", "")).lower()
-                or term_lower in str(s.get("interface", "")).lower()
+                if field_contains(s, "source", term_lower)
+                or field_contains(s, "destination", term_lower)
+                or field_contains(s, "protocol", term_lower)
+                or field_contains(s, "interface", term_lower)
             ]
 
         return {
