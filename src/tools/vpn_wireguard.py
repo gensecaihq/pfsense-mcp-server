@@ -1,7 +1,8 @@
 """WireGuard VPN tools for pfSense MCP server."""
 
+import ipaddress
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from mcp.types import ToolAnnotations
 
@@ -487,6 +488,40 @@ async def delete_wireguard_peer(
 # --- Peer allowed IP tools ---
 
 
+def _split_address_mask(address: str, mask: Optional[int]) -> Tuple[str, int]:
+    """Split an allowed IP into the (address, mask) pair the API takes.
+
+    The endpoint types `address` as a bare IP and `mask` as a separate required
+    integer, so CIDR given in `address` is split here. A bare address with no
+    mask becomes a host route (/32 or /128).
+    """
+    value = address.strip()
+    if "/" in value:
+        value, _, prefix = value.partition("/")
+        try:
+            prefix_len = int(prefix)
+        except ValueError:
+            raise ValueError(f"Invalid prefix length in '{address}'.") from None
+        if mask is not None and mask != prefix_len:
+            raise ValueError(
+                f"Conflicting prefix: address '{address}' gives /{prefix_len} "
+                f"but mask={mask}. Pass one or the other."
+            )
+        mask = prefix_len
+
+    try:
+        parsed = ipaddress.ip_address(value)
+    except ValueError as e:
+        raise ValueError(f"Invalid address '{address}': {e}") from e
+
+    host_prefix = 32 if parsed.version == 4 else 128
+    if mask is None:
+        mask = host_prefix
+    if not 0 <= mask <= host_prefix:
+        raise ValueError(f"Invalid mask /{mask} for IPv{parsed.version} address '{value}'.")
+    return value, mask
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_wireguard_peer_allowed_ips(
     peer_id: Optional[int] = None,
@@ -542,6 +577,7 @@ async def manage_wireguard_peer_allowed_ip(
     action: str,
     peer_id: int,
     address: Optional[str] = None,
+    mask: Optional[int] = None,
     descr: Optional[str] = None,
     allowed_ip_id: Optional[int] = None,
     apply_immediately: bool = True,
@@ -552,7 +588,10 @@ async def manage_wireguard_peer_allowed_ip(
     Args:
         action: Action to perform ('create' or 'delete')
         peer_id: Parent peer ID the allowed IP belongs to
-        address: IP address/subnet to allow (required for create, e.g., '10.0.0.0/24')
+        address: IP address to allow (required for create). Accepts CIDR
+            ('10.0.0.0/24') or a bare address ('10.0.0.0')
+        mask: Prefix length (e.g., 24). Read from `address` when given in CIDR
+            form; a bare address with no mask becomes a host route (/32 or /128)
         descr: Optional description (used for create)
         allowed_ip_id: Allowed IP ID (required for delete)
         apply_immediately: Whether to apply changes immediately
@@ -566,9 +605,15 @@ async def manage_wireguard_peer_allowed_ip(
             if not address:
                 return {"success": False, "error": "address is required for create action"}
 
+            try:
+                ip_address, ip_mask = _split_address_mask(address, mask)
+            except ValueError as e:
+                return {"success": False, "error": str(e)}
+
             ip_data = {
                 "parent_id": peer_id,
-                "address": address,
+                "address": ip_address,
+                "mask": ip_mask,
             }
             if descr is not None:
                 ip_data["descr"] = descr
@@ -578,7 +623,7 @@ async def manage_wireguard_peer_allowed_ip(
 
             return {
                 "success": True,
-                "message": f"Allowed IP '{address}' added to peer {peer_id}",
+                "message": f"Allowed IP '{ip_address}/{ip_mask}' added to peer {peer_id}",
                 "allowed_ip": result.get("data", result),
                 "applied": apply_immediately,
                 "links": client.extract_links(result),
