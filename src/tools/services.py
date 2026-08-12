@@ -6,6 +6,7 @@ from typing import Dict, Optional
 from mcp.types import ToolAnnotations
 
 from ..guardrails import rate_limited
+from ..helpers import field_contains
 from ..models import QueryFilter
 from ..server import get_api_client, logger, mcp
 
@@ -41,8 +42,8 @@ async def search_services(
             term_lower = search_term.lower()
             services = [
                 s for s in services
-                if term_lower in s.get("name", "").lower()
-                or term_lower in s.get("description", "").lower()
+                if field_contains(s, "name", term_lower)
+                or field_contains(s, "description", term_lower)
             ]
 
         return {

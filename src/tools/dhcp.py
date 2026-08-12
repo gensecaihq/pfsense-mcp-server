@@ -10,6 +10,7 @@ from ..helpers import (
     create_default_sort,
     create_pagination,
     create_search_pagination,
+    field_contains,
     normalize_mac_address,
     validate_ip_address,
 )
@@ -105,9 +106,9 @@ async def search_dhcp_leases(
             term_lower = search_term.lower()
             lease_data = [
                 entry for entry in lease_data
-                if term_lower in entry.get("hostname", "").lower()
-                or term_lower in entry.get("ip", "").lower()
-                or term_lower in entry.get("mac", "").lower()
+                if field_contains(entry, "hostname", term_lower)
+                or field_contains(entry, "ip", term_lower)
+                or field_contains(entry, "mac", term_lower)
             ]
 
         return {
@@ -218,9 +219,20 @@ async def create_dhcp_static_mapping(
     domain: Optional[str] = None,
     gateway: Optional[str] = None,
     dns_server: Optional[str] = None,
+    default_lease_time: Optional[int] = None,
+    max_lease_time: Optional[int] = None,
     apply_immediately: bool = True
 ) -> Dict:
     """Create a DHCP static mapping (reservation)
+
+    Lease times are not optional in effect: the API package materialises
+    defaultleasetime 7200 and maxleasetime 86400 whenever the field is absent
+    from the request, and a later PATCH sending an explicit null returns 200
+    but reads back unchanged. Pass the values you want at create time.
+
+    Whether the DHCP daemon acts on the per-host values is unverified. On an
+    ISC deployment they were present in config.xml but absent from the
+    generated dhcpd.conf; the Kea config was not readable.
 
     Args:
         interface: Interface/DHCP pool (e.g., "lan")
@@ -231,6 +243,8 @@ async def create_dhcp_static_mapping(
         domain: Optional domain name
         gateway: Optional gateway override
         dns_server: Optional DNS server override
+        default_lease_time: Per-host default lease time in seconds. Omitted from the request when unset, in which case the API package applies its own default of 7200.
+        max_lease_time: Per-host maximum lease time in seconds. Omitted from the request when unset, in which case the API package applies its own default of 86400.
         apply_immediately: Whether to apply changes immediately
     """
     # Validate and normalize MAC address (accepts AA:BB:CC:DD:EE:FF, AA-BB-CC-DD-EE-FF, AABBCCDDEEFF)
@@ -268,6 +282,13 @@ async def create_dhcp_static_mapping(
                 mapping_data["dnsserver"] = _dns_servers_to_list(dns_server)
             except ValueError as e:
                 return {"success": False, "error": f"Invalid dns_server: {e}"}
+        # Lease times are checked against None rather than truthiness so that an
+        # explicit 0 still reaches the wire, and so that an unset parameter sends
+        # no field at all (the API package materialises 7200/86400 when absent).
+        if default_lease_time is not None:
+            mapping_data["defaultleasetime"] = default_lease_time
+        if max_lease_time is not None:
+            mapping_data["maxleasetime"] = max_lease_time
 
         control = ControlParameters(apply=apply_immediately)
         result = await client.create_dhcp_static_mapping(mapping_data, control)
@@ -294,9 +315,13 @@ async def update_dhcp_static_mapping(
     hostname: Optional[str] = None,
     description: Optional[str] = None,
     interface: Optional[str] = None,
+    default_lease_time: Optional[int] = None,
+    max_lease_time: Optional[int] = None,
     apply_immediately: bool = True
 ) -> Dict:
     """Update an existing DHCP static mapping by ID
+
+    Only the parameters you pass are sent, so unset ones keep their stored values.
 
     Args:
         mapping_id: Static mapping ID
@@ -305,6 +330,8 @@ async def update_dhcp_static_mapping(
         hostname: New hostname
         description: New description
         interface: New interface/DHCP pool
+        default_lease_time: New per-host default lease time in seconds
+        max_lease_time: New per-host maximum lease time in seconds
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
@@ -315,6 +342,8 @@ async def update_dhcp_static_mapping(
             "hostname": "hostname",
             "description": "descr",
             "interface": "parent_id",
+            "default_lease_time": "defaultleasetime",
+            "max_lease_time": "maxleasetime",
         }
 
         params = {
@@ -323,6 +352,8 @@ async def update_dhcp_static_mapping(
             "hostname": hostname,
             "description": description,
             "interface": interface,
+            "default_lease_time": default_lease_time,
+            "max_lease_time": max_lease_time,
         }
 
         updates = {}

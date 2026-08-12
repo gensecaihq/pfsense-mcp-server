@@ -12,6 +12,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_search_pagination,
+    field_contains,
     sanitize_description,
 )
 from ..models import ControlParameters, QueryFilter
@@ -50,9 +51,9 @@ async def search_firewall_schedules(
             term_lower = search_term.lower()
             schedules = [
                 s for s in schedules
-                if term_lower in s.get("name", "").lower()
-                or term_lower in s.get("descr", "").lower()
-                or term_lower in s.get("schedlabel", "").lower()
+                if field_contains(s, "name", term_lower)
+                or field_contains(s, "descr", term_lower)
+                or field_contains(s, "schedlabel", term_lower)
             ]
 
         return {
@@ -272,7 +273,7 @@ async def search_schedule_time_ranges(
             term_lower = search_term.lower()
             time_ranges = [
                 tr for tr in time_ranges
-                if term_lower in tr.get("rangedescr", "").lower()
+                if field_contains(tr, "rangedescr", term_lower)
             ]
 
         return {

@@ -97,6 +97,66 @@ def firewall_rules_response():
 
 
 @pytest.fixture()
+def interfaces_response():
+    """GET /api/v2/interfaces as recorded from a Netgate 8200 (pfSense Plus
+    26.03, pkg-RESTAPI v2).
+
+    Two properties of this payload are what the interface tests pin:
+
+    1. ``id`` is the config key name ("wan", "lan", "optN"), never an integer.
+    2. Unset values are returned as null, not omitted. An interface with
+       ``typev4: "none"`` has null ``ipaddr``/``subnet``, and ``spoofmac`` is
+       null on interfaces that do not override their MAC.
+    """
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": [
+            {
+                "id": "wan",
+                "if": "ix3",
+                "descr": "WAN_CSTLFBR",
+                "typev4": "dhcp",
+                "ipaddr": None,
+                "subnet": None,
+                "spoofmac": None,
+                "enable": True,
+            },
+            {
+                "id": "lan",
+                "if": "igc0",
+                "descr": "LAN",
+                "typev4": "static",
+                "ipaddr": "10.9.0.1",
+                "subnet": 24,
+                "spoofmac": None,
+                "enable": True,
+            },
+            {
+                "id": "opt16",
+                "if": "ix0.254",
+                "descr": "MGMT",
+                "typev4": "static",
+                "ipaddr": "10.9.254.1",
+                "subnet": 24,
+                "spoofmac": None,
+                "enable": True,
+            },
+            {
+                "id": "opt17",
+                "if": "ix2",
+                "descr": "SPARE",
+                "typev4": "none",
+                "ipaddr": None,
+                "subnet": None,
+                "spoofmac": None,
+                "enable": False,
+            },
+        ],
+    }
+
+
+@pytest.fixture()
 def dhcp_leases_response():
     return {
         "status": "ok",

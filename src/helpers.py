@@ -39,6 +39,25 @@ def safe_data_list(result: Dict) -> List:
     return data if isinstance(data, list) else []
 
 
+def field_contains(obj: Dict, field: str, term: str) -> bool:
+    """Case-insensitive substring match of ``term`` against ``obj[field]``.
+
+    Returns False when the field is missing or null. The API returns null for
+    unset values (``ipaddr`` and ``subnet`` on an interface with
+    ``typev4: "none"``, ``hostname`` on a lease with no client name,
+    ``spoofmac`` on most interfaces), and calling ``.lower()`` on those raises
+    AttributeError. Skipping nulls also keeps a search for "none" from matching
+    every row whose field happens to be null.
+
+    Non-string values are stringified, so numeric and list fields such as a
+    VLAN tag or a bridge member list still match.
+    """
+    value = obj.get(field)
+    if value is None:
+        return False
+    return term.lower() in str(value).lower()
+
+
 MAX_DESCRIPTION_LENGTH = 1024
 
 

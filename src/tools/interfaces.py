@@ -12,6 +12,7 @@ from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
     create_search_pagination,
+    field_contains,
     sanitize_description,
 )
 from ..models import ControlParameters
@@ -26,6 +27,9 @@ async def search_interface_configs(
     sort_by: str = "descr",
 ) -> Dict:
     """Search interface configurations with filtering and pagination
+
+    Each result carries an "id" of "wan", "lan", or "optN", which is what
+    update_interface and delete_interface take as interface_id.
 
     Args:
         search_term: General search across interface name/description (client-side filter)
@@ -50,9 +54,9 @@ async def search_interface_configs(
             term_lower = search_term.lower()
             interfaces = [
                 i for i in interfaces
-                if term_lower in i.get("descr", "").lower()
-                or term_lower in i.get("if", "").lower()
-                or term_lower in i.get("ipaddr", "").lower()
+                if field_contains(i, "descr", term_lower)
+                or field_contains(i, "if", term_lower)
+                or field_contains(i, "ipaddr", term_lower)
             ]
 
         return {
@@ -139,7 +143,7 @@ async def create_interface(
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True))
 @rate_limited
 async def update_interface(
-    interface_id: int,
+    interface_id: str,
     enable: Optional[bool] = None,
     descr: Optional[str] = None,
     typev4: Optional[str] = None,
@@ -153,7 +157,9 @@ async def update_interface(
     """Update an existing interface by ID
 
     Args:
-        interface_id: Interface ID (from search_interface_configs)
+        interface_id: Interface ID, which the API keys by name: "wan", "lan",
+            or "optN" (e.g. "opt16"). Take it from the "id" field returned by
+            search_interface_configs, not from the row's position.
         enable: Whether the interface is enabled
         descr: Interface description/friendly name
         typev4: IPv4 configuration type (static, dhcp, none)
@@ -212,7 +218,7 @@ async def update_interface(
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
 @guarded
 async def delete_interface(
-    interface_id: int,
+    interface_id: str,
     apply_immediately: bool = True,
     confirm: bool = False,
     dry_run: bool = False,
@@ -220,7 +226,9 @@ async def delete_interface(
     """Delete (unassign) an interface by ID. WARNING: This is irreversible.
 
     Args:
-        interface_id: Interface ID (from search_interface_configs)
+        interface_id: Interface ID, which the API keys by name: "wan", "lan",
+            or "optN" (e.g. "opt16"). Take it from the "id" field returned by
+            search_interface_configs, not from the row's position.
         apply_immediately: Whether to apply changes immediately
         confirm: Must be set to True to execute. Safety gate for destructive operations.
         dry_run: If True, preview the operation without executing.
@@ -237,7 +245,7 @@ async def delete_interface(
             "applied": apply_immediately,
             "result": result.get("data", result),
             "links": client.extract_links(result),
-            "note": "Object IDs have shifted after deletion. Re-query interfaces before performing further operations by ID.",
+            "note": "Re-query interfaces with search_interface_configs before operating on another interface by ID.",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
@@ -305,9 +313,9 @@ async def search_vlans(
             term_lower = search_term.lower()
             vlans = [
                 v for v in vlans
-                if term_lower in str(v.get("tag", "")).lower()
-                or term_lower in v.get("if", "").lower()
-                or term_lower in v.get("descr", "").lower()
+                if field_contains(v, "tag", term_lower)
+                or field_contains(v, "if", term_lower)
+                or field_contains(v, "descr", term_lower)
             ]
 
         return {
@@ -510,9 +518,9 @@ async def search_interface_bridges(
             term_lower = search_term.lower()
             bridges = [
                 b for b in bridges
-                if term_lower in b.get("bridgeif", "").lower()
-                or term_lower in b.get("descr", "").lower()
-                or term_lower in str(b.get("members", "")).lower()
+                if field_contains(b, "bridgeif", term_lower)
+                or field_contains(b, "descr", term_lower)
+                or field_contains(b, "members", term_lower)
             ]
 
         return {
@@ -609,9 +617,9 @@ async def search_interface_groups(
             term_lower = search_term.lower()
             groups = [
                 g for g in groups
-                if term_lower in g.get("ifname", "").lower()
-                or term_lower in g.get("descr", "").lower()
-                or term_lower in str(g.get("members", "")).lower()
+                if field_contains(g, "ifname", term_lower)
+                or field_contains(g, "descr", term_lower)
+                or field_contains(g, "members", term_lower)
             ]
 
         return {

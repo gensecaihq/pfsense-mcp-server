@@ -7,6 +7,7 @@ from src.helpers import (
     MAX_OFFSET,
     MAX_PAGE,
     create_pagination,
+    field_contains,
     normalize_mac_address,
     parse_filterlog_entry,
     safe_data_dict,
@@ -273,6 +274,37 @@ class TestSafeDataHelpers:
 
     def test_safe_data_list_missing(self):
         assert safe_data_list({}) == []
+
+
+# ---------------------------------------------------------------------------
+# field_contains — null-safe client-side search filter
+# ---------------------------------------------------------------------------
+
+class TestFieldContains:
+    def test_substring_match_is_case_insensitive(self):
+        assert field_contains({"descr": "MGMT VLAN"}, "descr", "mgmt")
+        assert field_contains({"descr": "mgmt vlan"}, "descr", "MGMT")
+
+    def test_no_match(self):
+        assert not field_contains({"descr": "LAN"}, "descr", "mgmt")
+
+    def test_null_value(self):
+        assert not field_contains({"ipaddr": None}, "ipaddr", "10.9")
+
+    def test_missing_field(self):
+        assert not field_contains({}, "ipaddr", "10.9")
+
+    def test_null_value_does_not_match_none(self):
+        """str(None) would make every null field answer to a search for "none"."""
+        assert not field_contains({"ipaddr": None}, "ipaddr", "none")
+
+    def test_non_string_values(self):
+        assert field_contains({"tag": 254}, "tag", "254")
+        assert field_contains({"members": ["ix0", "ix1"]}, "members", "ix1")
+
+    def test_empty_term_matches_any_present_value(self):
+        assert field_contains({"descr": "LAN"}, "descr", "")
+        assert not field_contains({"descr": None}, "descr", "")
 
 
 # ---------------------------------------------------------------------------

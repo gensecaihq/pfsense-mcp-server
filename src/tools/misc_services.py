@@ -13,6 +13,7 @@ from ..helpers import (
     create_default_sort,
     create_pagination,
     create_search_pagination,
+    field_contains,
     normalize_mac_address,
     sanitize_description,
 )
@@ -265,8 +266,8 @@ async def search_cron_jobs(
             term_lower = search_term.lower()
             jobs = [
                 j for j in jobs
-                if term_lower in j.get("command", "").lower()
-                or term_lower in j.get("who", "").lower()
+                if field_contains(j, "command", term_lower)
+                or field_contains(j, "who", term_lower)
             ]
 
         return {

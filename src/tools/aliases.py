@@ -10,6 +10,7 @@ from ..helpers import (
     VALID_ALIAS_TYPES,
     create_default_sort,
     create_search_pagination,
+    field_contains,
     validate_alias_addresses,
     validate_alias_name,
 )
@@ -62,8 +63,8 @@ async def search_aliases(
             term_lower = search_term.lower()
             alias_list = [
                 a for a in alias_list
-                if term_lower in a.get("name", "").lower()
-                or term_lower in a.get("descr", "").lower()
+                if field_contains(a, "name", term_lower)
+                or field_contains(a, "descr", term_lower)
             ]
 
         return {
