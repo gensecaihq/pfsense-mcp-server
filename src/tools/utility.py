@@ -33,7 +33,11 @@ def _validate_endpoint(endpoint: str) -> str:
     if ".." in endpoint:
         raise ValueError("Invalid endpoint path: contains '..'")
     root = endpoint.split("?", 1)[0].strip("/").split("/", 1)[0]
-    if root not in _SAFE_ENDPOINT_ROOTS and root.rstrip("s") not in _SAFE_ENDPOINT_ROOTS:
+    # Strip at most ONE trailing "s" for the plural spelling. rstrip("s")
+    # strips every trailing "s", which would let /systemss and /systemsss
+    # through the same check that is here to reject /systemfoo.
+    singular = root[:-1] if root.endswith("s") else root
+    if root not in _SAFE_ENDPOINT_ROOTS and singular not in _SAFE_ENDPOINT_ROOTS:
         raise ValueError(
             f"Endpoint '{endpoint}' is not in the allowed list. "
             f"Allowed first path segments (singular or plural): "
