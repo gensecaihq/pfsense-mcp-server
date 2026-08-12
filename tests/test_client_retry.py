@@ -25,6 +25,44 @@ def _resp(status, headers=None):
     return httpx.Response(status, json={"data": {}}, headers=headers or {}, request=req)
 
 
+def test_transport_error_preserves_request_context():
+    c = _client()
+    request = httpx.Request("GET", "https://192.0.2.1/api/v2/status/system")
+    error = httpx.ConnectError("boom", request=request)
+
+    described = c._describe_transport_error(error, attempts=2)
+
+    assert isinstance(described, httpx.ConnectError)
+    assert described.request is request
+    assert "3 attempt(s)" in str(described)
+
+
+def test_transport_error_without_request_still_rebuilds():
+    c = _client()
+    error = httpx.ConnectError("boom")
+
+    described = c._describe_transport_error(error, attempts=0)
+
+    assert isinstance(described, httpx.ConnectError)
+    assert "1 attempt(s)" in str(described)
+
+
+def test_transport_error_falls_back_for_legacy_constructor():
+    class LegacyTransportError(httpx.TransportError):
+        def __init__(self, message):
+            super().__init__(message)
+
+    c = _client()
+    request = httpx.Request("GET", "https://192.0.2.1/api/v2/status/system")
+    error = LegacyTransportError("boom")
+    error._request = request
+
+    described = c._describe_transport_error(error, attempts=0)
+
+    assert isinstance(described, LegacyTransportError)
+    assert "1 attempt(s)" in str(described)
+
+
 @pytest.fixture
 def no_sleep():
     with patch("asyncio.sleep", new_callable=AsyncMock) as s:
