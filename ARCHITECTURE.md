@@ -60,8 +60,9 @@ MCP client (Claude Desktop / Code / …)
 4. The client attaches auth, merges control params into the JSON body (pfSense
    reads `apply`/`placement`/… from the body, not the query string), and sends
    the request — retrying transient failures (connection errors, `429`/`503`;
-   read-timeouts and `502`/`504` for idempotent GETs only) with capped
-   exponential backoff. Writes are never retried on an ambiguous response.
+   read-timeouts and `502`/`504` for idempotent GETs only) with bounded,
+   jittered exponential backoff and a per-request total delay budget. Writes
+   are never retried on an ambiguous response.
 5. On `>= 400`, the error body is redacted and surfaced; on success the JSON is
    returned. `@guarded` tools attach a `config_backup` block (or a
    `config_backup_warning` if no rollback point could be captured) and an audit

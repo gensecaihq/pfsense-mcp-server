@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import logging
+import random
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union
 from urllib.parse import urlencode, urlparse
@@ -62,9 +63,13 @@ class EnhancedPfSenseAPIClient:
     _MAX_RETRIES = 3
     _BACKOFF_BASE = 0.5   # seconds; delay = base * 2**attempt
     _BACKOFF_CAP = 8.0    # seconds; ceiling per wait
+    _BACKOFF_JITTER = 0.25  # +/- 25% to avoid synchronized retries
+    _RETRY_DELAY_BUDGET = 10.0  # seconds across all waits for one request
 
     def _backoff_delay(self, attempt: int) -> float:
-        return min(self._BACKOFF_BASE * (2 ** attempt), self._BACKOFF_CAP)
+        base = min(self._BACKOFF_BASE * (2 ** attempt), self._BACKOFF_CAP)
+        factor = random.uniform(1 - self._BACKOFF_JITTER, 1 + self._BACKOFF_JITTER)
+        return min(base * factor, self._BACKOFF_CAP)
 
     @staticmethod
     def _retry_after_delay(response) -> Optional[float]:
@@ -76,6 +81,21 @@ class EnhancedPfSenseAPIClient:
             return max(0.0, min(float(value), 30.0))
         except (ValueError, TypeError):
             return None  # HTTP-date form not honored; fall back to backoff
+
+    def _retry_delay(
+        self,
+        attempt: int,
+        spent: float,
+        response: Optional[httpx.Response] = None,
+    ) -> Optional[float]:
+        """Return a retry wait bounded by the request's remaining delay budget."""
+        remaining = self._RETRY_DELAY_BUDGET - spent
+        if remaining <= 0:
+            return None
+        requested = self._retry_after_delay(response) if response is not None else None
+        if requested is None:
+            requested = self._backoff_delay(attempt)
+        return min(requested, remaining)
 
     def _describe_transport_error(self, e: httpx.TransportError, attempts: int):
         """Re-raise a transport error with a human-readable message.
@@ -313,7 +333,9 @@ class EnhancedPfSenseAPIClient:
             else httpx.USE_CLIENT_DEFAULT
         )
 
-        # Make request, retrying transient failures with exponential backoff.
+        # Make request, retrying transient failures with jittered exponential
+        # backoff. The total planned sleep across all retries is bounded by
+        # _RETRY_DELAY_BUDGET, including Retry-After response delays.
         # Retry is skipped when a per-request read timeout is set (log endpoints
         # deliberately fail fast). Non-idempotent methods (POST/PATCH/DELETE) are
         # retried ONLY when the request provably did not reach or was not
@@ -323,18 +345,27 @@ class EnhancedPfSenseAPIClient:
         idempotent = method.upper() == "GET"
         allow_retry = timeout is None
         attempt = 0
+        retry_delay_spent = 0.0
         while True:
             try:
                 response = await self._send(method, url, headers, data, req_timeout)
             except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as e:
                 if allow_retry and attempt < self._MAX_RETRIES:
-                    await asyncio.sleep(self._backoff_delay(attempt))
+                    delay = self._retry_delay(attempt, retry_delay_spent)
+                    if delay is None:
+                        raise self._describe_transport_error(e, attempt) from e
+                    await asyncio.sleep(delay)
+                    retry_delay_spent += delay
                     attempt += 1
                     continue
                 raise self._describe_transport_error(e, attempt) from e
             except httpx.ReadTimeout as e:
                 if allow_retry and idempotent and attempt < self._MAX_RETRIES:
-                    await asyncio.sleep(self._backoff_delay(attempt))
+                    delay = self._retry_delay(attempt, retry_delay_spent)
+                    if delay is None:
+                        raise self._describe_transport_error(e, attempt) from e
+                    await asyncio.sleep(delay)
+                    retry_delay_spent += delay
                     attempt += 1
                     continue
                 raise self._describe_transport_error(e, attempt) from e
@@ -346,8 +377,11 @@ class EnhancedPfSenseAPIClient:
                 and attempt < self._MAX_RETRIES
                 and (retry_any_method or (idempotent and retry_idempotent))
             ):
-                delay = self._retry_after_delay(response)
-                await asyncio.sleep(delay if delay is not None else self._backoff_delay(attempt))
+                delay = self._retry_delay(attempt, retry_delay_spent, response)
+                if delay is None:
+                    break
+                await asyncio.sleep(delay)
+                retry_delay_spent += delay
                 attempt += 1
                 continue
             break

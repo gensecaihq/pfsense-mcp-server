@@ -2,7 +2,8 @@
 
 Policy: retry connection errors and 429/503 for any method; additionally retry
 read-timeouts and 502/504 for idempotent GETs only; never retry when a
-per-request read timeout is set (fast-fail log endpoints).
+per-request read timeout is set (fast-fail log endpoints). Backoff uses bounded
+jitter, and total planned retry sleep is capped per request.
 """
 from unittest.mock import AsyncMock, patch
 
@@ -84,6 +85,42 @@ async def test_retry_after_header_is_honored(no_sleep):
         send.side_effect = [_resp(429, headers={"Retry-After": "2"}), _resp(200)]
         await c._make_request("GET", "/firewall/rule")
     no_sleep.assert_awaited_with(2.0)
+
+
+def test_backoff_delay_uses_bounded_jitter():
+    c = _client()
+    with patch("src.client.random.uniform", return_value=1.25) as jitter:
+        delay = c._backoff_delay(1)
+
+    assert delay == 1.25
+    jitter.assert_called_once_with(0.75, 1.25)
+
+
+async def test_retry_delay_budget_caps_retry_after(no_sleep):
+    c = _client()
+    with patch.object(c, "_send", new_callable=AsyncMock) as send:
+        send.side_effect = [
+            _resp(429, headers={"Retry-After": "30"}),
+            _resp(429, headers={"Retry-After": "30"}),
+        ]
+        with pytest.raises(Exception):
+            await c._make_request("GET", "/firewall/rule")
+
+    assert send.await_count == 2
+    no_sleep.assert_awaited_once_with(c._RETRY_DELAY_BUDGET)
+
+
+async def test_retry_delay_budget_caps_transport_retries(no_sleep):
+    c = _client()
+    c._RETRY_DELAY_BUDGET = 1.0
+    with patch("src.client.random.uniform", return_value=1.0):
+        with patch.object(c, "_send", new_callable=AsyncMock) as send:
+            send.side_effect = httpx.ConnectError("boom")
+            with pytest.raises(httpx.ConnectError):
+                await c._make_request("GET", "/firewall/rule")
+
+    assert send.await_count == 3
+    assert [call.args[0] for call in no_sleep.await_args_list] == [0.5, 0.5]
 
 
 async def test_no_retry_when_read_timeout_override_set(no_sleep):
