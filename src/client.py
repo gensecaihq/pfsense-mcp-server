@@ -184,6 +184,11 @@ class EnhancedPfSenseAPIClient:
                 # pfSense's modest PHP-FPM worker pool.
                 limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
             )
+            # Alias locks latch onto the loop they were first contended on and
+            # raise "bound to a different event loop" if awaited from another.
+            # They guard nothing once the loop is gone, so drop them with the
+            # client rather than carrying them across.
+            self._alias_locks.clear()
             self._client_loop = current_loop
 
     async def _get_auth_headers(self, include_content_type: bool = True) -> Dict[str, str]:
@@ -661,7 +666,10 @@ class EnhancedPfSenseAPIClient:
 
     def _alias_lock(self, alias_id: int) -> asyncio.Lock:
         """Return the process-local mutation lock for one alias."""
-        return self._alias_locks.setdefault(alias_id, asyncio.Lock())
+        lock = self._alias_locks.get(alias_id)
+        if lock is None:
+            lock = self._alias_locks[alias_id] = asyncio.Lock()
+        return lock
 
     async def get_aliases(
         self,
@@ -1560,3 +1568,4 @@ class EnhancedPfSenseAPIClient:
         """Reset client state for reuse in a new event loop."""
         self.client = None
         self._client_loop = None
+        self._alias_locks.clear()
