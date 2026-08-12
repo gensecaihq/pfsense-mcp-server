@@ -357,6 +357,24 @@ class EnhancedPfSenseAPIClient:
             break
 
         # Enhanced error handling
+        if 300 <= response.status_code < 400:
+            url_path = urlparse(url).path
+            location = response.headers.get("location")
+            location_path = urlparse(location).path if location else "(not provided)"
+            logger.error(
+                "pfSense API redirect %s: %s %s -> %s",
+                response.status_code, method, url_path, location_path,
+            )
+            raise Exception(
+                f"\n=== pfSense API Redirect ===\n"
+                f"Status: {response.status_code}\n"
+                f"Endpoint: {url_path}\n"
+                f"Method: {method}\n"
+                f"Location path: {location_path}\n"
+                f"Redirects are disabled for API safety.\n"
+                f"===========================\n"
+            )
+
         if response.status_code >= 400:
             try:
                 error_json = response.json()
