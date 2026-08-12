@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import logging
+import random
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union
 from urllib.parse import urlencode, urlparse
@@ -67,9 +68,13 @@ class EnhancedPfSenseAPIClient:
     _MAX_RETRIES = 3
     _BACKOFF_BASE = 0.5   # seconds; delay = base * 2**attempt
     _BACKOFF_CAP = 8.0    # seconds; ceiling per wait
+    _BACKOFF_JITTER = 0.25  # +/- 25% to avoid synchronized retries
+    _RETRY_DELAY_BUDGET = 10.0  # seconds across all waits for one request
 
     def _backoff_delay(self, attempt: int) -> float:
-        return min(self._BACKOFF_BASE * (2 ** attempt), self._BACKOFF_CAP)
+        base = min(self._BACKOFF_BASE * (2 ** attempt), self._BACKOFF_CAP)
+        factor = random.uniform(1 - self._BACKOFF_JITTER, 1 + self._BACKOFF_JITTER)
+        return min(base * factor, self._BACKOFF_CAP)
 
     @staticmethod
     def _retry_after_delay(response) -> Optional[float]:
@@ -82,19 +87,52 @@ class EnhancedPfSenseAPIClient:
         except (ValueError, TypeError):
             return None  # HTTP-date form not honored; fall back to backoff
 
+    def _retry_delay(
+        self,
+        attempt: int,
+        spent: float,
+        response: Optional[httpx.Response] = None,
+    ) -> Optional[float]:
+        """Return a retry wait bounded by the request's remaining delay budget."""
+        remaining = self._RETRY_DELAY_BUDGET - spent
+        if remaining <= 0:
+            return None
+        requested = self._retry_after_delay(response) if response is not None else None
+        if requested is None:
+            requested = self._backoff_delay(attempt)
+        return min(requested, remaining)
+
     def _describe_transport_error(self, e: httpx.TransportError, attempts: int):
         """Re-raise a transport error with a human-readable message.
 
         ``str()`` of httpx timeout exceptions is often empty, so the stringly-
         typed tool handlers would surface ``"error": ""`` — useless to the
         operator. Rebuild the same exception type with a descriptive message
-        (type preserved so existing except clauses keep matching).
+        (type preserved so existing except clauses keep matching), retaining
+        the original request context when the exception provides it.
         """
         detail = str(e).strip() or type(e).__name__
-        return type(e)(
+        message = (
             f"Cannot reach pfSense at {self.host}: {detail} "
             f"(timeout {self.timeout}s, {attempts + 1} attempt(s))"
         )
+
+        # HTTPX exceptions created by the transport carry a Request, but an
+        # exception constructed without one raises RuntimeError when its
+        # ``request`` property is accessed. Older/custom exception classes may
+        # also reject the keyword, so both lookups and reconstruction are
+        # deliberately best-effort.
+        try:
+            request = e.request
+        except (AttributeError, RuntimeError):
+            request = None
+
+        if request is not None:
+            try:
+                return type(e)(message, request=request)
+            except TypeError:
+                pass
+        return type(e)(message)
 
     async def _send(self, method, url, headers, data, req_timeout):
         """Issue a single HTTP request (no retry)."""
@@ -137,7 +175,11 @@ class EnhancedPfSenseAPIClient:
             self.client = httpx.AsyncClient(
                 verify=self.verify_ssl,
                 timeout=self.timeout,
-                follow_redirects=True,
+                # Never forward authentication headers to an untrusted
+                # redirect target. HTTPX strips standard credentials on
+                # cross-origin redirects, but custom X-API-Key headers are
+                # not treated as sensitive.
+                follow_redirects=False,
                 # Bound concurrency so a burst of tool calls can't overwhelm
                 # pfSense's modest PHP-FPM worker pool.
                 limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
@@ -318,46 +360,109 @@ class EnhancedPfSenseAPIClient:
             else httpx.USE_CLIENT_DEFAULT
         )
 
-        # Make request, retrying transient failures with exponential backoff.
+        # Make request, retrying transient failures with jittered exponential
+        # backoff. The total planned sleep across all retries is bounded by
+        # _RETRY_DELAY_BUDGET, including Retry-After response delays.
         # Retry is skipped when a per-request read timeout is set (log endpoints
         # deliberately fail fast). Non-idempotent methods (POST/PATCH/DELETE) are
         # retried ONLY when the request provably did not reach or was not
-        # processed by the server — connection errors and 429/503 — never on an
+        # processed by the server — connection errors and 429 — never on an
         # ambiguous read timeout or gateway error, so a write can't be applied
-        # twice. GETs additionally retry read-timeouts and 502/504.
+        # twice. GETs additionally retry read-timeouts and 502/503/504.
         idempotent = method.upper() == "GET"
         allow_retry = timeout is None
         attempt = 0
+        retry_delay_spent = 0.0
         while True:
             try:
                 response = await self._send(method, url, headers, data, req_timeout)
             except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as e:
                 if allow_retry and attempt < self._MAX_RETRIES:
-                    await asyncio.sleep(self._backoff_delay(attempt))
+                    delay = self._retry_delay(attempt, retry_delay_spent)
+                    if delay is None:
+                        raise self._describe_transport_error(e, attempt) from e
+                    await asyncio.sleep(delay)
+                    retry_delay_spent += delay
                     attempt += 1
                     continue
                 raise self._describe_transport_error(e, attempt) from e
             except httpx.ReadTimeout as e:
                 if allow_retry and idempotent and attempt < self._MAX_RETRIES:
-                    await asyncio.sleep(self._backoff_delay(attempt))
+                    delay = self._retry_delay(attempt, retry_delay_spent)
+                    if delay is None:
+                        raise self._describe_transport_error(e, attempt) from e
+                    await asyncio.sleep(delay)
+                    retry_delay_spent += delay
                     attempt += 1
                     continue
                 raise self._describe_transport_error(e, attempt) from e
 
-            retry_any_method = response.status_code in (429, 503)
-            retry_idempotent = response.status_code in (502, 504)
+            retry_any_method = response.status_code == 429
+            retry_idempotent = response.status_code in (502, 503, 504)
             if (
                 allow_retry
                 and attempt < self._MAX_RETRIES
                 and (retry_any_method or (idempotent and retry_idempotent))
             ):
-                delay = self._retry_after_delay(response)
-                await asyncio.sleep(delay if delay is not None else self._backoff_delay(attempt))
+                delay = self._retry_delay(attempt, retry_delay_spent, response)
+                if delay is None:
+                    break
+                await asyncio.sleep(delay)
+                retry_delay_spent += delay
                 attempt += 1
                 continue
             break
 
         # Enhanced error handling
+        if 300 <= response.status_code < 400:
+            url_path = urlparse(url).path
+            location = response.headers.get("location")
+            location_path = urlparse(location).path if location else "(not provided)"
+            logger.error(
+                "pfSense API redirect %s: %s %s -> %s",
+                response.status_code, method, url_path, location_path,
+            )
+            # By far the most likely cause: PFSENSE_URL names an http://
+            # origin and pfSense redirects the webConfigurator to https://.
+            # The scheme isn't validated at startup, so this is the first
+            # place the operator hears about it — name the fix rather than
+            # leaving them to infer it from "redirects are disabled".
+            hint = (
+                "PFSENSE_URL is set to an http:// origin. pfSense redirects "
+                "http:// to https:// by default — change it to https://.\n"
+                if self.host.lower().startswith("http://")
+                else "Check that PFSENSE_URL points at the pfSense API origin "
+                     "directly, with nothing in front of it that rewrites "
+                     "paths.\n"
+            )
+            # Why redirects are refused depends on which credential is on the
+            # wire. Only API_KEY sends X-API-Key, which httpx does NOT strip
+            # cross-origin; BASIC and JWT send Authorization, which it does.
+            # Claiming the X-API-Key rationale under those methods would be
+            # simply untrue, so say the accurate thing for each.
+            if self.auth_method == AuthMethod.API_KEY:
+                reason = (
+                    "Redirects are disabled for API safety: httpx does not "
+                    "strip a custom X-API-Key header on a cross-origin "
+                    "redirect the way it strips Authorization, so following "
+                    "one could hand the key to another host.\n"
+                )
+            else:
+                reason = (
+                    "Redirects are disabled for API safety, so credentials "
+                    "stay scoped to the configured pfSense origin.\n"
+                )
+            raise Exception(
+                f"\n=== pfSense API Redirect ===\n"
+                f"Status: {response.status_code}\n"
+                f"Endpoint: {url_path}\n"
+                f"Method: {method}\n"
+                f"Location path: {location_path}\n"
+                f"{reason}"
+                f"{hint}"
+                f"===========================\n"
+            )
+
         if response.status_code >= 400:
             try:
                 error_json = response.json()
@@ -1215,9 +1320,14 @@ class EnhancedPfSenseAPIClient:
         """Generic apply for any apply endpoint (POST with empty body)."""
         return await self._make_request("POST", endpoint, data={})
 
-    async def crud_get_settings(self, endpoint: str) -> Dict:
-        """Generic GET for singleton settings endpoints."""
-        return await self._make_request("GET", endpoint)
+    async def crud_get_settings(self, endpoint: str, params: Optional[Dict[str, str]] = None) -> Dict:
+        """Generic GET for singleton settings endpoints.
+
+        Args:
+            endpoint: API endpoint path.
+            params: Optional query parameters to include in the request.
+        """
+        return await self._make_request("GET", endpoint, extra_params=params)
 
     async def crud_update_settings(
         self,
