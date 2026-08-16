@@ -310,7 +310,7 @@ environments that already run one.
 
 ### Response Encoding (GCF)
 
-By default the tools return JSON. Setting `RESPONSE_FORMAT=gcf` returns each tool's result as a single [Graph Compact Format](https://gcformat.com) block instead: the record arrays these read tools produce (firewall rules, aliases, DHCP leases, certificates, DNS records) have their repeated field names factored into one header, cutting the token cost when the result crosses the LLM boundary.
+By default the tools return JSON. Setting `RESPONSE_FORMAT=gcf` returns each eligible tool result as a single [Graph Compact Format](https://gcformat.com) block instead: the record arrays these read tools produce (firewall rules, aliases, DHCP leases, certificates, DNS records) have their repeated field names factored into one header, cutting the token cost when the result crosses the LLM boundary. Results that are not a single JSON body — or that GCF would not shrink — stay JSON (see below).
 
 Install the optional extra and set the variable:
 
