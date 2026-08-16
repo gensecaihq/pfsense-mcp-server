@@ -304,8 +304,30 @@ environments that already run one.
 | `MCP_RATE_LIMIT_CRITICAL` | `2` | Max critical ops per 300 seconds |
 | `MCP_ALLOWED_TOOLS` | all | Comma-separated tool allowlist |
 | `MCP_ROLLBACK_BUFFER` | `50` | Rollback entries kept in memory |
+| `RESPONSE_FORMAT` | `json` | `gcf` re-encodes tool results as [Graph Compact Format](https://gcformat.com) for fewer tokens (requires the `gcf` extra) |
 
 </details>
+
+### Response Encoding (GCF)
+
+By default the tools return JSON. Setting `RESPONSE_FORMAT=gcf` returns each eligible tool result as a single [Graph Compact Format](https://gcformat.com) block instead: the record arrays these read tools produce (firewall rules, aliases, DHCP leases, certificates, DNS records) have their repeated field names factored into one header, cutting the token cost when the result crosses the LLM boundary. Results that are not a single JSON body — or that GCF would not shrink — stay JSON (see below).
+
+Install the optional extra and set the variable:
+
+```bash
+pip install 'pfsense-mcp-server[gcf]'
+export RESPONSE_FORMAT=gcf
+```
+
+It is opt-in and conservative — GCF is used only when it is both smaller than the JSON and a verified lossless round-trip, otherwise the JSON is kept, so no record is ever dropped or altered. `structuredContent` is preserved, so output-schema validation and non-model clients keep receiving JSON. If the `gcf` extra is not installed, the server logs a warning and continues with JSON.
+
+Token savings on representative 30-record results (o200k tokens, lossless; reproduce with `python benchmarks/gcf_benchmark.py`):
+
+| Result | JSON | GCF | Savings |
+|---|---:|---:|---:|
+| Firewall rules | 1,995 | 936 | **53.1%** |
+| Aliases | 1,065 | 594 | **44.2%** |
+| DHCP leases | 2,314 | 1,606 | **30.6%** |
 
 ## Testing
 

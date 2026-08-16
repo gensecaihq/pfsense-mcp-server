@@ -42,6 +42,26 @@ mcp = FastMCP(
     ),
 )
 
+# Optional GCF (Graph Compact Format, https://gcformat.com) response encoding.
+# Opt-in via RESPONSE_FORMAT=gcf: the record arrays these read tools return
+# (firewall rules, aliases, DHCP leases, certificates, DNS records) are re-encoded
+# as a single GCF block, cutting the token cost when the result crosses the LLM
+# boundary. The middleware is conservative — GCF is used only when it is smaller
+# than the JSON and a verified lossless round-trip, otherwise the JSON is kept — so
+# no record is ever dropped or altered. Requires the optional ``gcf`` extra; a
+# warning and JSON fallback if it is not installed.
+if os.environ.get("RESPONSE_FORMAT", "").strip().lower() == "gcf":
+    try:
+        from gcf.fastmcp import GcfResponseMiddleware
+
+        mcp.add_middleware(GcfResponseMiddleware())
+        logger.info("GCF response encoding enabled (RESPONSE_FORMAT=gcf).")
+    except ImportError:
+        logger.warning(
+            "RESPONSE_FORMAT=gcf is set but the optional 'gcf' extra is not "
+            "installed (pip install 'pfsense-mcp-server[gcf]'); using JSON."
+        )
+
 # Global API client
 api_client: Optional[EnhancedPfSenseAPIClient] = None
 
