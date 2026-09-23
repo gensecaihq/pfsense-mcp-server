@@ -4,7 +4,7 @@
 
 ### Manage your pfSense firewall in plain English — from Claude Desktop, Claude Code, or any MCP client.
 
-**333 tools** across every subsystem · **wire-format verified** against the pfSense REST API · **safety guardrails** on every change
+**334 tools** across every subsystem · **wire-format verified** against the pfSense REST API · **safety guardrails** on every change
 
 <br>
 
@@ -12,7 +12,7 @@
 [![MCP 2025-11-25](https://img.shields.io/badge/MCP-2025--11--25-6E56CF.svg)](https://modelcontextprotocol.io)
 [![pfSense API v2.10.2](https://img.shields.io/badge/pfSense%20API-v2.10.2-orange.svg)](https://pfrest.org/)
 [![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-3776AB.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-572%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-612%20passing-brightgreen.svg)](#testing)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -33,7 +33,7 @@ Claude:  ✓ created peer on tun_wg0  →  here's the client config to import
 
 **pfSense MCP Server** connects [Claude Desktop](https://claude.ai/download), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and any other [MCP](https://modelcontextprotocol.io) client to your pfSense firewall. Ask questions, diagnose issues, and change configuration through conversation — with a confirmation gate, config backup, and rollback on every destructive action.
 
-Letting an AI touch a production firewall is only safe if the plumbing is right, so that's where the work went: every tool's wire format is verified against the pfSense REST API schema by a contract-test layer, and every change runs through a guardrail pipeline. 572 tests plus a wire-protocol E2E suite in CI on Python 3.11–3.13.
+Letting an AI touch a production firewall is only safe if the plumbing is right, so that's where the work went: every tool's wire format is verified against the pfSense REST API schema by a contract-test layer, and every change runs through a guardrail pipeline. 612 tests plus a wire-protocol E2E suite in CI on Python 3.11–3.13.
 
 > [!TIP]
 > Jump to the [Quick Start](#quick-start) — about two minutes with `uvx`, no clone required. And if this saves you a trip through the pfSense web UI, a ⭐ helps others find it.
@@ -148,7 +148,7 @@ firewall rules — treat that credential accordingly.
 
 ## What You Can Do
 
-333 tools across every major pfSense subsystem:
+334 tools across every major pfSense subsystem:
 
 | Domain | Tools | What You Can Do |
 |---|:---:|---|
@@ -164,7 +164,7 @@ firewall rules — treat that credential accordingly.
 | **Interfaces** | 14 | Interface config, VLANs, bridges, groups. |
 | **System** | 44 | Status, settings, diagnostics, state table, config history, reboot, ping. |
 | **Services** | 14 | Start/stop/restart services. NTP, cron, SSH, service watchdog. |
-| **Logs** | 3 | Firewall log analysis with parsed IPv4/IPv6 filterlog data. |
+| **Logs** | 4 | Firewall log analysis with parsed IPv4/IPv6 filterlog data. Raw tail/grep reads of the dhcpd/filter/resolver/system/auth log files. |
 | **Traffic Shaping** | 12 | Shapers, queues, and limiters for bandwidth management. |
 | **Schedules** | 8 | Time-based firewall rule scheduling. |
 | **Virtual IPs** | 5 | CARP, ProxyARP, and IP Alias management. |
@@ -201,7 +201,7 @@ Every one of the 202 mutating tools carries a guardrail, enforced at registratio
 You can also:
 - Pass `dry_run=True` to preview any destructive operation without executing
 - Pass `verify_descr="Allow HTTPS"` to verify you're deleting the right rule (guards against ID shifts)
-- Set `MCP_READ_ONLY=true` to expose only the 131 read-only tools (search, get, diagnose)
+- Set `MCP_READ_ONLY=true` to expose only the 132 read-only tools (search, get, diagnose)
 - Set `MCP_ALLOWED_TOOLS=search_firewall_rules,get_firewall_log` to restrict to specific tools
 
 See [SECURITY.md](SECURITY.md) for the vulnerability-disclosure policy and deployment-hardening guidance.
@@ -287,6 +287,7 @@ environments that already run one.
 | `PFSENSE_CA_FILE` | | — | PEM file for pfSense's private/self-signed CA, so verification stays on |
 | `API_TIMEOUT` | | `30` | Request timeout in seconds |
 | `MCP_READ_ONLY` | | `false` | Only expose read-only tools |
+| `MCP_ENABLE_LOG_FILES` | | `true` | Set `false` to remove `get_log_file` (raw `/var/log/*` reads via command sink) |
 
 <details>
 <summary>All configuration options</summary>
@@ -304,7 +305,7 @@ environments that already run one.
 | `MCP_RATE_LIMIT_DELETE` | `10` | Max deletes per 60 seconds |
 | `MCP_RATE_LIMIT_CREATE` | `20` | Max creates per 60 seconds |
 | `MCP_RATE_LIMIT_CRITICAL` | `2` | Max critical ops per 300 seconds |
-| `MCP_ALLOWED_TOOLS` | all | Comma-separated tool allowlist |
+| `MCP_ALLOWED_TOOLS` | all | Comma-separated tool allowlist (applies to non-READ tools; `get_log_file` is controlled by `MCP_ENABLE_LOG_FILES`) |
 | `MCP_ROLLBACK_BUFFER` | `50` | Rollback entries kept in memory |
 | `RESPONSE_FORMAT` | `json` | `gcf` re-encodes tool results as [Graph Compact Format](https://gcformat.com) for fewer tokens (requires the `gcf` extra) |
 
@@ -334,7 +335,7 @@ Token savings on representative 30-record results (o200k tokens, lossless; repro
 ## Testing
 
 ```bash
-python3 -m pytest tests/ -v          # 572 tests
+python3 -m pytest tests/ -v          # 612 tests
 python3 -m pytest tests/ --cov=src   # with coverage (~48%)
 ```
 
@@ -349,7 +350,7 @@ both transports, in CI on every push:
 make test-e2e            # or: ./scripts/inspector_smoke.sh  (needs node/npx, jq)
 ```
 
-It verifies the initialize handshake, the 333-tool listing with annotations,
+It verifies the initialize handshake, the 334-tool listing with annotations,
 the guardrail confirm-gate over the wire, read-only mode, and HTTP bearer-auth
 plus Origin enforcement — no pfSense instance required.
 
@@ -357,7 +358,7 @@ plus Origin enforcement — no pfSense instance required.
 
 Compliant with [MCP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25) — the newest revision with stable SDK support — and negotiates down to older revisions per connection, so existing clients keep working:
 
-- `ToolAnnotations` on all 333 tools (readOnlyHint, destructiveHint, idempotentHint)
+- `ToolAnnotations` on all 334 tools (readOnlyHint, destructiveHint, idempotentHint)
 - `serverInfo.version` and `instructions` provided
 - Origin header validation (MUST requirement)
 - Bearer token auth with timing-safe comparison
@@ -381,12 +382,12 @@ src/
   helpers.py           Validation, parsing, pagination, safety guards
   models.py            Data models
   middleware.py        HTTP bearer auth + Origin validation + /health
-  tools/               34 tool modules (333 tools)
+  tools/               34 tool modules (334 tools)
 scripts/
   generate_contract.py Regenerate the wire contract from an OpenAPI spec
   generate_token.py    Generate a secure MCP_API_KEY bearer token
   inspector_smoke.sh   End-to-end MCP protocol smoke test (MCP Inspector CLI)
-tests/                 572 tests (incl. tests/contract/ wire-contract suite)
+tests/                 612 tests (incl. tests/contract/ wire-contract suite)
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the request lifecycle, guardrail

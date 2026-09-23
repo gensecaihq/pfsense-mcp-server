@@ -17,8 +17,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PYTHON="${PYTHON:-python3}"
-EXPECTED_TOOLS=333
-EXPECTED_READONLY=131
+EXPECTED_TOOLS=334
+EXPECTED_READONLY=132
 HTTP_PORT="${SMOKE_HTTP_PORT:-3999}"
 TOKEN="inspector-smoke-test-token-0123456789"
 
@@ -38,6 +38,9 @@ cat > "$WRAPPER" <<EOF
 export PFSENSE_URL="$PFSENSE_URL"
 export PFSENSE_API_KEY="$PFSENSE_API_KEY"
 export API_TIMEOUT="$API_TIMEOUT"
+# Pinned, not inherited: MCP_ENABLE_LOG_FILES=false drops get_log_file, which
+# would put EXPECTED_TOOLS and EXPECTED_READONLY one over the real count.
+export MCP_ENABLE_LOG_FILES=true
 cd "$REPO_ROOT"
 exec "$PYTHON" -m src.main
 EOF

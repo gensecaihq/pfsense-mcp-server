@@ -31,8 +31,9 @@ _LOG_OOM_ERROR = {
         "into memory (512 MB PHP limit) before applying the requested limit. "
         "This is an upstream issue in the pfSense REST API package, not the "
         "MCP server (tracking: pfSense-pkg-RESTAPI#806, fix in PR #860). "
-        "Workaround: review logs directly on the pfSense box via "
-        "SSH ('clog /var/log/filter.log | tail -50') or the web UI "
+        "Workaround: use get_log_file, which tails the log file server-side, "
+        "or review logs directly on the pfSense box via "
+        "SSH ('tail -50 /var/log/filter.log') or the web UI "
         "(Status > System Logs > Firewall)."
     ),
 }
@@ -242,6 +243,69 @@ async def analyze_blocked_traffic(
             logger.error("Log endpoint OOM/timeout: %s", e)
             return _LOG_OOM_ERROR
         logger.error(f"Failed to analyze blocked traffic: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
+async def get_log_file(
+    log_file: str,
+    lines: int = 100,
+    grep: Optional[str] = None,
+) -> Dict:
+    """Read the newest lines from a pfSense log file (dhcpd, filter, resolver, system, auth).
+
+    Reads the plain-text log file server-side with tail (and grep when a
+    pattern is given), so it works for log types the REST API log endpoints
+    don't expose (notably resolver) and avoids the known server-side OOM bug
+    on /status/logs/ endpoints.
+
+    Args:
+        log_file: Which log to read (dhcpd, filter, resolver, system, auth)
+        lines: Number of newest lines to return (default 100, max 1000)
+        grep: Optional fixed-string filter applied before tail, so the newest
+            matching lines are returned rather than matches within the newest
+            lines
+    """
+    client = get_api_client()
+    try:
+        result = await client.read_log_file(log_file=log_file, lines=lines, grep=grep)
+        # _make_request hands back response.json() verbatim, so a body that
+        # isn't a JSON object (anything in front of the API answering 200 with
+        # a bare string) must not blow up on .get().
+        data = result.get("data", result) if isinstance(result, dict) else result
+        if isinstance(data, dict):
+            output = data.get("output") or ""
+            result_code = data.get("result_code")
+        else:
+            output, result_code = data, None
+
+        # The command sink merges stderr into `output` (Command appends
+        # `2>&1`), so a non-zero exit means `output` holds an error message
+        # rather than log lines — reporting that as a successful read would
+        # hand the caller the error text as if it were log content. The one
+        # non-zero status that isn't a failure is grep's exit 1: the pattern
+        # simply matched nothing, which is an empty result.
+        no_match = bool(grep) and result_code == client.GREP_NO_MATCH_EXIT
+        if result_code not in (None, 0) and not no_match:
+            return {
+                "success": False,
+                "log_file": log_file,
+                "result_code": result_code,
+                "error": output or f"Log read failed with exit code {result_code}.",
+            }
+
+        return {
+            "success": True,
+            "log_file": log_file,
+            "lines_requested": client.clamp_log_file_lines(lines),
+            "grep": grep,
+            "output": "" if no_match else output,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        logger.error(f"Failed to read log file '{log_file}': {e}")
         return {"success": False, "error": str(e)}
 
 

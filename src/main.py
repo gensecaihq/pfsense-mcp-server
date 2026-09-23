@@ -89,6 +89,37 @@ def apply_read_only_filter() -> int:
 _MIN_API_KEY_LEN = 16
 _PLACEHOLDER_KEYS = {"changeme", "change-me", "your-token-here", "secret", "token"}
 
+# Raw log-file tools (get_log_file) read /var/log/* via the command sink.
+# On by default; MCP_ENABLE_LOG_FILES=false removes them at startup. This is
+# a dedicated switch because MCP_ALLOWED_TOOLS cannot restrict READ-classified
+# tools, and MCP_READ_ONLY intentionally keeps them.
+_LOG_FILE_TOOLS = frozenset({"get_log_file"})
+_LOG_FILES_ENABLED = (
+    os.getenv("MCP_ENABLE_LOG_FILES", "true").strip().lower()
+    not in {"false", "0", "no", "off"}
+)
+
+
+def apply_log_files_filter() -> int:
+    """Remove raw log-file tools when MCP_ENABLE_LOG_FILES=false. Returns count removed."""
+    if _LOG_FILES_ENABLED:
+        return 0
+
+    provider = mcp.local_provider
+    names = [t.name for t in asyncio.run(provider.list_tools())]
+    removed = 0
+    for name in names:
+        if name in _LOG_FILE_TOOLS:
+            provider.remove_tool(name)
+            removed += 1
+    if removed:
+        logger.info(
+            "LOG FILES DISABLED: removed %d raw log-file tool(s); "
+            "set MCP_ENABLE_LOG_FILES=true to re-enable.",
+            removed,
+        )
+    return removed
+
 
 def mcp_api_key_error(api_key):
     """Return an error string if MCP_API_KEY is unusable, else None.
@@ -173,6 +204,9 @@ def main():
     # Apply the read-only tool filter (no-op unless MCP_READ_ONLY=true) before
     # the server begins serving.
     apply_read_only_filter()
+
+    # Apply the log-file tool filter (no-op unless MCP_ENABLE_LOG_FILES=false).
+    apply_log_files_filter()
 
     # Test connection before starting server. Bounded hard: the preflight runs
     # *before* the MCP transport opens, so an unreachable pfSense must not hold

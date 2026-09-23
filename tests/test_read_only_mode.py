@@ -32,7 +32,7 @@ _BASE_ENV = {
 _SUBPROC_TIMEOUT = 120
 
 
-def _clean_env(read_only: bool) -> dict:
+def _clean_env(read_only: bool, extra: dict | None = None) -> dict:
     """Minimal env for a hermetic child interpreter.
 
     Deliberately drops pytest-cov's subprocess-coverage injection
@@ -48,15 +48,16 @@ def _clean_env(read_only: bool) -> dict:
     }
     env.update(_BASE_ENV)
     env["MCP_READ_ONLY"] = "true" if read_only else "false"
+    env.update(extra or {})
     return env
 
 
-def _run(code: str, read_only: bool):
+def _run(code: str, read_only: bool, extra: dict | None = None):
     return subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
         text=True,
-        env=_clean_env(read_only),
+        env=_clean_env(read_only, extra),
         stdin=subprocess.DEVNULL,
         timeout=_SUBPROC_TIMEOUT,
     )
@@ -91,7 +92,7 @@ def test_filter_keeps_read_tools_and_drops_destructive():
     removed, remaining = (int(x) for x in result.stdout.strip().splitlines()[-1].split())
     assert removed > 0
     # Read-only exposes the read subset only: fewer than the full set, non-empty.
-    assert 0 < remaining < 333
+    assert 0 < remaining < 334
 
 
 def test_filter_is_noop_and_full_set_registered_without_read_only():
@@ -107,4 +108,43 @@ def test_filter_is_noop_and_full_set_registered_without_read_only():
     assert result.returncode == 0, result.stderr
     removed, total = (int(x) for x in result.stdout.strip().splitlines()[-1].split())
     assert removed == 0
-    assert total == 333
+    assert total == 334
+
+
+# ---------------------------------------------------------------------------
+# MCP_ENABLE_LOG_FILES (removes get_log_file at startup when false)
+# ---------------------------------------------------------------------------
+
+_LOG_FILE_TOOL_CODE = (
+    "import asyncio, src.main\n"
+    "src.main.apply_read_only_filter()\n"
+    "removed = src.main.apply_log_files_filter()\n"
+    "from src.server import mcp\n"
+    "names = {t.name for t in asyncio.run(mcp.local_provider.list_tools())}\n"
+    "print(removed, 'get_log_file' in names)\n"
+)
+
+
+def test_log_files_tool_removed_when_disabled():
+    result = _run(_LOG_FILE_TOOL_CODE, read_only=False, extra={"MCP_ENABLE_LOG_FILES": "false"})
+    assert result.returncode == 0, result.stderr
+    removed, present = result.stdout.strip().splitlines()[-1].split()
+    assert removed == "1"
+    assert present == "False"
+
+
+def test_log_files_tool_present_by_default():
+    result = _run(_LOG_FILE_TOOL_CODE, read_only=False, extra={"MCP_ENABLE_LOG_FILES": "true"})
+    assert result.returncode == 0, result.stderr
+    removed, present = result.stdout.strip().splitlines()[-1].split()
+    assert removed == "0"
+    assert present == "True"
+
+
+def test_log_files_tool_survives_read_only_mode():
+    """get_log_file is READ-classified: MCP_READ_ONLY=true must keep it."""
+    result = _run(_LOG_FILE_TOOL_CODE, read_only=True)
+    assert result.returncode == 0, result.stderr
+    removed, present = result.stdout.strip().splitlines()[-1].split()
+    assert removed == "0"
+    assert present == "True"

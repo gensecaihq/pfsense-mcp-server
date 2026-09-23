@@ -1,15 +1,18 @@
 """Unit tests for log tools (src/tools/logs.py)."""
 
 import httpx
+import pytest
 
 from src.tools.logs import (
     _is_oom_error,
     analyze_blocked_traffic,
     get_firewall_log,
+    get_log_file,
     search_logs_by_ip,
 )
 
 _get_firewall_log = get_firewall_log
+_get_log_file = get_log_file
 _analyze_blocked_traffic = analyze_blocked_traffic
 _search_logs_by_ip = search_logs_by_ip
 
@@ -150,3 +153,154 @@ class TestSearchLogsByIp:
         pagination = mock_make_request.call_args.kwargs.get("pagination")
         assert pagination is not None
         assert pagination.limit == 50
+
+
+# ---------------------------------------------------------------------------
+# get_log_file (raw log-file reads via /diagnostics/command_prompt)
+# ---------------------------------------------------------------------------
+
+class TestGetLogFile:
+    async def test_reads_resolver_log(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {
+            "data": {"output": "resolver line\n", "result_code": 0}
+        }
+        result = await _get_log_file(log_file="resolver")
+        assert result["success"] is True
+        assert result["log_file"] == "resolver"
+        assert result["output"] == "resolver line\n"
+        assert result["lines_requested"] == 100
+        command = mock_make_request.call_args.kwargs["data"]["command"]
+        assert command == "tail -n 100 /var/log/resolver.log"
+
+    @pytest.mark.parametrize("log_file,path", [
+        ("dhcpd", "/var/log/dhcpd.log"),
+        ("filter", "/var/log/filter.log"),
+        ("resolver", "/var/log/resolver.log"),
+        ("system", "/var/log/system.log"),
+        ("auth", "/var/log/auth.log"),
+    ])
+    async def test_allowlisted_paths(self, mock_client, mock_make_request, log_file, path):
+        mock_make_request.return_value = {"data": {"output": "", "result_code": 0}}
+        result = await _get_log_file(log_file=log_file)
+        assert result["success"] is True
+        assert mock_make_request.call_args.kwargs["data"]["command"] == f"tail -n 100 {path}"
+
+    async def test_rejects_non_allowlisted_file(self, mock_client, mock_make_request):
+        result = await _get_log_file(log_file="../../config.xml")
+        assert result["success"] is False
+        assert "Allowed" in result["error"]
+        mock_make_request.assert_not_called()
+
+    async def test_lines_capped_at_1000(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"output": "", "result_code": 0}}
+        result = await _get_log_file(log_file="system", lines=99999)
+        command = mock_make_request.call_args.kwargs["data"]["command"]
+        assert command == "tail -n 1000 /var/log/system.log"
+        assert result["lines_requested"] == 1000
+
+    async def test_lines_floored_at_1(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"output": "", "result_code": 0}}
+        result = await _get_log_file(log_file="system", lines=0)
+        command = mock_make_request.call_args.kwargs["data"]["command"]
+        assert command == "tail -n 1 /var/log/system.log"
+        assert result["lines_requested"] == 1
+
+    async def test_grep_is_shell_escaped(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"output": "", "result_code": 0}}
+        await _get_log_file(log_file="filter", grep="bad; rm -rf /")
+        command = mock_make_request.call_args.kwargs["data"]["command"]
+        # The injection attempt must arrive as a single quoted grep argument
+        assert command == (
+            "set -o pipefail; "
+            "{ grep -F -e 'bad; rm -rf /' /var/log/filter.log | tail -n 100; }"
+        )
+
+    async def test_grep_runs_before_tail(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"output": "", "result_code": 0}}
+        await _get_log_file(log_file="dhcpd", grep="192.168.1.50", lines=20)
+        command = mock_make_request.call_args.kwargs["data"]["command"]
+        assert command == (
+            "set -o pipefail; "
+            "{ grep -F -e 192.168.1.50 /var/log/dhcpd.log | tail -n 20; }"
+        )
+
+    async def test_nonzero_result_code_is_a_failure(self, mock_client, mock_make_request):
+        """stderr is merged into `output`; a failed read must not look successful."""
+        mock_make_request.return_value = {
+            "data": {
+                "output": "tail: /var/log/resolver.log: No such file or directory",
+                "result_code": 1,
+            }
+        }
+        result = await _get_log_file(log_file="resolver")
+        assert result["success"] is False
+        assert result["result_code"] == 1
+        assert "No such file" in result["error"]
+
+    async def test_empty_output_with_zero_exit_is_success(
+        self, mock_client, mock_make_request
+    ):
+        """grep matching nothing is an empty result, not an error."""
+        mock_make_request.return_value = {"data": {"output": "", "result_code": 0}}
+        result = await _get_log_file(log_file="filter", grep="nothing-matches")
+        assert result["success"] is True
+        assert result["output"] == ""
+
+    async def test_grep_no_match_exit_is_success(self, mock_client, mock_make_request):
+        """Under pipefail grep's exit 1 reaches us; it still means "no matches"."""
+        mock_make_request.return_value = {"data": {"output": "", "result_code": 1}}
+        result = await _get_log_file(log_file="filter", grep="nothing-matches")
+        assert result["success"] is True
+        assert result["output"] == ""
+
+    async def test_grep_read_error_is_a_failure(self, mock_client, mock_make_request):
+        """A grep that can't read the file must not pass as an empty result.
+
+        Regression guard for the bare pipeline: `grep ... | tail` reported the
+        exit status of tail, so a missing file arrived as exit 0 with no
+        output. Grouping the pipeline under pipefail surfaces grep's 2 and its
+        stderr instead.
+        """
+        mock_make_request.return_value = {
+            "data": {
+                "output": "grep: /var/log/resolver.log: No such file or directory",
+                "result_code": 2,
+            }
+        }
+        result = await _get_log_file(log_file="resolver", grep="SERVFAIL")
+        assert result["success"] is False
+        assert result["result_code"] == 2
+        assert "No such file" in result["error"]
+
+    async def test_exit_one_without_grep_is_still_a_failure(
+        self, mock_client, mock_make_request
+    ):
+        """Only grep gets the no-match exemption; a lone tail's 1 is an error."""
+        mock_make_request.return_value = {
+            "data": {
+                "output": "tail: /var/log/dhcpd.log: No such file or directory",
+                "result_code": 1,
+            }
+        }
+        result = await _get_log_file(log_file="dhcpd")
+        assert result["success"] is False
+        assert result["result_code"] == 1
+
+    async def test_missing_result_code_is_tolerated(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"output": "line"}}
+        result = await _get_log_file(log_file="system")
+        assert result["success"] is True
+        assert result["output"] == "line"
+
+    async def test_non_dict_response_does_not_raise(self, mock_client, mock_make_request):
+        """_make_request returns response.json() verbatim — it needn't be an object."""
+        mock_make_request.return_value = "raw log text"
+        result = await _get_log_file(log_file="system")
+        assert result["success"] is True
+        assert result["output"] == "raw log text"
+
+    async def test_api_error_passes_through(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("command sink failed")
+        result = await _get_log_file(log_file="system")
+        assert result["success"] is False
+        assert "command sink failed" in result["error"]
