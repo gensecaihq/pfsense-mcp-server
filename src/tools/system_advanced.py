@@ -301,7 +301,8 @@ async def update_email_notification_settings(
         if ipaddress is not None:
             updates["ipaddress"] = ipaddress
         if port is not None:
-            updates["port"] = port
+            # Upstream models the SMTP port as a string field; an int is a 400.
+            updates["port"] = str(port)
         if timeout is not None:
             updates["timeout"] = timeout
         if ssl is not None:

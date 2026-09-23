@@ -252,22 +252,17 @@ async def search_bind_zone_records(
     """
     client = get_api_client()
     try:
-        filters = [QueryFilter("parent_id", str(parent_id))]
+        # Upstream has no plural zone-records endpoint; records live embedded
+        # in the zone object, so read the zone and filter/sort/page here.
+        result = await client.crud_get_settings(
+            "/services/bind/zone", params={"id": parent_id}
+        )
+        zone = result.get("data") or {}
+        records = [r for r in (zone.get("records") or []) if isinstance(r, dict)]
 
         if record_type:
-            filters.append(QueryFilter("type", record_type))
-
-        pagination, page, page_size = create_search_pagination(page, page_size, search_term)
-        sort = create_default_sort(sort_by)
-
-        result = await client.crud_list(
-            "/services/bind/zone/records",
-            filters=filters,
-            sort=sort,
-            pagination=pagination,
-        )
-
-        records = result.get("data") or []
+            wanted = record_type.upper()
+            records = [r for r in records if str(r.get("type") or "").upper() == wanted]
 
         if search_term:
             term_lower = search_term.lower()
@@ -276,6 +271,23 @@ async def search_bind_zone_records(
                 if field_contains(r, "name", term_lower)
                 or field_contains(r, "rdata", term_lower)
             ]
+
+        def _sort_key(r: Dict):
+            # Numeric fields (priority) must sort numerically — as strings
+            # "10" < "2" — and missing values go last either way.
+            v = r.get(sort_by)
+            if v is None or v == "":
+                return (2, 0, "")
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                return (0, v, "")
+            return (1, 0, str(v).lower())
+
+        records.sort(key=_sort_key)
+        total = len(records)
+        page = max(1, page)
+        page_size = max(1, min(page_size, 200))
+        start = (page - 1) * page_size
+        records = records[start:start + page_size]
 
         return {
             "success": True,
@@ -287,6 +299,7 @@ async def search_bind_zone_records(
                 "record_type": record_type,
             },
             "count": len(records),
+            "total_matches": total,
             "records": records,
             "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat(),

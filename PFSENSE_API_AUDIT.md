@@ -174,6 +174,6 @@ pfSense uses non-persistent array indices as object IDs. After any deletion, all
 | Utility | 1 | 9 |
 | Guardrails system | 1 | — |
 | Helpers & validation | 1 | — |
-| **Total** | **34 tool files** | **327 tools** _(v1.0.0 snapshot; current `main` is 334 — see [README](README.md))_ |
+| **Total** | **34 tool files** | **327 tools** _(v1.0.0 snapshot; current `main` is 332 — see [README](README.md))_ |
 
-**Tests: 308 passing** _(v1.0.0 audit snapshot; current `main` is 612 passing after post-1.0.0 fixes — see [CHANGELOG](CHANGELOG.md))_
+**Tests: 308 passing** _(v1.0.0 audit snapshot; current `main` is 661 passing after post-1.0.0 fixes — see [CHANGELOG](CHANGELOG.md))_

@@ -2,6 +2,7 @@
 
 import ipaddress
 import logging
+import os
 import re
 from typing import Dict, List, Optional, Union
 
@@ -18,6 +19,32 @@ MAX_LOG_LINES = 50
 VALID_LOG_TYPES = frozenset({
     "firewall", "system", "dhcp", "openvpn", "auth",
 })
+
+
+_TRUE_STRINGS = frozenset({"true", "1", "yes", "on"})
+_FALSE_STRINGS = frozenset({"false", "0", "no", "off"})
+
+
+def env_bool(name: str, default: bool) -> bool:
+    """Read a boolean environment variable strictly.
+
+    Unset or empty returns ``default``. Anything outside the accepted
+    true/false spellings raises instead of silently picking a side: these
+    switches gate TLS verification and read-only mode, so a typo such as
+    ``VERIFY_SSL=1`` must never quietly land on the insecure value.
+    """
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    value = raw.strip().lower()
+    if value in _TRUE_STRINGS:
+        return True
+    if value in _FALSE_STRINGS:
+        return False
+    raise ValueError(
+        f"{name}={raw!r} is not a boolean; use one of: "
+        "true/false, 1/0, yes/no, on/off"
+    )
 
 
 def safe_data_dict(result: Dict) -> Dict:

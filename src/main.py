@@ -9,10 +9,11 @@ import asyncio
 import os
 import sys
 
+from .helpers import env_bool
 from .server import VERSION, get_api_client, logger, mcp, reset_api_client
 
 # Read-only mode: only register read-level tools (MCP security best practice: least privilege)
-_READ_ONLY_MODE = os.getenv("MCP_READ_ONLY", "false").lower() == "true"
+_READ_ONLY_MODE = env_bool("MCP_READ_ONLY", False)
 
 # Import tool modules — each registers tools via @mcp.tool() on import
 from .tools import (  # noqa: F401, E402
@@ -94,10 +95,7 @@ _PLACEHOLDER_KEYS = {"changeme", "change-me", "your-token-here", "secret", "toke
 # a dedicated switch because MCP_ALLOWED_TOOLS cannot restrict READ-classified
 # tools, and MCP_READ_ONLY intentionally keeps them.
 _LOG_FILE_TOOLS = frozenset({"get_log_file"})
-_LOG_FILES_ENABLED = (
-    os.getenv("MCP_ENABLE_LOG_FILES", "true").strip().lower()
-    not in {"false", "0", "no", "off"}
-)
+_LOG_FILES_ENABLED = env_bool("MCP_ENABLE_LOG_FILES", True)
 
 
 def apply_log_files_filter() -> int:
@@ -180,7 +178,7 @@ def main():
     logger.info(f"Transport: {args.transport}")
 
     # Security warnings per MCP spec best practices
-    if os.getenv("VERIFY_SSL", "true").lower() == "false":
+    if not env_bool("VERIFY_SSL", True):
         logger.warning(
             "SECURITY: SSL verification is DISABLED (VERIFY_SSL=false). "
             "The pfSense certificate is not checked, so the API credential is "

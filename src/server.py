@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from fastmcp import FastMCP
 
 from .client import EnhancedPfSenseAPIClient
+from .helpers import env_bool
 from .models import AuthMethod, PfSenseVersion
 
 # Load environment variables from .env file
@@ -25,7 +26,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Version
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 # Initialize FastMCP server
 mcp = FastMCP(
@@ -59,7 +60,8 @@ if os.environ.get("RESPONSE_FORMAT", "").strip().lower() == "gcf":
     except ImportError:
         logger.warning(
             "RESPONSE_FORMAT=gcf is set but the optional 'gcf' extra is not "
-            "installed (pip install 'pfsense-mcp-server[gcf]'); using JSON."
+            "installed (pip install 'gcf-python[fastmcp]==2.7.1', or "
+            "pip install '.[gcf]' from a clone); using JSON."
         )
 
 # Global API client
@@ -117,11 +119,11 @@ def get_api_client() -> EnhancedPfSenseAPIClient:
             username=os.getenv("PFSENSE_USERNAME"),
             password=os.getenv("PFSENSE_PASSWORD"),
             api_key=api_key,
-            verify_ssl=os.getenv("VERIFY_SSL", "true").lower() == "true",
+            verify_ssl=env_bool("VERIFY_SSL", True),
             ca_file=(os.getenv("PFSENSE_CA_FILE") or "").strip() or None,
             timeout=api_timeout,
             version=version,
-            enable_hateoas=os.getenv("ENABLE_HATEOAS", "false").lower() == "true"
+            enable_hateoas=env_bool("ENABLE_HATEOAS", False),
         )
         logger.info(f"API client initialized for pfSense {version.value} at {pfsense_url}")
     return api_client

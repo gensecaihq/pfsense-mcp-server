@@ -82,7 +82,9 @@ class BearerAuthMiddleware:
         headers = dict(scope.get("headers", []))
 
         # 1. Origin validation (MCP spec MUST)
-        origin = headers.get(b"origin", b"").decode()
+        # ASGI header values are bytes; latin-1 maps every byte, so a
+        # malformed header can't raise UnicodeDecodeError here (a 500).
+        origin = headers.get(b"origin", b"").decode("latin-1")
         if origin and not self._is_origin_allowed(origin):
             logger.warning("Rejected request with disallowed Origin: %s", origin)
             if scope["type"] == "websocket":
@@ -97,12 +99,14 @@ class BearerAuthMiddleware:
             return
 
         # 2. Bearer token auth (supports multiple keys for per-user tokens)
-        auth_header = headers.get(b"authorization", b"").decode()
+        # Compare as bytes: hmac.compare_digest raises TypeError on non-ASCII
+        # str, which turned a junk token into a 500 instead of a 401.
+        auth_header = headers.get(b"authorization", b"")
         token_valid = False
-        if auth_header.startswith("Bearer "):
+        if auth_header.startswith(b"Bearer "):
             presented_token = auth_header[7:]
             for valid_key in self.api_keys:
-                if hmac.compare_digest(presented_token, valid_key):
+                if hmac.compare_digest(presented_token, valid_key.encode("utf-8")):
                     token_valid = True
                     break
         if not token_valid:

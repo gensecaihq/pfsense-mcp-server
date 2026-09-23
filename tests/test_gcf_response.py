@@ -1,7 +1,7 @@
 """Tests for the optional GCF response encoding (RESPONSE_FORMAT=gcf).
 
 Skipped unless the optional ``gcf`` extra is installed
-(``pip install 'pfsense-mcp-server[gcf]'``).
+(``pip install '.[gcf]'`` from a clone).
 """
 
 import asyncio

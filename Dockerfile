@@ -1,12 +1,5 @@
 FROM python:3.11-slim AS builder
 
-ARG VERSION=1.0.0
-
-LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.title="pfSense MCP Server" \
-      org.opencontainers.image.description="pfSense management via Model Context Protocol" \
-      org.opencontainers.image.licenses="MIT"
-
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
@@ -25,6 +18,15 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 
 # Production stage
 FROM python:3.11-slim
+
+# Labels live in the final stage — set in the builder they were dropped.
+ARG VERSION=1.1.0
+
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="pfSense MCP Server" \
+      org.opencontainers.image.description="pfSense management via Model Context Protocol" \
+      org.opencontainers.image.source="https://github.com/gensecaihq/pfsense-mcp-server" \
+      org.opencontainers.image.licenses="MIT"
 
 # Install runtime dependencies (minimal — no shell tools beyond curl for healthcheck)
 RUN apt-get update && apt-get install -y --no-install-recommends \

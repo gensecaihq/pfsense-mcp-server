@@ -50,7 +50,6 @@ _RISK_CLASSIFICATION = {
     "bulk_block_ips": RiskLevel.CRITICAL,
 
     # HIGH — destructive/irreversible
-    "restore_config_backup": RiskLevel.HIGH,
     "delete_": RiskLevel.HIGH,
     "disconnect_": RiskLevel.HIGH,
 
@@ -379,6 +378,13 @@ _create_limiter = RateLimiter(
     max_ops=int(os.getenv("MCP_RATE_LIMIT_CREATE", "20")),
     window_seconds=60,
 )
+# LOW covers settings PATCHes (update_*/apply_*/enable_*/disable_*) — some of
+# which can lock the operator out (webGUI port, SSH, WAN interface), so a
+# runaway loop is bounded here too rather than running unmetered.
+_update_limiter = RateLimiter(
+    max_ops=int(os.getenv("MCP_RATE_LIMIT_UPDATE", "30")),
+    window_seconds=60,
+)
 _critical_limiter = RateLimiter(
     max_ops=int(os.getenv("MCP_RATE_LIMIT_CRITICAL", "2")),
     window_seconds=300,  # 5-minute window for critical ops
@@ -389,6 +395,7 @@ def reset_rate_limiters():
     """Reset all rate limiters (for testing)."""
     _delete_limiter._timestamps.clear()
     _create_limiter._timestamps.clear()
+    _update_limiter._timestamps.clear()
     _critical_limiter._timestamps.clear()
 
 
@@ -404,6 +411,8 @@ def check_rate_limit(tool_name: str) -> Optional[str]:
         return _delete_limiter.check("delete")
     if risk == RiskLevel.MEDIUM:
         return _create_limiter.check("create")
+    if risk == RiskLevel.LOW:
+        return _update_limiter.check("update")
     return None
 
 
@@ -822,9 +831,13 @@ def guarded(fn):
                 "pre_change_revision_id": pre_change_revision["id"],
                 "pre_change_time": pre_change_revision["time"],
                 "pre_change_description": pre_change_revision["description"],
+                # The REST API has no config-restore endpoint, so rollback is
+                # a manual step in the webGUI — say so rather than point at a
+                # tool that cannot perform it.
                 "rollback_instruction": (
-                    f"To undo this change, call restore_config_backup("
-                    f"revision_id={pre_change_revision['id']}, confirm=True)"
+                    "To undo this change, restore revision "
+                    f"{pre_change_revision['id']} manually in the pfSense webGUI: "
+                    "Diagnostics > Backup & Restore > Config History."
                 ),
             }
             # Record in rollback buffer

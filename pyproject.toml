@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pfsense-mcp-server"
-version = "1.0.0"
+version = "1.1.0"
 description = "MCP server for pfSense firewall management via the REST API v2"
 requires-python = ">=3.11"
 
@@ -26,7 +26,8 @@ classifiers = [
 ]
 
 dependencies = [
-    # Capped below 4.0: fastmcp 4 (MCP spec 2026-07-28) is still in beta.
+    # Capped below 4.0: fastmcp 4 (MCP spec 2026-07-28, mcp 2.x) is stable but
+    # the move is a planned major change; CI already probes 4.x (non-blocking).
     "fastmcp>=3.4.7,<4.0",
     # Direct dependency: src/tools/* import mcp.types.ToolAnnotations.
     # mcp 2.0.0 restructured the package; stay on 1.x until fastmcp 4.
@@ -43,7 +44,9 @@ Issues = "https://github.com/gensecaihq/pfsense-mcp-server/issues"
 Changelog = "https://github.com/gensecaihq/pfsense-mcp-server/blob/main/CHANGELOG.md"
 
 # Console entry point so the server can be run without cloning the repo, e.g.
-#   uvx pfsense-mcp-server   /   pipx install pfsense-mcp-server
+#   uvx --from git+https://github.com/gensecaihq/pfsense-mcp-server pfsense-mcp-server
+# NOTE: this project is not on PyPI. The PyPI name "pfsense-mcp-server" belongs
+# to an unrelated project, so never `pip install pfsense-mcp-server` by name.
 # See issue #8.
 [project.scripts]
 pfsense-mcp-server = "src.main:main"

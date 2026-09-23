@@ -4,7 +4,7 @@
 
 ### Manage your pfSense firewall in plain English — from Claude Desktop, Claude Code, or any MCP client.
 
-**334 tools** across every subsystem · **wire-format verified** against the pfSense REST API · **safety guardrails** on every change
+**332 tools** across every subsystem · **wire-format verified** against the pfSense REST API · **safety guardrails** on every change
 
 <br>
 
@@ -12,7 +12,7 @@
 [![MCP 2025-11-25](https://img.shields.io/badge/MCP-2025--11--25-6E56CF.svg)](https://modelcontextprotocol.io)
 [![pfSense API v2.10.2](https://img.shields.io/badge/pfSense%20API-v2.10.2-orange.svg)](https://pfrest.org/)
 [![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-3776AB.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-612%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-661%20passing-brightgreen.svg)](#testing)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -22,7 +22,7 @@
 
 ```text
 You:     Block all traffic from 203.0.113.5 on WAN
-Claude:  ✓ created block rule  →  ✓ applied changes  →  rollback: restore_config_backup(revision_id=42)
+Claude:  ✓ created block rule  →  ✓ applied changes  →  rollback point: config revision 42
 
 You:     Why can't 192.168.1.50 reach the internet?
 Claude:  ran diagnostics → gateway WAN_DHCP is down, and a block rule on LAN matches this host
@@ -33,7 +33,7 @@ Claude:  ✓ created peer on tun_wg0  →  here's the client config to import
 
 **pfSense MCP Server** connects [Claude Desktop](https://claude.ai/download), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and any other [MCP](https://modelcontextprotocol.io) client to your pfSense firewall. Ask questions, diagnose issues, and change configuration through conversation — with a confirmation gate, config backup, and rollback on every destructive action.
 
-Letting an AI touch a production firewall is only safe if the plumbing is right, so that's where the work went: every tool's wire format is verified against the pfSense REST API schema by a contract-test layer, and every change runs through a guardrail pipeline. 612 tests plus a wire-protocol E2E suite in CI on Python 3.11–3.13.
+Letting an AI touch a production firewall is only safe if the plumbing is right, so that's where the work went: every tool's wire format is verified against the pfSense REST API schema by a contract-test layer, and every change runs through a guardrail pipeline. 661 tests plus a wire-protocol E2E suite in CI on Python 3.11–3.13.
 
 > [!TIP]
 > Jump to the [Quick Start](#quick-start) — about two minutes with `uvx`, no clone required. And if this saves you a trip through the pfSense web UI, a ⭐ helps others find it.
@@ -59,7 +59,7 @@ Managing a pfSense firewall means clicking through web UI tabs, remembering fiel
 
 **What makes it different:**
 - Every destructive operation requires explicit confirmation and shows you exactly what will happen
-- Config backup before every delete/reboot — with a one-line rollback command (and an explicit warning if a backup point can't be captured)
+- Config revision captured before every delete/reboot, with the revision ID to restore from Config History in the webGUI (and an explicit warning if a backup point can't be captured)
 - Rate limiting on every mutating tool prevents runaway AI loops from flooding your firewall
 - Positive input validation (IP/port/MAC/CIDR) plus path-traversal/XSS screening, and secrets redacted from logs *and* API error responses
 - Wire-format verified against the pfSense REST API v2.10.2 schema by a contract-test layer, so tools send exactly what the API expects
@@ -148,7 +148,7 @@ firewall rules — treat that credential accordingly.
 
 ## What You Can Do
 
-334 tools across every major pfSense subsystem:
+332 tools across every major pfSense subsystem:
 
 | Domain | Tools | What You Can Do |
 |---|:---:|---|
@@ -157,12 +157,12 @@ firewall rules — treat that credential accordingly.
 | **NAT** | 16 | Port forwards, outbound NAT, 1:1 NAT — full lifecycle management. |
 | **VPN** | 51 | OpenVPN servers and clients, IPsec tunnels, WireGuard peers — CRUD, status, apply. |
 | **Routing** | 16 | Gateways, gateway groups, static routes, default gateway management. |
-| **DNS** | 24 | Unbound resolver and dnsmasq forwarder: host overrides, domain overrides, access lists. |
+| **DNS** | 23 | Unbound resolver and dnsmasq forwarder: host overrides, domain overrides, access lists. |
 | **DHCP** | 17 | Leases, static mappings, address pools, custom options, server config. |
 | **Certificates** | 15 | Certs, CAs, CRLs — generate, renew, export PKCS12. |
 | **Users** | 12 | User accounts, groups, LDAP/RADIUS auth server config. |
 | **Interfaces** | 14 | Interface config, VLANs, bridges, groups. |
-| **System** | 44 | Status, settings, diagnostics, state table, config history, reboot, ping. |
+| **System** | 43 | Status, settings, diagnostics, state table, config history, reboot, ping. |
 | **Services** | 14 | Start/stop/restart services. NTP, cron, SSH, service watchdog. |
 | **Logs** | 4 | Firewall log analysis with parsed IPv4/IPv6 filterlog data. Raw tail/grep reads of the dhcpd/filter/resolver/system/auth log files. |
 | **Traffic Shaping** | 12 | Shapers, queues, and limiters for bandwidth management. |
@@ -192,16 +192,16 @@ AI managing a production firewall needs guardrails. This server has 9 layers:
 Response includes:
   "config_backup": {
     "pre_change_revision_id": 42,
-    "rollback_instruction": "restore_config_backup(revision_id=42, confirm=True)"
+    "rollback_instruction": "To undo this change, restore revision 42 manually in the pfSense webGUI: Diagnostics > Backup & Restore > Config History."
   }
 ```
 
-Every one of the 202 mutating tools carries a guardrail, enforced at registration by a meta-test so a new tool can't ship ungated: the 52 destructive (delete/reboot/halt) tools require `confirm=True`, and the other 150 (create/update/apply/manage/export/service-control) are rate-limited, audited, and allowlist-checked. Sensitive parameters (passwords, keys, PSKs, bind passwords, tokens) are redacted in the audit log **and** in echoed API error responses.
+Every one of the 201 mutating tools carries a guardrail, enforced at registration by a meta-test so a new tool can't ship ungated: the 51 destructive (delete/reboot/halt) tools require `confirm=True`, and the other 150 (create/update/apply/manage/export/service-control) are rate-limited, audited, and allowlist-checked. Sensitive parameters (passwords, keys, PSKs, bind passwords, tokens) are redacted in the audit log **and** in echoed API error responses.
 
 You can also:
 - Pass `dry_run=True` to preview any destructive operation without executing
 - Pass `verify_descr="Allow HTTPS"` to verify you're deleting the right rule (guards against ID shifts)
-- Set `MCP_READ_ONLY=true` to expose only the 132 read-only tools (search, get, diagnose)
+- Set `MCP_READ_ONLY=true` to expose only the 131 read-only tools (search, get, diagnose)
 - Set `MCP_ALLOWED_TOOLS=search_firewall_rules,get_firewall_log` to restrict to specific tools
 
 See [SECURITY.md](SECURITY.md) for the vulnerability-disclosure policy and deployment-hardening guidance.
@@ -304,6 +304,7 @@ environments that already run one.
 | `MCP_AUDIT_LOG` | — | Path to audit log file (JSON lines) |
 | `MCP_RATE_LIMIT_DELETE` | `10` | Max deletes per 60 seconds |
 | `MCP_RATE_LIMIT_CREATE` | `20` | Max creates per 60 seconds |
+| `MCP_RATE_LIMIT_UPDATE` | `30` | Max settings changes (`update_*`, `apply_*`, `enable_*`/`disable_*`) per 60 seconds |
 | `MCP_RATE_LIMIT_CRITICAL` | `2` | Max critical ops per 300 seconds |
 | `MCP_ALLOWED_TOOLS` | all | Comma-separated tool allowlist (applies to non-READ tools; `get_log_file` is controlled by `MCP_ENABLE_LOG_FILES`) |
 | `MCP_ROLLBACK_BUFFER` | `50` | Rollback entries kept in memory |
@@ -315,12 +316,18 @@ environments that already run one.
 
 By default the tools return JSON. Setting `RESPONSE_FORMAT=gcf` returns each eligible tool result as a single [Graph Compact Format](https://gcformat.com) block instead: the record arrays these read tools produce (firewall rules, aliases, DHCP leases, certificates, DNS records) have their repeated field names factored into one header, cutting the token cost when the result crosses the LLM boundary. Results that are not a single JSON body — or that GCF would not shrink — stay JSON (see below).
 
-Install the optional extra and set the variable:
+Install the optional extra into the server's environment and set the variable:
 
 ```bash
-pip install 'pfsense-mcp-server[gcf]'
+pip install '.[gcf]'        # from a clone of this repo
 export RESPONSE_FORMAT=gcf
+
+# or, with uvx (the extra must go into uvx's isolated tool environment):
+RESPONSE_FORMAT=gcf uvx --with 'gcf-python[fastmcp]==2.7.1' \
+  --from git+https://github.com/gensecaihq/pfsense-mcp-server pfsense-mcp-server
 ```
+
+> **Not on PyPI.** The PyPI package named `pfsense-mcp-server` is an unrelated project. Install this server from a clone or with `uvx --from git+https://github.com/gensecaihq/pfsense-mcp-server`, never `pip install pfsense-mcp-server`.
 
 It is opt-in and conservative — GCF is used only when it is both smaller than the JSON and a verified lossless round-trip, otherwise the JSON is kept, so no record is ever dropped or altered. `structuredContent` is preserved, so output-schema validation and non-model clients keep receiving JSON. If the `gcf` extra is not installed, the server logs a warning and continues with JSON.
 
@@ -335,7 +342,7 @@ Token savings on representative 30-record results (o200k tokens, lossless; repro
 ## Testing
 
 ```bash
-python3 -m pytest tests/ -v          # 612 tests
+python3 -m pytest tests/ -v          # 661 tests
 python3 -m pytest tests/ --cov=src   # with coverage (~48%)
 ```
 
@@ -350,7 +357,7 @@ both transports, in CI on every push:
 make test-e2e            # or: ./scripts/inspector_smoke.sh  (needs node/npx, jq)
 ```
 
-It verifies the initialize handshake, the 334-tool listing with annotations,
+It verifies the initialize handshake, the 332-tool listing with annotations,
 the guardrail confirm-gate over the wire, read-only mode, and HTTP bearer-auth
 plus Origin enforcement — no pfSense instance required.
 
@@ -358,7 +365,7 @@ plus Origin enforcement — no pfSense instance required.
 
 Compliant with [MCP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25) — the newest revision with stable SDK support — and negotiates down to older revisions per connection, so existing clients keep working:
 
-- `ToolAnnotations` on all 334 tools (readOnlyHint, destructiveHint, idempotentHint)
+- `ToolAnnotations` on all 332 tools (readOnlyHint, destructiveHint, idempotentHint)
 - `serverInfo.version` and `instructions` provided
 - Origin header validation (MUST requirement)
 - Bearer token auth with timing-safe comparison
@@ -382,12 +389,12 @@ src/
   helpers.py           Validation, parsing, pagination, safety guards
   models.py            Data models
   middleware.py        HTTP bearer auth + Origin validation + /health
-  tools/               34 tool modules (334 tools)
+  tools/               34 tool modules (332 tools)
 scripts/
   generate_contract.py Regenerate the wire contract from an OpenAPI spec
   generate_token.py    Generate a secure MCP_API_KEY bearer token
   inspector_smoke.sh   End-to-end MCP protocol smoke test (MCP Inspector CLI)
-tests/                 612 tests (incl. tests/contract/ wire-contract suite)
+tests/                 661 tests (incl. tests/contract/ wire-contract suite)
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the request lifecycle, guardrail
