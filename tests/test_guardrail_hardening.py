@@ -42,3 +42,9 @@ class TestRollbackHonesty:
         # the "unavailable" warning is not.
         assert "config_backup" in result
         assert "config_backup_warning" not in result
+        # The REST API has no restore endpoint, so the instruction must point at
+        # the manual webGUI path, never at a tool (restore_config_backup was
+        # removed in v1.1.0 because it could not work).
+        instruction = result["config_backup"]["rollback_instruction"]
+        assert "42" in instruction and "Config History" in instruction
+        assert "restore_config_backup" not in instruction

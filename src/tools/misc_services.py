@@ -552,7 +552,8 @@ async def update_ssh_settings(
         if port is not None:
             if port < 1 or port > 65535:
                 return {"success": False, "error": "port must be between 1 and 65535"}
-            updates["port"] = port
+            # Upstream models the SSH port as a string field; an int is a 400.
+            updates["port"] = str(port)
         if sshdkeyonly is not None:
             updates["sshdkeyonly"] = sshdkeyonly
 

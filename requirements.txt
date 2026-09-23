@@ -1,9 +1,9 @@
 # Core FastMCP framework (brings httpx, uvicorn, starlette).
 # 3.x declares its dependencies correctly (pydantic-settings, mcp<2.0),
 # so the 2.14.0-era workaround pins are gone. Capped below 4.0: fastmcp 4
-# (MCP spec 2026-07-28, mcp SDK 2.x) is still in beta — flip the cap when
-# 4.0 is stable to gain the sessionless protocol with per-connection
-# fallback for older clients.
+# (MCP spec 2026-07-28, mcp SDK 2.x) is stable as of 4.0.5 and CI already
+# probes it; lifting the cap (sessionless protocol with per-connection
+# fallback for older clients) is a planned major change, not a bump.
 fastmcp>=3.4.7,<4.0
 
 # Direct dependency: src/tools/* import mcp.types.ToolAnnotations.

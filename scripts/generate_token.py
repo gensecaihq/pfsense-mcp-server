@@ -6,7 +6,6 @@ This script generates a secure random token suitable for that purpose.
 """
 
 import secrets
-import sys
 
 
 def main():

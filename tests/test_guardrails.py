@@ -123,7 +123,18 @@ class TestApprovalRequest:
 class TestRateLimiting:
     def test_allows_normal_usage(self):
         assert check_rate_limit("search_firewall_rules") is None  # read = no limit
-        assert check_rate_limit("update_system_dns") is None  # low = no limit
+        assert check_rate_limit("update_system_dns") is None  # low, under the cap
+
+    def test_low_risk_settings_changes_are_limited(self):
+        # LOW covers lockout-capable PATCHes (webGUI port, SSH, WAN); a loop
+        # past MCP_RATE_LIMIT_UPDATE (default 30/60s) must be refused, not
+        # run unmetered as it did before v1.1.0.
+        results = [check_rate_limit("update_webgui_settings") for _ in range(31)]
+        assert all(r is None for r in results[:30])
+        assert results[30] is not None and "update" in results[30]
+
+    def test_reads_are_never_limited(self):
+        assert all(check_rate_limit("get_system_status") is None for _ in range(100))
 
     def test_critical_limited(self):
         # Critical ops have a very low limit (2 per 300s)

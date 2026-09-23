@@ -41,24 +41,33 @@ async def get_system_dns() -> Dict:
 @rate_limited
 async def update_system_dns(
     dnsserver: Optional[List[str]] = None,
-    dnslocalhost: Optional[bool] = None,
+    dnslocalhost: Optional[str] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Update system DNS server settings
 
     Args:
         dnsserver: Array of DNS server IP addresses (e.g., ["8.8.8.8", "1.1.1.1"])
-        dnslocalhost: Whether to use the local DNS resolver (Unbound) as the primary DNS
+        dnslocalhost: DNS resolution behavior — 'local' (use only the local
+            resolver, 127.0.0.1) or 'remote' (use only the remote servers).
+            Omit to leave the current behavior unchanged.
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
     try:
-        updates: Dict[str, Union[List, bool]] = {}
+        updates: Dict[str, Union[List, str]] = {}
 
         if dnsserver is not None:
             updates["dnsserver"] = dnsserver
         if dnslocalhost is not None:
-            updates["dnslocalhost"] = dnslocalhost
+            # Upstream is an enum, not a bool: a bool here was a 400.
+            mode = dnslocalhost.strip().lower()
+            if mode not in ("local", "remote"):
+                return {
+                    "success": False,
+                    "error": "dnslocalhost must be 'local' or 'remote'",
+                }
+            updates["dnslocalhost"] = mode
 
         if not updates:
             return {"success": False, "error": "No fields to update - provide dnsserver and/or dnslocalhost"}

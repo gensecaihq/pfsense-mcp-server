@@ -55,3 +55,24 @@ async def test_mcp_with_valid_token_reaches_app():
     headers = [(b"authorization", f"Bearer {_TOKEN}".encode())]
     await _drive(mw, "/mcp", headers=headers)
     assert reached["v"] is True
+
+
+async def test_non_ascii_token_is_401_not_500():
+    # hmac.compare_digest raises TypeError on non-ASCII str; the middleware
+    # must compare bytes so a junk token is a clean 401.
+    async def app(scope, receive, send):
+        raise AssertionError("app should not be reached with a bad token")
+
+    mw = BearerAuthMiddleware(app, _TOKEN)
+    for raw in ("Bearer tökén".encode(), b"Bearer \xff\xfe"):
+        sent, _ = await _drive(mw, "/mcp", headers=[(b"authorization", raw)])
+        assert _status(sent) == 401
+
+
+async def test_undecodable_origin_does_not_crash():
+    async def app(scope, receive, send):
+        raise AssertionError("app should not be reached")
+
+    mw = BearerAuthMiddleware(app, _TOKEN)
+    sent, _ = await _drive(mw, "/mcp", headers=[(b"origin", b"http://\xff")])
+    assert _status(sent) in (401, 403)

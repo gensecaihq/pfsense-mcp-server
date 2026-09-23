@@ -5,9 +5,6 @@ from typing import Dict, Optional
 
 from mcp.types import ToolAnnotations
 
-# ---------------------------------------------------------------------------
-# Settings
-# ---------------------------------------------------------------------------
 from ..guardrails import guarded, rate_limited
 from ..helpers import (
     create_default_sort,
@@ -18,25 +15,6 @@ from ..helpers import (
 )
 from ..models import ControlParameters, QueryFilter
 from ..server import get_api_client, logger, mcp
-
-
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
-async def get_dns_forwarder_settings() -> Dict:
-    """Get the DNS Forwarder (dnsmasq) service settings"""
-    client = get_api_client()
-    try:
-        result = await client.crud_get_settings("/services/dns_forwarder/settings")
-
-        return {
-            "success": True,
-            "settings": result.get("data", result),
-            "links": client.extract_links(result),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-    except Exception as e:
-        logger.error(f"Failed to get DNS forwarder settings: {e}")
-        return {"success": False, "error": str(e)}
-
 
 # ---------------------------------------------------------------------------
 # Host Overrides

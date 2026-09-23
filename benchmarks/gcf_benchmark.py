@@ -5,7 +5,7 @@ leases). GCF's generic profile factors the repeated field names into one header,
 so the token cost drops on larger result sets. Every payload here round-trips
 losslessly through GCF.
 
-    pip install 'pfsense-mcp-server[gcf]' tiktoken
+    pip install '.[gcf]' tiktoken    # from a clone of this repo
     python benchmarks/gcf_benchmark.py
 """
 

@@ -7,6 +7,7 @@ from src.helpers import (
     MAX_OFFSET,
     MAX_PAGE,
     create_pagination,
+    env_bool,
     field_contains,
     normalize_mac_address,
     parse_filterlog_entry,
@@ -333,3 +334,41 @@ class TestFilterlogIpValidation:
         result = parse_filterlog_entry(line)
         assert result["src_ip"] == "10.0.0.1"
         assert result["dst_ip"] == "10.0.0.2"
+
+
+# ---------------------------------------------------------------------------
+# env_bool — strict boolean env parsing
+# ---------------------------------------------------------------------------
+
+
+class TestEnvBool:
+    @pytest.mark.parametrize("raw", ["true", "TRUE", " 1 ", "yes", "On"])
+    def test_true_spellings(self, monkeypatch, raw):
+        monkeypatch.setenv("X_FLAG", raw)
+        assert env_bool("X_FLAG", False) is True
+
+    @pytest.mark.parametrize("raw", ["false", "0", "No", "off "])
+    def test_false_spellings(self, monkeypatch, raw):
+        monkeypatch.setenv("X_FLAG", raw)
+        assert env_bool("X_FLAG", True) is False
+
+    @pytest.mark.parametrize("raw", [None, "", "   "])
+    def test_unset_or_empty_uses_default(self, monkeypatch, raw):
+        if raw is None:
+            monkeypatch.delenv("X_FLAG", raising=False)
+        else:
+            monkeypatch.setenv("X_FLAG", raw)
+        assert env_bool("X_FLAG", True) is True
+        assert env_bool("X_FLAG", False) is False
+
+    @pytest.mark.parametrize("raw", ["ture", "enabled", "2", "y"])
+    def test_unknown_value_raises_instead_of_guessing(self, monkeypatch, raw):
+        # Before v1.1.0, VERIFY_SSL=1 silently *disabled* TLS verification
+        # because only the exact string "true" counted.
+        monkeypatch.setenv("VERIFY_SSL", raw)
+        with pytest.raises(ValueError, match="VERIFY_SSL"):
+            env_bool("VERIFY_SSL", True)
+
+    def test_verify_ssl_one_keeps_verification_on(self, monkeypatch):
+        monkeypatch.setenv("VERIFY_SSL", "1")
+        assert env_bool("VERIFY_SSL", True) is True

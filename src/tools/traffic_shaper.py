@@ -1,7 +1,7 @@
 """Traffic shaper tools for pfSense MCP server."""
 
 from datetime import datetime, timezone
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from mcp.types import ToolAnnotations
 
@@ -509,6 +509,33 @@ async def search_traffic_limiters(
         return {"success": False, "error": str(e)}
 
 
+_LIMITER_SCHEDULERS = ("wf2q+", "fifo", "qfq", "rr", "prio", "fq_codel", "fq_pie")
+_LIMITER_AQMS = ("droptail", "codel", "pie", "red", "gred")
+_LIMITER_MASKS = ("none", "srcaddress", "dstaddress")
+
+
+def _limiter_bandwidth(bandwidth: int, bandwidthtype: str) -> List[Dict]:
+    """Build the upstream ``bandwidth`` array ([{bw, bwscale}]).
+
+    Upstream accepts only b/Kb/Mb; Gb is converted to Mb so the documented
+    unit keeps working. Raises ValueError on a bad value or unit.
+    """
+    if bandwidth <= 0:
+        raise ValueError("bandwidth must be a positive integer")
+    unit = bandwidthtype.strip().lower()
+    if unit == "gb":
+        return [{"bw": bandwidth * 1000, "bwscale": "Mb"}]
+    scales = {"b": "b", "kb": "Kb", "mb": "Mb"}
+    if unit not in scales:
+        raise ValueError("bandwidthtype must be one of: b, Kb, Mb, Gb")
+    return [{"bw": bandwidth, "bwscale": scales[unit]}]
+
+
+def _check_choice(name: str, value: Optional[str], choices: tuple) -> None:
+    if value is not None and value not in choices:
+        raise ValueError(f"{name} must be one of: {', '.join(choices)}")
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
 @rate_limited
 async def create_traffic_limiter(
@@ -519,6 +546,8 @@ async def create_traffic_limiter(
     maskbits: Optional[int] = None,
     descr: Optional[str] = None,
     enabled: bool = True,
+    sched: str = "wf2q+",
+    aqm: str = "droptail",
     apply_immediately: bool = True,
 ) -> Dict:
     """Create a traffic limiter (dummynet pipe)
@@ -526,20 +555,28 @@ async def create_traffic_limiter(
     Args:
         name: Limiter name
         bandwidth: Bandwidth value
-        bandwidthtype: Bandwidth unit (Kb, Mb, Gb, b)
+        bandwidthtype: Bandwidth unit (b, Kb, Mb, Gb — Gb is sent as Mb)
         mask: Mask type (none, srcaddress, dstaddress)
         maskbits: Mask bits for per-host limiting
         descr: Optional description
         enabled: Whether the limiter is enabled
+        sched: Scheduler (wf2q+, fifo, qfq, rr, prio, fq_codel, fq_pie)
+        aqm: Queue management algorithm (droptail, codel, pie, red, gred)
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
     try:
-        limiter_data: Dict[str, Union[str, int, bool]] = {
+        _check_choice("mask", mask, _LIMITER_MASKS)
+        _check_choice("sched", sched, _LIMITER_SCHEDULERS)
+        _check_choice("aqm", aqm, _LIMITER_AQMS)
+        # sched and aqm are required on create upstream; bandwidth is an
+        # array of {bw, bwscale} rows, not a scalar plus a unit field.
+        limiter_data: Dict = {
             "name": name,
-            "bandwidth": bandwidth,
-            "bandwidthtype": bandwidthtype,
+            "bandwidth": _limiter_bandwidth(bandwidth, bandwidthtype),
             "enabled": enabled,
+            "sched": sched,
+            "aqm": aqm,
         }
 
         if mask:
@@ -547,7 +584,7 @@ async def create_traffic_limiter(
         if maskbits is not None:
             limiter_data["maskbits"] = maskbits
         if descr:
-            limiter_data["descr"] = sanitize_description(descr)
+            limiter_data["description"] = sanitize_description(descr)
 
         control = ControlParameters(apply=apply_immediately)
         result = await client.crud_create("/firewall/traffic_shaper/limiter", limiter_data, control)
@@ -560,6 +597,8 @@ async def create_traffic_limiter(
             "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
     except Exception as e:
         logger.error(f"Failed to create traffic limiter: {e}")
         return {"success": False, "error": str(e)}
@@ -576,6 +615,8 @@ async def update_traffic_limiter(
     maskbits: Optional[int] = None,
     descr: Optional[str] = None,
     enabled: Optional[bool] = None,
+    sched: Optional[str] = None,
+    aqm: Optional[str] = None,
     apply_immediately: bool = True,
 ) -> Dict:
     """Update an existing traffic limiter by ID
@@ -583,33 +624,39 @@ async def update_traffic_limiter(
     Args:
         limiter_id: Traffic limiter ID (from search_traffic_limiters)
         name: Limiter name
-        bandwidth: Bandwidth value
-        bandwidthtype: Bandwidth unit (Kb, Mb, Gb, b)
+        bandwidth: Bandwidth value (pass together with bandwidthtype; replaces
+            the limiter's bandwidth list with this single value)
+        bandwidthtype: Bandwidth unit (b, Kb, Mb, Gb — Gb is sent as Mb)
         mask: Mask type (none, srcaddress, dstaddress)
         maskbits: Mask bits for per-host limiting
         descr: Description
         enabled: Whether the limiter is enabled
+        sched: Scheduler (wf2q+, fifo, qfq, rr, prio, fq_codel, fq_pie)
+        aqm: Queue management algorithm (droptail, codel, pie, red, gred)
         apply_immediately: Whether to apply changes immediately
     """
     client = get_api_client()
     try:
-        params = {
-            "name": name,
-            "bandwidth": bandwidth,
-            "bandwidthtype": bandwidthtype,
-            "mask": mask,
-            "maskbits": maskbits,
-            "descr": descr,
-            "enabled": enabled,
-        }
+        _check_choice("mask", mask, _LIMITER_MASKS)
+        _check_choice("sched", sched, _LIMITER_SCHEDULERS)
+        _check_choice("aqm", aqm, _LIMITER_AQMS)
+        if (bandwidth is None) != (bandwidthtype is None):
+            return {
+                "success": False,
+                "error": "bandwidth and bandwidthtype must be given together",
+            }
 
-        updates: Dict[str, Union[str, int, bool]] = {}
-        for param_name, value in params.items():
+        updates: Dict = {}
+        if bandwidth is not None and bandwidthtype is not None:
+            updates["bandwidth"] = _limiter_bandwidth(bandwidth, bandwidthtype)
+        for field, value in (
+            ("name", name), ("mask", mask), ("maskbits", maskbits),
+            ("enabled", enabled), ("sched", sched), ("aqm", aqm),
+        ):
             if value is not None:
-                if param_name == "descr" and isinstance(value, str):
-                    updates[param_name] = sanitize_description(value)
-                else:
-                    updates[param_name] = value
+                updates[field] = value
+        if descr is not None:
+            updates["description"] = sanitize_description(descr)
 
         if not updates:
             return {"success": False, "error": "No fields to update - provide at least one field"}
@@ -627,6 +674,8 @@ async def update_traffic_limiter(
             "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
     except Exception as e:
         logger.error(f"Failed to update traffic limiter: {e}")
         return {"success": False, "error": str(e)}

@@ -5,7 +5,10 @@ services:
     container_name: pfsense-mcp-server
     restart: unless-stopped
     ports:
-      - "${MCP_PORT:-3000}:3000"
+      # Host side binds loopback by default: the MCP transport is plain HTTP,
+      # so exposing it on every interface sends the bearer token in cleartext
+      # across the LAN. Set MCP_BIND_ADDR=0.0.0.0 only behind a TLS proxy.
+      - "${MCP_BIND_ADDR:-127.0.0.1}:${MCP_PORT:-3000}:3000"
     environment:
       # pfSense connection
       PFSENSE_URL: ${PFSENSE_URL}
@@ -15,6 +18,9 @@ services:
       PFSENSE_USERNAME: ${PFSENSE_USERNAME:-}
       PFSENSE_PASSWORD: ${PFSENSE_PASSWORD:-}
       VERIFY_SSL: ${VERIFY_SSL:-true}
+      # Private CA for the pfSense certificate (keeps verification on). Put the
+      # PEM in ./certs and set PFSENSE_CA_FILE=/certs/<file>.pem.
+      PFSENSE_CA_FILE: ${PFSENSE_CA_FILE:-}
       # MCP bearer token auth (required for HTTP mode)
       MCP_API_KEY: ${MCP_API_KEY}
       # Transport mode
@@ -31,6 +37,7 @@ services:
       MCP_AUDIT_LOG: /logs/mcp-audit.jsonl
       MCP_RATE_LIMIT_DELETE: ${MCP_RATE_LIMIT_DELETE:-10}
       MCP_RATE_LIMIT_CREATE: ${MCP_RATE_LIMIT_CREATE:-20}
+      MCP_RATE_LIMIT_UPDATE: ${MCP_RATE_LIMIT_UPDATE:-30}
       MCP_RATE_LIMIT_CRITICAL: ${MCP_RATE_LIMIT_CRITICAL:-2}
       MCP_ROLLBACK_BUFFER: ${MCP_ROLLBACK_BUFFER:-50}
       MCP_ALLOWED_TOOLS: ${MCP_ALLOWED_TOOLS:-}
@@ -38,6 +45,7 @@ services:
     command: ["-t", "streamable-http"]
     volumes:
       - ./logs:/logs:rw
+      - ./certs:/certs:ro
     # Security hardening per MCP spec best practices
     security_opt:
       - no-new-privileges:true

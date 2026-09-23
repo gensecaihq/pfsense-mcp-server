@@ -17,8 +17,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PYTHON="${PYTHON:-python3}"
-EXPECTED_TOOLS=334
-EXPECTED_READONLY=132
+EXPECTED_TOOLS=332
+EXPECTED_READONLY=131
 HTTP_PORT="${SMOKE_HTTP_PORT:-3999}"
 TOKEN="inspector-smoke-test-token-0123456789"
 

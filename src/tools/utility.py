@@ -338,6 +338,7 @@ async def get_guardrail_status() -> Dict:
             "rate_limits": {
                 "delete_ops": "10 per 60s (MCP_RATE_LIMIT_DELETE)",
                 "create_ops": "20 per 60s (MCP_RATE_LIMIT_CREATE)",
+                "update_ops": "30 per 60s (MCP_RATE_LIMIT_UPDATE)",
                 "critical_ops": "2 per 300s (MCP_RATE_LIMIT_CRITICAL)",
             },
         },
