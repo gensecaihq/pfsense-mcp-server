@@ -12,7 +12,7 @@
 [![MCP 2025-11-25](https://img.shields.io/badge/MCP-2025--11--25-6E56CF.svg)](https://modelcontextprotocol.io)
 [![pfSense API v2.10.2](https://img.shields.io/badge/pfSense%20API-v2.10.2-orange.svg)](https://pfrest.org/)
 [![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-3776AB.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-659%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-661%20passing-brightgreen.svg)](#testing)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -33,7 +33,7 @@ Claude:  ✓ created peer on tun_wg0  →  here's the client config to import
 
 **pfSense MCP Server** connects [Claude Desktop](https://claude.ai/download), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and any other [MCP](https://modelcontextprotocol.io) client to your pfSense firewall. Ask questions, diagnose issues, and change configuration through conversation — with a confirmation gate, config backup, and rollback on every destructive action.
 
-Letting an AI touch a production firewall is only safe if the plumbing is right, so that's where the work went: every tool's wire format is verified against the pfSense REST API schema by a contract-test layer, and every change runs through a guardrail pipeline. 659 tests plus a wire-protocol E2E suite in CI on Python 3.11–3.13.
+Letting an AI touch a production firewall is only safe if the plumbing is right, so that's where the work went: every tool's wire format is verified against the pfSense REST API schema by a contract-test layer, and every change runs through a guardrail pipeline. 661 tests plus a wire-protocol E2E suite in CI on Python 3.11–3.13.
 
 > [!TIP]
 > Jump to the [Quick Start](#quick-start) — about two minutes with `uvx`, no clone required. And if this saves you a trip through the pfSense web UI, a ⭐ helps others find it.
@@ -59,7 +59,7 @@ Managing a pfSense firewall means clicking through web UI tabs, remembering fiel
 
 **What makes it different:**
 - Every destructive operation requires explicit confirmation and shows you exactly what will happen
-- Config backup before every delete/reboot — with a one-line rollback command (and an explicit warning if a backup point can't be captured)
+- Config revision captured before every delete/reboot, with the revision ID to restore from Config History in the webGUI (and an explicit warning if a backup point can't be captured)
 - Rate limiting on every mutating tool prevents runaway AI loops from flooding your firewall
 - Positive input validation (IP/port/MAC/CIDR) plus path-traversal/XSS screening, and secrets redacted from logs *and* API error responses
 - Wire-format verified against the pfSense REST API v2.10.2 schema by a contract-test layer, so tools send exactly what the API expects
@@ -320,8 +320,11 @@ Install the optional extra into the server's environment and set the variable:
 
 ```bash
 pip install '.[gcf]'        # from a clone of this repo
-# or, for a uvx/git install:  pip install 'gcf-python[fastmcp]==2.7.1'
 export RESPONSE_FORMAT=gcf
+
+# or, with uvx (the extra must go into uvx's isolated tool environment):
+RESPONSE_FORMAT=gcf uvx --with 'gcf-python[fastmcp]==2.7.1' \
+  --from git+https://github.com/gensecaihq/pfsense-mcp-server pfsense-mcp-server
 ```
 
 > **Not on PyPI.** The PyPI package named `pfsense-mcp-server` is an unrelated project. Install this server from a clone or with `uvx --from git+https://github.com/gensecaihq/pfsense-mcp-server`, never `pip install pfsense-mcp-server`.
@@ -339,7 +342,7 @@ Token savings on representative 30-record results (o200k tokens, lossless; repro
 ## Testing
 
 ```bash
-python3 -m pytest tests/ -v          # 659 tests
+python3 -m pytest tests/ -v          # 661 tests
 python3 -m pytest tests/ --cov=src   # with coverage (~48%)
 ```
 
@@ -391,7 +394,7 @@ scripts/
   generate_contract.py Regenerate the wire contract from an OpenAPI spec
   generate_token.py    Generate a secure MCP_API_KEY bearer token
   inspector_smoke.sh   End-to-end MCP protocol smoke test (MCP Inspector CLI)
-tests/                 659 tests (incl. tests/contract/ wire-contract suite)
+tests/                 661 tests (incl. tests/contract/ wire-contract suite)
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the request lifecycle, guardrail

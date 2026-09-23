@@ -272,7 +272,17 @@ async def search_bind_zone_records(
                 or field_contains(r, "rdata", term_lower)
             ]
 
-        records.sort(key=lambda r: str(r.get(sort_by) or ""))
+        def _sort_key(r: Dict):
+            # Numeric fields (priority) must sort numerically — as strings
+            # "10" < "2" — and missing values go last either way.
+            v = r.get(sort_by)
+            if v is None or v == "":
+                return (2, 0, "")
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                return (0, v, "")
+            return (1, 0, str(v).lower())
+
+        records.sort(key=_sort_key)
         total = len(records)
         page = max(1, page)
         page_size = max(1, min(page_size, 200))

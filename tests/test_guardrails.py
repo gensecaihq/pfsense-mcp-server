@@ -264,3 +264,12 @@ class TestCheckGuardrails:
         )
         assert result is not None
         assert "unsafe" in result["error"].lower()
+
+
+async def test_guardrail_status_reports_effective_limits(monkeypatch):
+    from src import guardrails
+    from src.tools.utility import get_guardrail_status
+
+    monkeypatch.setattr(guardrails._update_limiter, "max_ops", 7)
+    result = await get_guardrail_status()
+    assert result["guardrails"]["rate_limits"]["update_ops"].startswith("7 per 60s")

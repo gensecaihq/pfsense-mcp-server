@@ -108,3 +108,12 @@ class TestBindZoneRecords:
         assert (method, endpoint) == ("GET", "/services/bind/zone")
         assert [r["name"] for r in result["records"]] == ["api", "www"]
         assert result["total_matches"] == 2
+
+    async def test_priority_sorts_numerically(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {"id": 2, "records": [
+            {"name": "mx2", "type": "MX", "priority": 10},
+            {"name": "mx1", "type": "MX", "priority": 2},
+            {"name": "www", "type": "A"},
+        ]}}
+        result = await search_bind_zone_records(parent_id=2, sort_by="priority")
+        assert [r["name"] for r in result["records"]] == ["mx1", "mx2", "www"]

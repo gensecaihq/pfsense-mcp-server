@@ -327,7 +327,19 @@ async def get_guardrail_status() -> Dict:
     Shows risk classification for tools, rate limits, allowlist status,
     and recent rollback entries for destructive operations.
     """
-    from ..guardrails import _AUDIT_LOG_PATH, ALLOWED_TOOLS
+    from ..guardrails import (
+        _AUDIT_LOG_PATH,
+        ALLOWED_TOOLS,
+        _create_limiter,
+        _critical_limiter,
+        _delete_limiter,
+        _update_limiter,
+    )
+
+    def _limit(limiter, env_name: str) -> str:
+        # Report the effective limit, not the default, so an operator who set
+        # the env var sees what is actually enforced.
+        return f"{limiter.max_ops} per {limiter.window_seconds}s ({env_name})"
 
     return {
         "success": True,
@@ -336,10 +348,10 @@ async def get_guardrail_status() -> Dict:
             "allowed_tools_count": len(ALLOWED_TOOLS) if ALLOWED_TOOLS else "all",
             "audit_log_path": _AUDIT_LOG_PATH or "disabled (set MCP_AUDIT_LOG to enable)",
             "rate_limits": {
-                "delete_ops": "10 per 60s (MCP_RATE_LIMIT_DELETE)",
-                "create_ops": "20 per 60s (MCP_RATE_LIMIT_CREATE)",
-                "update_ops": "30 per 60s (MCP_RATE_LIMIT_UPDATE)",
-                "critical_ops": "2 per 300s (MCP_RATE_LIMIT_CRITICAL)",
+                "delete_ops": _limit(_delete_limiter, "MCP_RATE_LIMIT_DELETE"),
+                "create_ops": _limit(_create_limiter, "MCP_RATE_LIMIT_CREATE"),
+                "update_ops": _limit(_update_limiter, "MCP_RATE_LIMIT_UPDATE"),
+                "critical_ops": _limit(_critical_limiter, "MCP_RATE_LIMIT_CRITICAL"),
             },
         },
         "recent_rollback_entries": get_rollback_history(limit=10),

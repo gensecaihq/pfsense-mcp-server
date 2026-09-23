@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Least privilege for the GITHUB_TOKEN: no job writes to the repo.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -88,9 +92,10 @@ jobs:
 
   # Forward-compat probe: fastmcp 4 (MCP spec 2026-07-28, mcp SDK 2.x) is
   # stable (4.0.5+), but the release pin stays on 3.x until the migration is
-  # made deliberately. This job proves the codebase already runs on 4.x, so
-  # the move is a pin change. Failures signal upstream churn to investigate —
-  # they do not block merges.
+  # made deliberately. This job proves the suite and the handshake-based
+  # Inspector smoke pass on 4.x; sessionless (2026-07-28, no initialize)
+  # requests are not exercised yet, so the migration needs that coverage
+  # first. Failures signal upstream churn — they do not block merges.
   test-fastmcp-4-beta:
     runs-on: ubuntu-latest
     continue-on-error: true
