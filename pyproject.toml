@@ -49,6 +49,11 @@ Changelog = "https://github.com/gensecaihq/pfsense-mcp-server/blob/main/CHANGELO
 pfsense-mcp-server = "src.main:main"
 
 [project.optional-dependencies]
+# Optional GCF (Graph Compact Format) response encoding, enabled via
+# RESPONSE_FORMAT=gcf. Pulls in gcf-python and its FastMCP middleware.
+gcf = [
+    "gcf-python[fastmcp]==2.7.1",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",

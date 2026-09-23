@@ -26,7 +26,7 @@ class TestStaticMappingLeaseTimes:
 
     async def test_update_sends_contract_field_names(self, mock_client, mock_make_request):
         mock_make_request.side_effect = [
-            {"data": [{"id": 0, "parent_id": "lan"}]},
+            {"data": [{"id": "lan", "staticmap": [{"id": 0, "parent_id": "lan"}]}]},
             {"data": {}},
         ]
         result = await update_dhcp_static_mapping(

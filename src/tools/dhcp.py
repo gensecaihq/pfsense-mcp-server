@@ -39,14 +39,21 @@ async def _lookup_mapping_parent_id(client, mapping_id: int) -> str:
     result = await client.get_dhcp_static_mappings(
         filters=[QueryFilter("id", str(mapping_id))]
     )
-    mappings = result.get("data") or []
-    for m in mappings:
-        if str(m.get("id")) == str(mapping_id):
-            pid = m.get("parent_id")
-            if pid:
-                return pid
-            raise ValueError(f"DHCP static mapping {mapping_id} has no parent_id")
-    raise ValueError(f"DHCP static mapping with ID {mapping_id} not found")
+    matches = [
+        m for m in (result.get("data") or [])
+        if str(m.get("id")) == str(mapping_id) and m.get("parent_id")
+    ]
+    if not matches:
+        raise ValueError(f"DHCP static mapping with ID {mapping_id} not found")
+    # IDs are per-interface array indices, so the same ID exists on every
+    # interface with enough mappings. Refuse to guess which one was meant.
+    parents = sorted({m["parent_id"] for m in matches})
+    if len(parents) > 1:
+        raise ValueError(
+            f"DHCP static mapping ID {mapping_id} is ambiguous — it exists on "
+            f"interfaces: {', '.join(parents)}. Pass the interface explicitly."
+        )
+    return parents[0]
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
@@ -134,7 +141,7 @@ async def search_dhcp_leases(
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False))
 async def search_dhcp_static_mappings(
-    interface: str = "lan",
+    interface: Optional[str] = None,
     mac_address: Optional[str] = None,
     hostname: Optional[str] = None,
     ip_address: Optional[str] = None,
@@ -145,7 +152,10 @@ async def search_dhcp_static_mappings(
     """Search DHCP static mappings (reservations) with filtering
 
     Args:
-        interface: DHCP server interface — required by pfSense API (default: lan)
+        interface: Restrict to one DHCP server interface (e.g. "lan", "opt1").
+                   Omit to search reservations across ALL interfaces — do that
+                   when looking a device up by MAC or IP, since a device may be
+                   reserved on any VLAN.
         mac_address: Filter by MAC address
         hostname: Filter by hostname (partial match)
         ip_address: Filter by IP address
@@ -187,25 +197,21 @@ async def search_dhcp_static_mappings(
                 "ip_address": ip_address,
             },
             "count": len(result.get("data") or []),
+            "total_matching": result.get("total"),
             "static_mappings": result.get("data") or [],
             "links": client.extract_links(result),
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
-    except Exception as e:
-        # 404 typically means DHCP is not enabled on the requested interface
-        if "404" in str(e) and interface:
-            return {
-                "success": True,
-                "page": page,
-                "page_size": page_size,
-                "filters_applied": {"interface": interface},
-                "count": 0,
-                "static_mappings": [],
-                "message": f"No DHCP static mappings found. DHCP may not be enabled on interface '{interface}'.",
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
+    except ValueError as e:
+        # Raised when the requested interface has no DHCP server configured.
+        # Reported as a failure, not an empty result set — an unanswerable
+        # query must never be indistinguishable from "zero matches".
+        # error_kind lets a caller tell a bad request from a broken server.
         logger.error(f"Failed to search DHCP static mappings: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error_kind": "unknown_interface", "error": str(e)}
+    except Exception as e:
+        logger.error(f"Failed to search DHCP static mappings: {e}")
+        return {"success": False, "error_kind": "api_error", "error": str(e)}
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False))
