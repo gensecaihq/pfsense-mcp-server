@@ -259,25 +259,51 @@ def nat_forwards_response():
 
 @pytest.fixture()
 def dhcp_static_mappings_response():
+    """Raw /services/dhcp_servers payload.
+
+    pfSense API v2 exposes no plural static_mappings collection; reservations
+    are only reachable as the `staticmap` array embedded in each DHCP server,
+    so this is what the client actually receives.
+    """
     return {
         "status": "ok",
         "code": 200,
         "data": [
             {
-                "id": 0,
-                "mac": "aa:bb:cc:dd:ee:01",
-                "ipaddr": "192.168.1.200",
-                "hostname": "server1",
-                "descr": "Web server reservation",
-                "parent_id": "lan",
+                "id": "lan",
+                "enable": True,
+                "staticmap": [
+                    {
+                        "id": 0,
+                        "mac": "aa:bb:cc:dd:ee:01",
+                        "ipaddr": "192.168.1.200",
+                        "hostname": "server1",
+                        "descr": "Web server reservation",
+                        "parent_id": "lan",
+                    },
+                    {
+                        "id": 1,
+                        "mac": "aa:bb:cc:dd:ee:02",
+                        "ipaddr": "192.168.1.201",
+                        "hostname": "server2",
+                        "descr": "DB server reservation",
+                        "parent_id": "lan",
+                    },
+                ],
             },
             {
-                "id": 1,
-                "mac": "aa:bb:cc:dd:ee:02",
-                "ipaddr": "192.168.1.201",
-                "hostname": "server2",
-                "descr": "DB server reservation",
-                "parent_id": "lan",
+                "id": "opt1",
+                "enable": True,
+                "staticmap": [
+                    {
+                        "id": 0,
+                        "mac": "aa:bb:cc:dd:ee:03",
+                        "ipaddr": "10.0.0.50",
+                        "hostname": "iot-device",
+                        "descr": "IoT VLAN reservation",
+                        "parent_id": "opt1",
+                    },
+                ],
             },
         ],
     }

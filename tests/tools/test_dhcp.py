@@ -103,63 +103,103 @@ class TestSearchDhcpLeases:
 # ---------------------------------------------------------------------------
 
 class TestSearchDhcpStaticMappings:
-    async def test_no_filters(self, mock_client, mock_make_request, dhcp_static_mappings_response):
+    async def test_no_filters_searches_all_interfaces(
+        self, mock_client, mock_make_request, dhcp_static_mappings_response
+    ):
+        """Unscoped search spans every DHCP server, not just LAN."""
         mock_make_request.return_value = dhcp_static_mappings_response
         result = await _search_dhcp_static_mappings()
         assert result["success"] is True
-        assert result["count"] == 2
+        assert result["count"] == 3
+        assert {m["parent_id"] for m in result["static_mappings"]} == {"lan", "opt1"}
 
-    async def test_interface_passed_as_extra_param(self, mock_client, mock_make_request, dhcp_static_mappings_response):
-        """Interface should be passed as parent_id query param, not a filter."""
+    async def test_reads_from_dhcp_servers_endpoint(
+        self, mock_client, mock_make_request, dhcp_static_mappings_response
+    ):
+        """Regression: the plural static_mappings endpoint returns 404 on pfSense."""
         mock_make_request.return_value = dhcp_static_mappings_response
-        result = await _search_dhcp_static_mappings(interface="lan")
+        await _search_dhcp_static_mappings(interface="lan")
+        assert mock_make_request.call_args[0][1] == "/services/dhcp_servers"
+
+    async def test_interface_scopes_results(
+        self, mock_client, mock_make_request, dhcp_static_mappings_response
+    ):
+        mock_make_request.return_value = dhcp_static_mappings_response
+        result = await _search_dhcp_static_mappings(interface="opt1")
         assert result["success"] is True
-        call_kwargs = mock_make_request.call_args
-        extra = call_kwargs.kwargs.get("extra_params") or call_kwargs[1].get("extra_params")
-        assert extra == {"parent_id": "lan"}
-        # Verify parent_id is NOT in filters
-        filters = call_kwargs.kwargs.get("filters") or call_kwargs[1].get("filters")
-        if filters:
-            assert not any(f.field == "parent_id" for f in filters)
+        assert result["count"] == 1
+        assert result["static_mappings"][0]["hostname"] == "iot-device"
 
     async def test_mac_filter(self, mock_client, mock_make_request, dhcp_static_mappings_response):
         mock_make_request.return_value = dhcp_static_mappings_response
         result = await _search_dhcp_static_mappings(mac_address="aa:bb:cc:dd:ee:01")
         assert result["success"] is True
-        call_kwargs = mock_make_request.call_args
-        filters = call_kwargs.kwargs.get("filters") or call_kwargs[1].get("filters")
-        assert any(f.field == "mac" for f in filters)
+        assert result["count"] == 1
+        assert result["static_mappings"][0]["hostname"] == "server1"
 
-    async def test_hostname_filter(self, mock_client, mock_make_request, dhcp_static_mappings_response):
+    async def test_mac_filter_across_interfaces(
+        self, mock_client, mock_make_request, dhcp_static_mappings_response
+    ):
+        """A MAC search with no interface must reach every DHCP server."""
+        mock_make_request.return_value = dhcp_static_mappings_response
+        result = await _search_dhcp_static_mappings(mac_address="aa:bb:cc:dd:ee:03")
+        assert result["count"] == 1
+        assert result["static_mappings"][0]["parent_id"] == "opt1"
+
+    async def test_hostname_filter_is_partial_match(
+        self, mock_client, mock_make_request, dhcp_static_mappings_response
+    ):
         mock_make_request.return_value = dhcp_static_mappings_response
         result = await _search_dhcp_static_mappings(hostname="server")
         assert result["success"] is True
-        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
-        assert any(f.field == "hostname" and f.value == "server" and f.operator == "contains" for f in filters)
+        assert {m["hostname"] for m in result["static_mappings"]} == {"server1", "server2"}
 
     async def test_ip_address_filter(self, mock_client, mock_make_request, dhcp_static_mappings_response):
         mock_make_request.return_value = dhcp_static_mappings_response
-        result = await _search_dhcp_static_mappings(ip_address="192.168.1.200")
+        result = await _search_dhcp_static_mappings(ip_address="192.168.1.201")
         assert result["success"] is True
-        filters = mock_make_request.call_args.kwargs.get("filters") or mock_make_request.call_args[1].get("filters")
-        assert any(f.field == "ipaddr" and f.value == "192.168.1.200" for f in filters)
+        assert result["count"] == 1
+        assert result["static_mappings"][0]["hostname"] == "server2"
 
-    async def test_404_returns_empty_for_non_lan_interface(self, mock_client, mock_make_request):
-        """404 for non-LAN interfaces should return empty results, not an error."""
-        mock_make_request.side_effect = Exception("Status: 404\nURL: .../static_mappings")
-        result = await _search_dhcp_static_mappings(interface="opt1")
+    async def test_filter_with_no_matches_is_empty_success(
+        self, mock_client, mock_make_request, dhcp_static_mappings_response
+    ):
+        mock_make_request.return_value = dhcp_static_mappings_response
+        result = await _search_dhcp_static_mappings(mac_address="ff:ff:ff:ff:ff:ff")
         assert result["success"] is True
         assert result["count"] == 0
-        assert result["static_mappings"] == []
-        assert "DHCP may not be enabled" in result.get("message", "")
 
-    async def test_404_with_default_interface(self, mock_client, mock_make_request):
-        """404 with default interface returns empty (DHCP may not be enabled)."""
-        mock_make_request.side_effect = Exception("Status: 404")
-        result = await _search_dhcp_static_mappings()
-        assert result["success"] is True
-        assert result["count"] == 0
-        assert "DHCP may not be enabled" in result.get("message", "")
+    async def test_error_kind_distinguishes_bad_request_from_api_failure(
+        self, mock_client, mock_make_request, dhcp_static_mappings_response
+    ):
+        """Both paths fail, but a caller must be able to tell them apart."""
+        mock_make_request.return_value = dhcp_static_mappings_response
+        bad_request = await _search_dhcp_static_mappings(interface="opt9")
+        assert bad_request["error_kind"] == "unknown_interface"
+
+        mock_make_request.side_effect = Exception("Status: 500")
+        mock_make_request.return_value = None
+        api_failure = await _search_dhcp_static_mappings(interface="lan")
+        assert api_failure["error_kind"] == "api_error"
+
+    async def test_unknown_interface_reports_failure(
+        self, mock_client, mock_make_request, dhcp_static_mappings_response
+    ):
+        """Regression: this previously returned success with zero results.
+
+        A query against an interface that has no DHCP server is unanswerable,
+        and must never be reported as 'found nothing' — that silently hid a
+        broken endpoint and made real reservations look absent.
+        """
+        mock_make_request.return_value = dhcp_static_mappings_response
+        result = await _search_dhcp_static_mappings(interface="opt9")
+        assert result["success"] is False
+        assert "No DHCP server configured" in result["error"]
+
+    async def test_api_error_reports_failure(self, mock_client, mock_make_request):
+        mock_make_request.side_effect = Exception("Status: 500")
+        result = await _search_dhcp_static_mappings(interface="lan")
+        assert result["success"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +289,8 @@ class TestUpdateDhcpStaticMapping:
     async def test_partial_update(self, mock_client, mock_make_request):
         # First call: lookup parent_id; second call: the PATCH
         mock_make_request.side_effect = [
-            {"data": [{"id": 0, "parent_id": "lan", "mac": "aa:bb:cc:dd:ee:01"}]},
+            {"data": [{"id": "lan", "staticmap": [
+                {"id": 0, "parent_id": "lan", "mac": "aa:bb:cc:dd:ee:01"}]}]},
             {"data": {"id": 0}},
         ]
         result = await _update_dhcp_static_mapping(mapping_id=0, hostname="newhostname")
@@ -287,7 +328,7 @@ class TestUpdateDhcpStaticMapping:
         needs to target the child object.
         """
         mock_make_request.side_effect = [
-            {"data": [{"id": 7, "parent_id": "lan", "mac": "aa:bb:cc:dd:ee:01"}]},
+            {"data": [{"id": "lan", "staticmap": [{"id": 7, "parent_id": "lan", "mac": "aa:bb:cc:dd:ee:01"}]}]},
             {"data": {"id": 7}},
         ]
         result = await _update_dhcp_static_mapping(
@@ -308,7 +349,7 @@ class TestUpdateDhcpStaticMapping:
     ):
         """Any single-field update sends that field only, for all optionals."""
         mock_make_request.side_effect = [
-            {"data": [{"id": 2, "parent_id": "lan"}]},
+            {"data": [{"id": "lan", "staticmap": [{"id": 2, "parent_id": "lan"}]}]},
             {"data": {"id": 2}},
         ]
         result = await _update_dhcp_static_mapping(mapping_id=2, description="renamed")
@@ -319,7 +360,7 @@ class TestUpdateDhcpStaticMapping:
 
     async def test_zero_lease_time_reaches_wire(self, mock_client, mock_make_request):
         mock_make_request.side_effect = [
-            {"data": [{"id": 5, "parent_id": "lan"}]},
+            {"data": [{"id": "lan", "staticmap": [{"id": 5, "parent_id": "lan"}]}]},
             {"data": {"id": 5}},
         ]
         result = await _update_dhcp_static_mapping(mapping_id=5, max_lease_time=0)
