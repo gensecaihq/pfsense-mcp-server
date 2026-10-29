@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`update_webgui_settings(ssl_certref=...)` reported success without changing the certificate** (#97). It sent the field as `ssl-certref`, which the REST API silently drops on PATCH; the API field is `sslcertref`. Now covered by a wire-contract test.
+
 ## [1.1.0] - 2026-09-23
 
 Wire-format correctness ("wire truth"), safety hardening, and client
