@@ -205,7 +205,7 @@ async def update_webgui_settings(
             # ergonomics but send it as a string. See issue #7.
             updates["port"] = str(port)
         if ssl_certref is not None:
-            updates["ssl-certref"] = ssl_certref
+            updates["sslcertref"] = ssl_certref
         if max_processes is not None:
             updates["max_procs"] = max_processes
         if noantilockout is not None:

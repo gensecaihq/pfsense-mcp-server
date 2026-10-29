@@ -6,6 +6,7 @@ the exact field names the API expects, otherwise values are silently dropped
 """
 
 from src.tools.system_advanced import update_log_settings, update_webgui_settings
+from tests.contract.schema import assert_payload_valid
 
 _update_log_settings = update_log_settings
 _update_webgui_settings = update_webgui_settings
@@ -92,3 +93,10 @@ class TestUpdateWebguiSettings:
         result = await _update_webgui_settings(protocol="ftp")
         assert result["success"] is False
         mock_make_request.assert_not_called()
+
+    async def test_ssl_certref_sent_as_sslcertref(self, mock_client, mock_make_request):
+        mock_make_request.return_value = {"data": {}}
+        result = await _update_webgui_settings(ssl_certref="6ac1fd8a61e34")
+        assert result["success"] is True
+        assert_payload_valid(mock_make_request)
+        assert _sent_data(mock_make_request) == {"sslcertref": "6ac1fd8a61e34"}
